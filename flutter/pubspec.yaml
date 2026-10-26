@@ -157,8 +157,19 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/
+    - assets/fonts/
 
   fonts:
+    # Dolphin Connect: Vazirmatn v33.003 (SIL OFL 1.1, assets/fonts/OFL.txt), embedded so no installed font is needed.
+    - family: Vazirmatn
+      fonts:
+        - asset: assets/fonts/Vazirmatn-Regular.ttf
+        - asset: assets/fonts/Vazirmatn-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Vazirmatn-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Vazirmatn-ExtraBold.ttf
+          weight: 800
     - family: GestureIcons
       fonts:
         - asset: assets/gestures.ttf
