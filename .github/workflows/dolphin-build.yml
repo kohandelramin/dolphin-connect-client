@@ -38,6 +38,8 @@ jobs:
           python -m unittest discover -s dolphin -p "test_*.py" -v
           python dolphin/gen_profile.py "${{ inputs.profile }}" customer
           python dolphin/gen_profile.py "${{ inputs.profile }}" technician
+      - name: No visible RustDesk text or links (fails early, before the long builds)
+        run: python dolphin/rebrand.py
       - name: Refuse a release that is not production
         if: inputs.release-tag != '' && inputs.profile != 'production'
         run: |
@@ -52,8 +54,34 @@ jobs:
     needs: test
     uses: ./.github/workflows/bridge.yml
 
-  build-windows:
+  # Dart has no local toolchain here: the Dolphin screens are analyzed and widget-tested in CI.
+  analyze-and-test:
     needs: [test, generate-bridge]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+      - name: Restore bridge files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bridge-artifact
+          path: ./
+      - name: Dolphin settings (brand.dart)
+        run: python dolphin/gen_profile.py "${{ inputs.profile }}" customer
+      - uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - name: Analyze and widget tests
+        working-directory: flutter
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/dolphin lib/main.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/server_page.dart lib/desktop/pages/desktop_setting_page.dart test/dolphin
+          flutter test test/dolphin
+
+  build-windows:
+    needs: [test, generate-bridge, analyze-and-test]
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -88,6 +116,7 @@ jobs:
           pip install pillow==11.3.0
           python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}"
           python dolphin/brand.py
+          python dolphin/rebrand.py
 
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0 # v2.0.9
@@ -197,6 +226,7 @@ jobs:
           pip install pillow==11.3.0
           python dolphin/gen_profile.py "${{ inputs.profile }}" customer
           python dolphin/brand.py
+          python dolphin/rebrand.py
 
       - name: Install LLVM and Clang (32-bit)
         uses: rustdesk-org/install-llvm-action-32bit@6aa7d9ad3df84dff01cd4596dd0fc880a7f47fce # upstream 1.5.0 pin
