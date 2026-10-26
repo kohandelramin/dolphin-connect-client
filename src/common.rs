@@ -2358,25 +2358,8 @@ pub fn rustdesk_interval(i: Interval) -> ThrottledInterval {
 }
 
 pub fn load_custom_client() {
-    #[cfg(debug_assertions)]
-    if let Ok(data) = std::fs::read_to_string("./custom.txt") {
-        read_custom_client(data.trim());
-        return;
-    }
-    let Some(path) = std::env::current_exe().map_or(None, |x| x.parent().map(|x| x.to_path_buf()))
-    else {
-        return;
-    };
-    #[cfg(target_os = "macos")]
-    let path = path.join("../Resources");
-    let path = path.join("custom.txt");
-    if path.is_file() {
-        let Ok(data) = std::fs::read_to_string(&path) else {
-            log::error!("Failed to read custom client config");
-            return;
-        };
-        read_custom_client(&data.trim());
-    }
+    // Dolphin Connect: settings are compiled in; custom.txt is never read (dolphin/README.md).
+    crate::dolphin::apply();
 }
 
 fn read_custom_client_advanced_settings(
@@ -2455,7 +2438,14 @@ pub fn get_dst_align_rgba() -> usize {
     1
 }
 
-pub fn read_custom_client(config: &str) {
+pub fn read_custom_client(_config: &str) {
+    // Dolphin Connect: a custom-client config passed in by Flutter or Android is ignored too;
+    // settings are compiled in (dolphin/README.md). Upstream's reader is kept below, unused.
+    crate::dolphin::apply();
+}
+
+#[allow(dead_code)]
+fn read_custom_client_upstream(config: &str) {
     let Ok(data) = decode64(config) else {
         log::error!("Failed to decode custom client config");
         return;
