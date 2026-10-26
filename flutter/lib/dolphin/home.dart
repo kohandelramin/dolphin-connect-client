@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../common.dart';
+import '../common/formatter/id_formatter.dart';
 import '../models/server_model.dart';
 import 'brand.dart';
 import 'home_view.dart';
@@ -15,18 +16,20 @@ class DolphinHome extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
-      child: Consumer<ServerModel>(
-        builder: (context, model, _) => DolphinHomeView(
-          id: model.serverId.id,
+      child: Consumer<ServerModel>(builder: (context, model, _) {
+        // serverId is declared as a TextEditingController but built as the ID controller (server_model.dart).
+        final id = trimID(model.serverId.text);
+        return DolphinHomeView(
+          id: id,
           state: serverStateFromStatus(model.connectStatus),
           phone: DolphinBrand.supportPhone,
           siteLabel: DolphinBrand.siteLabel,
           onCopy: () {
-            Clipboard.setData(ClipboardData(text: model.serverId.id));
+            Clipboard.setData(ClipboardData(text: id));
             showToast('کپی شد');
           },
-        ),
-      ),
+        );
+      }),
     );
   }
 }
