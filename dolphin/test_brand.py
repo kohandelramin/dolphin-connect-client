@@ -71,7 +71,8 @@ class CargoWinresTest(unittest.TestCase):
         self.assertIn('ProductName = "Dolphin Connect"', out)
         self.assertIn('FileDescription = "Dolphin Connect"', out)
         self.assertIn('OriginalFilename = "DolphinConnect.exe"', out)
-        self.assertIn("Purslane Tech Pte. Ltd. and Dolphin. AGPL-3.0", out)
+        self.assertIn("portions © Purslane Tech Pte. Ltd. · AGPL-3.0", out)
+        self.assertNotIn("RustDesk", out.split("[target")[0])
         self.assertIn('winres = "0.1"', out)
 
     def test_refuses_an_unexpected_layout(self):

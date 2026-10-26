@@ -23,8 +23,8 @@ RC_VALUES = {
     "InternalName": "DolphinConnect",
     "OriginalFilename": "DolphinConnect.exe",
     "ProductName": "Dolphin Connect",
-    # AGPL: keep the RustDesk authors' notice and add ours.
-    "LegalCopyright": "Dolphin Connect, based on RustDesk. Copyright \u00a9 2026 Purslane Tech Pte. Ltd. and Dolphin. AGPL-3.0.",
+    # AGPL: keeps the upstream authors' copyright notice; the upstream product name is not shown (own brand).
+    "LegalCopyright": "\u00a9 Dolphin \u00b7 portions \u00a9 Purslane Tech Pte. Ltd. \u00b7 AGPL-3.0",
 }
 
 
