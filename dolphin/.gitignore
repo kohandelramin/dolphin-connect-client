@@ -1,2 +1,4 @@
 build/
 __pycache__/
+# Upstream ignores *png; our brand source is committed.
+!brand/*.png
