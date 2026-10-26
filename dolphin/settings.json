@@ -32,8 +32,17 @@
     "hide-help-cards": "Y"
   },
   "hard": {
-    "disable-installation": "Y",
+    "disable-installation": "N",
     "disable-account": "Y",
     "disable-ab": "Y"
+  },
+  "variants": {
+    "customer": {
+      "hard": { "conn-type": "incoming" }
+    },
+    "technician": {
+      "app-name": "DolphinConnectTech",
+      "hard": { "conn-type": "outgoing" }
+    }
   }
 }

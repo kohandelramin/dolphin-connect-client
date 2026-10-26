@@ -66,10 +66,38 @@ class SettingsTest(unittest.TestCase):
         s["app-name"] = "Dolphin Connect"
         self.assertTrue(g.validate_settings(s))
 
+    def test_variants_are_exactly_customer_and_technician(self):
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["guest"] = {"hard": {}}
+        self.assertTrue(g.validate_settings(s))
+        s = copy.deepcopy(SETTINGS)
+        del s["variants"]["technician"]
+        self.assertTrue(g.validate_settings(s))
+
+    def test_each_variant_keeps_its_connection_direction(self):
+        for variant in ("customer", "technician"):
+            s = copy.deepcopy(SETTINGS)
+            s["variants"][variant]["hard"]["conn-type"] = "both"
+            self.assertTrue(any("conn-type" in e for e in g.validate_settings(s)), variant)
+            s = copy.deepcopy(SETTINGS)
+            del s["variants"][variant]["hard"]["conn-type"]
+            self.assertTrue(g.validate_settings(s), variant)
+
+    def test_variants_may_only_set_hard_settings_and_app_name(self):
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["customer"]["override"] = {"allow-only-conn-window-open": "N"}
+        self.assertTrue(g.validate_settings(s))
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["technician"]["app-name"] = "Dolphin Tech"
+        self.assertTrue(g.validate_settings(s))
+
+    def test_installation_is_allowed(self):
+        self.assertEqual(SETTINGS["hard"]["disable-installation"], "N")
+
 
 class RenderTest(unittest.TestCase):
     def test_renders_sorted_rust_constants_with_the_profile_in_override(self):
-        rust = g.render_rust(SETTINGS, PROFILE, "production")
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "customer")
         self.assertIn('pub const APP_NAME: &str = "DolphinConnect";', rust)
         self.assertIn('pub const RENDEZVOUS_SERVER: &str = "remote.dolphindev.ir";', rust)
         self.assertIn(f'("key", "{KEY}")', rust)
@@ -77,7 +105,14 @@ class RenderTest(unittest.TestCase):
         override = rust.split("pub const OVERRIDE_SETTINGS")[1].split("];")[0]
         keys = [line.split('"')[1] for line in override.splitlines() if line.strip().startswith('("')]
         self.assertEqual(keys, sorted(keys))
-        self.assertIn('("disable-installation", "Y")', rust.split("pub const HARD_SETTINGS")[1])
+        hard = rust.split("pub const HARD_SETTINGS")[1]
+        self.assertIn('("conn-type", "incoming")', hard)
+        self.assertIn('("disable-installation", "N")', hard)
+
+    def test_the_technician_variant_is_outgoing_with_its_own_name(self):
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "technician")
+        self.assertIn('("conn-type", "outgoing")', rust.split("pub const HARD_SETTINGS")[1])
+        self.assertIn('pub const APP_NAME: &str = "DolphinConnectTech";', rust)
 
     def test_rust_strings_are_escaped_and_control_characters_refused(self):
         self.assertEqual(g.rust_str('a"b\\c'), '"a\\"b\\\\c"')
@@ -91,7 +126,7 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("api-server", baked)
         self.assertNotIn("lang", baked)
 
-    def test_main_writes_both_files_and_fails_on_an_empty_key(self):
+    def test_main_writes_both_files_and_fails_on_an_empty_key_or_unknown_variant(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / "dolphin" / "profiles").mkdir(parents=True)
@@ -99,10 +134,14 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
-            self.assertEqual(g.main(["production"], root), 0)
-            self.assertIn("OVERRIDE_SETTINGS", (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
+            self.assertEqual(g.main(["production", "customer"], root), 0)
+            self.assertIn('("conn-type", "incoming")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
             self.assertIn("approve-mode", (root / "dolphin" / "build" / "baked-settings.json").read_text(encoding="utf-8"))
-            self.assertEqual(g.main(["empty"], root), 1)
+            self.assertEqual(g.main(["production", "technician"], root), 0)
+            self.assertIn('("conn-type", "outgoing")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
+            self.assertEqual(g.main(["empty", "customer"], root), 1)
+            self.assertEqual(g.main(["production", "guest"], root), 1)
+            self.assertEqual(g.main(["production"], root), 2)
 
 
 if __name__ == "__main__":
