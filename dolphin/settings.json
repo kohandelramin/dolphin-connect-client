@@ -1,5 +1,12 @@
 {
   "app-name": "DolphinConnect",
+  "brand": {
+    "display-name-fa": "دلفین کانکت",
+    "display-name-en": "Dolphin Connect",
+    "site": "https://support.dolphindev.ir",
+    "support-phone": "",
+    "source-url": "https://github.com/kohandelramin/dolphin-connect-client"
+  },
   "override": {
     "verification-method": "use-temporary-password",
     "temporary-password-length": "8",

@@ -94,6 +94,17 @@ class SettingsTest(unittest.TestCase):
     def test_installation_is_allowed(self):
         self.assertEqual(SETTINGS["hard"]["disable-installation"], "N")
 
+    def test_brand_block_is_required_and_checked(self):
+        s = copy.deepcopy(SETTINGS)
+        del s["brand"]
+        self.assertTrue(g.validate_settings(s))
+        s = copy.deepcopy(SETTINGS)
+        s["brand"]["site"] = "http://support.dolphindev.ir"
+        self.assertTrue(any("brand.site" in e for e in g.validate_settings(s)))
+        s = copy.deepcopy(SETTINGS)
+        s["brand"]["support-phone"] = "call me"
+        self.assertTrue(any("support-phone" in e for e in g.validate_settings(s)))
+
 
 class RenderTest(unittest.TestCase):
     def test_renders_sorted_rust_constants_with_the_profile_in_override(self):
@@ -114,6 +125,30 @@ class RenderTest(unittest.TestCase):
         self.assertIn('("conn-type", "outgoing")', rust.split("pub const HARD_SETTINGS")[1])
         self.assertIn('pub const APP_NAME: &str = "DolphinConnectTech";', rust)
 
+    def test_brand_dart_has_the_values_escaped(self):
+        s = copy.deepcopy(SETTINGS)
+        s["brand"]["support-phone"] = "021-12345678"
+        dart = g.render_brand_dart(s)
+        self.assertIn("static const String nameFa = 'دلفین کانکت';", dart)
+        self.assertIn("static const String supportPhone = '021-12345678';", dart)
+        self.assertIn("static const String siteLabel = 'support.dolphindev.ir';", dart)
+        self.assertEqual(g.dart_str("it's"), "'it\\'s'")
+
+    def test_production_needs_a_support_phone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "dolphin" / "profiles").mkdir(parents=True)
+            (root / "src").mkdir()
+            (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
+            s = copy.deepcopy(SETTINGS)
+            s["brand"]["support-phone"] = ""
+            (root / "dolphin" / "settings.json").write_text(json.dumps(s), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "dev.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+            self.assertEqual(g.main(["production", "customer"], root), 1)
+            self.assertEqual(g.main(["dev", "customer"], root), 0)
+            self.assertIn("class DolphinBrand", (root / "flutter" / "lib" / "dolphin" / "brand.dart").read_text(encoding="utf-8"))
+
     def test_rust_strings_are_escaped_and_control_characters_refused(self):
         self.assertEqual(g.rust_str('a"b\\c'), '"a\\"b\\\\c"')
         with self.assertRaises(ValueError):
@@ -131,7 +166,9 @@ class RenderTest(unittest.TestCase):
             root = pathlib.Path(tmp)
             (root / "dolphin" / "profiles").mkdir(parents=True)
             (root / "src").mkdir()
-            (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
+            (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
+            with_phone = {**SETTINGS, "brand": {**SETTINGS["brand"], "support-phone": "021-12345678"}}
+            (root / "dolphin" / "settings.json").write_text(json.dumps(with_phone), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
             self.assertEqual(g.main(["production", "customer"], root), 0)
