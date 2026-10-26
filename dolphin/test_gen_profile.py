@@ -1,0 +1,109 @@
+import copy
+import json
+import pathlib
+import tempfile
+import unittest
+
+import gen_profile as g
+
+HERE = pathlib.Path(__file__).parent
+SETTINGS = json.loads((HERE / "settings.json").read_text(encoding="utf-8"))
+KEY = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw="  # any valid 32-byte key
+PROFILE = {
+    "custom-rendezvous-server": "remote.dolphindev.ir",
+    "relay-server": "remote.dolphindev.ir:21117",
+    "key": KEY,
+    "api-server": "https://support.dolphindev.ir/rd",
+}
+
+
+class ProfileTest(unittest.TestCase):
+    def test_accepts_the_production_shape(self):
+        self.assertEqual(g.validate_profile(PROFILE, "production"), [])
+
+    def test_refuses_an_empty_or_malformed_key(self):
+        for key in ["", "abc", "!" * 44]:
+            errors = g.validate_profile({**PROFILE, "key": key}, "production")
+            self.assertTrue(any("key" in e for e in errors), key)
+
+    def test_refuses_plain_http_api_except_on_private_addresses(self):
+        self.assertTrue(g.validate_profile({**PROFILE, "api-server": "http://support.dolphindev.ir/rd"}, "production"))
+        self.assertEqual(g.validate_profile({**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}, "dev"), [])
+        self.assertEqual(g.validate_profile({**PROFILE, "api-server": "http://192.168.1.20:3010/rd"}, "dev"), [])
+
+    def test_refuses_schemes_trailing_slashes_and_missing_relay_port(self):
+        self.assertTrue(g.validate_profile({**PROFILE, "custom-rendezvous-server": "https://remote.dolphindev.ir"}, "production"))
+        self.assertTrue(g.validate_profile({**PROFILE, "api-server": "https://support.dolphindev.ir/rd/"}, "production"))
+        self.assertTrue(g.validate_profile({**PROFILE, "relay-server": "remote.dolphindev.ir"}, "production"))
+
+    def test_refuses_unknown_or_missing_keys(self):
+        self.assertTrue(g.validate_profile({**PROFILE, "extra": "x"}, "production"))
+        missing = dict(PROFILE)
+        del missing["key"]
+        self.assertTrue(g.validate_profile(missing, "production"))
+
+
+class SettingsTest(unittest.TestCase):
+    def test_the_committed_settings_pass(self):
+        self.assertEqual(g.validate_settings(SETTINGS), [])
+
+    def test_every_security_floor_value_is_enforced(self):
+        for section, key, _ in g.FLOOR:
+            loosened = copy.deepcopy(SETTINGS)
+            loosened[section][key] = "loosened"
+            self.assertTrue(g.validate_settings(loosened), key)
+            removed = copy.deepcopy(SETTINGS)
+            del removed[section][key]
+            self.assertTrue(g.validate_settings(removed), key)
+
+    def test_server_keys_belong_to_the_profile_only(self):
+        s = copy.deepcopy(SETTINGS)
+        s["override"]["api-server"] = "https://evil.example"
+        self.assertTrue(any("profile" in e for e in g.validate_settings(s)))
+
+    def test_app_name_is_letters_digits_and_hyphens(self):
+        s = copy.deepcopy(SETTINGS)
+        s["app-name"] = "Dolphin Connect"
+        self.assertTrue(g.validate_settings(s))
+
+
+class RenderTest(unittest.TestCase):
+    def test_renders_sorted_rust_constants_with_the_profile_in_override(self):
+        rust = g.render_rust(SETTINGS, PROFILE, "production")
+        self.assertIn('pub const APP_NAME: &str = "DolphinConnect";', rust)
+        self.assertIn('pub const RENDEZVOUS_SERVER: &str = "remote.dolphindev.ir";', rust)
+        self.assertIn(f'("key", "{KEY}")', rust)
+        self.assertIn('("api-server", "https://support.dolphindev.ir/rd")', rust)
+        override = rust.split("pub const OVERRIDE_SETTINGS")[1].split("];")[0]
+        keys = [line.split('"')[1] for line in override.splitlines() if line.strip().startswith('("')]
+        self.assertEqual(keys, sorted(keys))
+        self.assertIn('("disable-installation", "Y")', rust.split("pub const HARD_SETTINGS")[1])
+
+    def test_rust_strings_are_escaped_and_control_characters_refused(self):
+        self.assertEqual(g.rust_str('a"b\\c'), '"a\\"b\\\\c"')
+        with self.assertRaises(ValueError):
+            g.rust_str("a\nb")
+
+    def test_baked_settings_are_server_settings_without_the_profile(self):
+        baked = g.baked_settings(SETTINGS)
+        self.assertEqual(baked["approve-mode"], "password")
+        self.assertEqual(baked["verification-method"], "use-temporary-password")
+        self.assertNotIn("api-server", baked)
+        self.assertNotIn("lang", baked)
+
+    def test_main_writes_both_files_and_fails_on_an_empty_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "dolphin" / "profiles").mkdir(parents=True)
+            (root / "src").mkdir()
+            (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
+            self.assertEqual(g.main(["production"], root), 0)
+            self.assertIn("OVERRIDE_SETTINGS", (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
+            self.assertIn("approve-mode", (root / "dolphin" / "build" / "baked-settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(g.main(["empty"], root), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

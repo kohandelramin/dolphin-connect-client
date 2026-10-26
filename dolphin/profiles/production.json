@@ -1,0 +1,6 @@
+{
+  "custom-rendezvous-server": "remote.dolphindev.ir",
+  "relay-server": "remote.dolphindev.ir:21117",
+  "key": "",
+  "api-server": "https://support.dolphindev.ir/rd"
+}

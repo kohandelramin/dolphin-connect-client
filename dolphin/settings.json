@@ -1,0 +1,39 @@
+{
+  "app-name": "DolphinConnect",
+  "override": {
+    "verification-method": "use-temporary-password",
+    "temporary-password-length": "8",
+    "allow-only-conn-window-open": "Y",
+    "allow-remote-config-modification": "N",
+    "enable-tunnel": "N",
+    "enable-remote-restart": "N",
+    "enable-terminal": "N",
+    "direct-server": "N",
+    "allow-auto-disconnect": "Y",
+    "auto-disconnect-timeout": "30",
+    "enable-lan-discovery": "N",
+    "allow-auto-update": "N"
+  },
+  "default": {
+    "approve-mode": "password",
+    "enable-record-session": "N"
+  },
+  "local-override": {
+    "enable-check-update": "N"
+  },
+  "local-default": {
+    "lang": "fa"
+  },
+  "builtin": {
+    "allow-deep-link-server-settings": "N",
+    "allow-deep-link-password": "N",
+    "hide-server-settings": "Y",
+    "hide-security-settings": "Y",
+    "hide-help-cards": "Y"
+  },
+  "hard": {
+    "disable-installation": "Y",
+    "disable-account": "Y",
+    "disable-ab": "Y"
+  }
+}

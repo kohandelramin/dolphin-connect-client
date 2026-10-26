@@ -1,0 +1,6 @@
+{
+  "custom-rendezvous-server": "127.0.0.1",
+  "relay-server": "127.0.0.1:21117",
+  "key": "EdbGIaq5NQDTCmZV1HpI6ZOMBFOiwKd2fDIMTC0C4zU=",
+  "api-server": "http://127.0.0.1:3010/rd"
+}
