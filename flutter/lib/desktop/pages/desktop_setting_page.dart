@@ -24,6 +24,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
+import '../../dolphin/about.dart'; // Dolphin Connect: About with the licence line only
 
 const double _kTabWidth = 200;
 const double _kTabHeight = 42;
@@ -2508,7 +2509,11 @@ class _About extends StatefulWidget {
 
 class _AboutState extends State<_About> {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => const DolphinAbout(); // Dolphin Connect
+
+  // Upstream About, kept unused so the diff stays one line.
+  // ignore: unused_element
+  Widget _upstreamBuild(BuildContext context) {
     return futureBuilder(future: () async {
       final license = await bind.mainGetLicense();
       final version = await bind.mainGetVersion();

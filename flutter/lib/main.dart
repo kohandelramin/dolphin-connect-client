@@ -29,6 +29,7 @@ import 'mobile/pages/home_page.dart';
 import 'mobile/pages/server_page.dart';
 import 'mobile/widgets/deploy_dialog.dart';
 import 'models/platform_model.dart';
+import 'dolphin/theme.dart'; // Dolphin Connect: brand theme
 
 /// Basic window and launch properties.
 int? kWindowId;
@@ -361,8 +362,8 @@ void _runApp(
       navigatorKey: globalKey,
       debugShowCheckedModeBanner: false,
       title: title,
-      theme: MyTheme.lightTheme,
-      darkTheme: MyTheme.darkTheme,
+      theme: dolphinTheme(MyTheme.lightTheme), // Dolphin Connect
+      darkTheme: dolphinTheme(MyTheme.darkTheme), // Dolphin Connect
       themeMode: themeMode,
       home: home,
       localizationsDelegates: const [
@@ -498,8 +499,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           title: isWeb
               ? '${bind.mainGetAppNameSync()} Web Client V2 (Preview)'
               : bind.mainGetAppNameSync(),
-          theme: MyTheme.lightTheme,
-          darkTheme: MyTheme.darkTheme,
+          theme: dolphinTheme(MyTheme.lightTheme), // Dolphin Connect
+          darkTheme: dolphinTheme(MyTheme.darkTheme), // Dolphin Connect
           themeMode: MyTheme.currentThemeMode(),
           home: isDesktop
               ? const DesktopTabPage()

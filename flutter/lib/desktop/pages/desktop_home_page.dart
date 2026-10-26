@@ -24,6 +24,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 import '../widgets/button.dart';
+import '../../dolphin/home.dart'; // Dolphin Connect: customer main window
 
 class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({Key? key}) : super(key: key);
@@ -59,6 +60,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   Widget build(BuildContext context) {
     super.build(context);
     final isIncomingOnly = bind.isIncomingOnly();
+    // Dolphin Connect: the customer build shows our own main window.
+    if (isIncomingOnly) return _buildBlock(child: const DolphinHome());
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,

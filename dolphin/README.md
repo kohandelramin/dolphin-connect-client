@@ -12,6 +12,7 @@ AGPL-3.0, with the changes below. The full source of every build we ship is this
 | The exe's file name can no longer set server, key or API | `src/platform/windows.rs` (`get_license_from_exe_name`) | A renamed copy must not be re-pointed to another server |
 | Name, icons and file metadata | `dolphin/brand.py` (`brand_rc`, `brand_winres`), applied in CI | Branding of the Flutter (x64) and Sciter (x86) builds |
 | Customer builds incoming-only, technician build outgoing-only, installation allowed | `dolphin/settings.json` (`variants`, `hard`) | Customers can only be connected to; technicians can only connect (ADR-0010 in the portal repo) |
+| Customer screens (main window, accept prompt, session view), Dolphin theme, embedded Vazirmatn, About with the licence line | `flutter/lib/dolphin/`, `flutter/assets/fonts/`; hooks marked `// Dolphin Connect` in `flutter/lib/main.dart`, `desktop/pages/desktop_home_page.dart`, `desktop/pages/server_page.dart`, `desktop/pages/desktop_setting_page.dart`, plus the `Vazirmatn` family in `pubspec.yaml` | Own brand (portal design 2026-10-26-own-brand-client) |
 | Build workflow; upstream workflows removed | `.github/workflows/dolphin-build.yml` | Three Windows builds: customer x64 (Flutter), customer x86 (Sciter), technician x64 |
 
 Everything else is upstream RustDesk. Copyright notices of the RustDesk authors are kept.

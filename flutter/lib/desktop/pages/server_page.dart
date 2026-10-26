@@ -21,6 +21,7 @@ import '../../common/widgets/chat_page.dart';
 import '../../models/file_model.dart';
 import '../../models/platform_model.dart';
 import '../../models/server_model.dart';
+import '../../dolphin/connection.dart'; // Dolphin Connect: accept prompt and session view
 
 /// Set only by this window's own close control, and only once the user has confirmed. Any other
 /// way the window can go - a session logout closing every window, the window manager, a native
@@ -361,6 +362,10 @@ class ConnectionManagerState extends State<ConnectionManager>
 }
 
 Widget buildConnectionCard(Client client) {
+  // Dolphin Connect: the customer build shows our own accept prompt and session view.
+  if (bind.isIncomingOnly()) {
+    return DolphinConnection(key: ValueKey(client.id), client: client);
+  }
   return Consumer<ServerModel>(
     builder: (context, value, child) => Column(
       mainAxisAlignment: MainAxisAlignment.start,
