@@ -54,5 +54,30 @@ class IconTest(unittest.TestCase):
         self.assertIn('href="data:image/png;base64,', svg)
 
 
+CARGO = '''[package.metadata.winres]
+LegalCopyright = "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved."
+ProductName = "RustDesk"
+FileDescription = "RustDesk Remote Desktop"
+OriginalFilename = "rustdesk.exe"
+
+[target.'cfg(target_os="windows")'.build-dependencies]
+winres = "0.1"
+'''
+
+
+class CargoWinresTest(unittest.TestCase):
+    def test_rewrites_the_winres_metadata_only(self):
+        out = brand.brand_winres(CARGO)
+        self.assertIn('ProductName = "Dolphin Connect"', out)
+        self.assertIn('FileDescription = "Dolphin Connect"', out)
+        self.assertIn('OriginalFilename = "DolphinConnect.exe"', out)
+        self.assertIn("Purslane Tech Pte. Ltd. and Dolphin. AGPL-3.0", out)
+        self.assertIn('winres = "0.1"', out)
+
+    def test_refuses_an_unexpected_layout(self):
+        with self.assertRaises(ValueError):
+            brand.brand_winres(CARGO.replace('ProductName = "RustDesk"\n', ""))
+
+
 if __name__ == "__main__":
     unittest.main()

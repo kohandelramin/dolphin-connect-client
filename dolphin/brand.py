@@ -37,6 +37,19 @@ def brand_rc(text):
     return text
 
 
+WINRES_VALUES = {field: RC_VALUES[field] for field in ("ProductName", "FileDescription", "OriginalFilename", "LegalCopyright")}
+
+
+def brand_winres(text):
+    """Cargo.toml [package.metadata.winres]: the exe properties of the Sciter (x86) build."""
+    for field, value in WINRES_VALUES.items():
+        pattern = re.compile(r"^(" + field + r' = )"[^"\n]*"$', re.M)
+        text, count = pattern.subn(lambda m: m.group(1) + '"' + value + '"', text)
+        if count != 1:
+            raise ValueError(f"Cargo.toml: expected one winres {field}, found {count}")
+    return text
+
+
 def _square(mark, size):
     side = max(mark.size)
     canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
@@ -71,7 +84,9 @@ def main(root=ROOT):
         (root / rel).write_text(svg_with_png(mark), encoding="utf-8")
     rc = root / "flutter" / "windows" / "runner" / "Runner.rc"
     rc.write_text(brand_rc(rc.read_text(encoding="utf-8")), encoding="utf-8")
-    print(f"branded {len(ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)} images and Runner.rc")
+    cargo = root / "Cargo.toml"
+    cargo.write_text(brand_winres(cargo.read_text(encoding="utf-8")), encoding="utf-8")
+    print(f"branded {len(ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)} images, Runner.rc and Cargo.toml winres")
     return 0
 
 
