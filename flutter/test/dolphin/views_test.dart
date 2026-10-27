@@ -23,6 +23,11 @@ void main() {
     expect(groupId('abc-12'), 'abc-12');
   });
 
+  test('support numbers pushed by the portal win over the compiled one', () {
+    expect(supportPhone('021-44200250 · 0912-0000000', '021-44200250'), '021-44200250 · 0912-0000000');
+    expect(supportPhone('  ', '021-44200250'), '021-44200250');
+  });
+
   test('the theme uses Vazirmatn and azure', () {
     final t = dolphinTheme(ThemeData.light());
     expect(t.textTheme.bodyMedium?.fontFamily, kDolphinFont);

@@ -11,6 +11,9 @@ DolphinServerState serverStateFromStatus(int statusNum) => statusNum > 0
         ? DolphinServerState.connecting
         : DolphinServerState.offline;
 
+/// The numbers the portal pushed, or the one compiled in until the first heartbeat brings them.
+String supportPhone(String pushed, String compiled) => pushed.trim().isNotEmpty ? pushed.trim() : compiled;
+
 /// "123456789" -> "123 456 789", so a customer can read it out on the phone.
 String groupId(String id) {
   if (!RegExp(r'^\d+$').hasMatch(id)) return id;
