@@ -22,6 +22,7 @@ pub use self::rendezvous_mediator::*;
 /// cbindgen:ignore
 pub mod common;
 mod dolphin;
+mod dolphin_update_core;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

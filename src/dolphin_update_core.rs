@@ -6,6 +6,245 @@
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
+/// A Dolphin version: X.Y.Z, X.Y.Z-rc.N (release candidate) or X.Y.Z-dev.N (test build), in SemVer order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Version {
+    core: (u64, u64, u64),
+    pre: Option<(String, u64)>,
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.core.cmp(&other.core).then_with(|| match (&self.pre, &other.pre) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Greater, // 2.0.0 is newer than 2.0.0-rc.1
+            (Some(_), None) => Ordering::Less,
+            (Some(a), Some(b)) => a.cmp(b), // "dev" < "rc", then the number
+        })
+    }
+}
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn number(s: &str) -> Option<u64> {
+    if s.is_empty() || s.len() > 9 || !s.bytes().all(|b| b.is_ascii_digit()) || (s.len() > 1 && s.starts_with('0')) {
+        return None;
+    }
+    s.parse().ok()
+}
+
+pub fn parse_version(s: &str) -> Option<Version> {
+    let (core, pre) = match s.split_once('-') {
+        Some((c, p)) => (c, Some(p)),
+        None => (s, None),
+    };
+    let mut parts = core.split('.');
+    let major = number(parts.next()?)?;
+    let minor = number(parts.next()?)?;
+    let patch = number(parts.next()?)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let pre = match pre {
+        None => None,
+        Some(p) => {
+            let (kind, n) = p.split_once('.')?;
+            if kind != "dev" && kind != "rc" {
+                return None;
+            }
+            Some((kind.to_owned(), number(n)?))
+        }
+    };
+    Some(Version { core: (major, minor, patch), pre })
+}
+
+/// True only when both are Dolphin versions and `latest` is newer: a version we cannot compare never updates.
+pub fn is_newer(current: &str, latest: &str) -> bool {
+    match (parse_version(current), parse_version(latest)) {
+        (Some(c), Some(l)) => l > c,
+        _ => false,
+    }
+}
+
+/// Releases and release candidates update themselves, test builds (-dev.N) never (so a test build can be tried
+/// against the live portal), and only from an https portal (the dev profile's http://127.0.0.1 never).
+pub fn updates_enabled(current: &str, portal_url: &str) -> bool {
+    portal_url.starts_with("https://")
+        && parse_version(current).map_or(false, |v| v.pre.as_ref().map_or(true, |(kind, _)| kind == "rc"))
+}
+
+/// The portal's build names (app/src/lib/client.ts BUILDS).
+pub fn build_name(outgoing_only: bool, x86: bool) -> &'static str {
+    if outgoing_only {
+        "technician-x64"
+    } else if x86 {
+        "customer-x86"
+    } else {
+        "customer-x64"
+    }
+}
+
+/// Larger than any build we ship (about 25 MB today); the portal's manifest allows the same.
+pub const MAX_SIZE: u64 = 200 * 1024 * 1024;
+
+/// What the portal offers (GET /api/client/latest). `path` is None for the staff-only technician file (D13).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Offer {
+    pub version: String,
+    pub sha256: String,
+    pub size: u64,
+    pub path: Option<String>,
+}
+
+/// Accepts the portal's answer only if it is for this build, well formed, and its file is on the portal's own
+/// /download route (the app adds the compiled-in portal address, so the file can never come from elsewhere).
+pub fn check_offer(build: &str, answer_build: &str, version: &str, sha256: &str, size: u64, path: Option<&str>) -> Result<Offer, &'static str> {
+    if answer_build != build {
+        return Err("another build");
+    }
+    if parse_version(version).is_none() {
+        return Err("version");
+    }
+    if sha256.len() != 64 || !sha256.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+        return Err("sha256");
+    }
+    if size == 0 || size > MAX_SIZE {
+        return Err("size");
+    }
+    if let Some(p) = path {
+        if !valid_download_path(p) {
+            return Err("path");
+        }
+    }
+    Ok(Offer { version: version.to_owned(), sha256: sha256.to_owned(), size, path: path.map(str::to_owned) })
+}
+
+pub fn valid_download_path(p: &str) -> bool {
+    let Some(name) = p.strip_prefix("/download/") else {
+        return false;
+    };
+    name.len() > 4
+        && name.len() <= 100
+        && name.ends_with(".exe")
+        && !name.contains("..")
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+}
+
+/// The download is used only when both its size and its SHA-256 match the portal's answer.
+pub fn verify(offer: &Offer, received: u64, sha256_hex: &str) -> Result<(), &'static str> {
+    if received != offer.size {
+        return Err("size");
+    }
+    if sha256_hex != offer.sha256 {
+        return Err("hash");
+    }
+    Ok(())
+}
+
+/// `…\DolphinConnect-2.0.0.exe` + ".old" → `…\DolphinConnect-2.0.0.exe.old`, in the same folder.
+pub fn sibling(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    name.push(suffix);
+    path.with_file_name(name)
+}
+
+/// A swap to the same version that started less than this long ago and left us running is not retried by itself.
+pub const RETRY_AFTER_SECS: u64 = 600;
+
+pub fn attempt_value(version: &str, now: u64) -> String {
+    format!("{version} {now}")
+}
+
+/// False when the last swap to `latest` started less than 10 minutes ago and we are still the old app: that swap
+/// failed, and trying again at once could loop. The screen then says so; «تلاش دوباره» still tries.
+pub fn may_attempt(stored: &str, latest: &str, now: u64) -> bool {
+    let mut it = stored.split(' ');
+    match (it.next(), it.next().and_then(|t| t.parse::<u64>().ok())) {
+        (Some(v), Some(at)) if v == latest => now.saturating_sub(at) >= RETRY_AFTER_SECS,
+        _ => true,
+    }
+}
+
+pub fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Latin digits to Persian, for display only.
+pub fn fa_digits(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '0'..='9' => char::from_u32(0x06F0 + (c as u32 - '0' as u32)).unwrap_or(c),
+            _ => c,
+        })
+        .collect()
+}
+
+/// Megabytes with one decimal, Persian digits and the Persian decimal separator: 25_829_888 → «۲۴٫۶».
+pub fn megabytes(bytes: u64) -> String {
+    let tenths = (bytes * 10 + 524_288) / 1_048_576;
+    fa_digits(&format!("{}.{}", tenths / 10, tenths % 10)).replace('.', "٫")
+}
+
+pub fn percent(received: u64, total: u64) -> u64 {
+    if total == 0 {
+        0
+    } else {
+        received.min(total) * 100 / total
+    }
+}
+
+pub fn progress_text(received: u64, total: u64) -> String {
+    format!("{} از {} مگابایت", megabytes(received), megabytes(total))
+}
+
+pub fn lead_text(version: &str) -> String {
+    format!(
+        "نسخه‌ی {} آماده است. پیش از باز شدن برنامه، نسخه‌ی تازه دریافت و جایگزین می‌شود.",
+        fa_digits(version)
+    )
+}
+
+/// The technician app (its file is for signed-in staff only, D13).
+pub fn manual_text(version: &str) -> String {
+    format!(
+        "نسخه‌ی {} برنامه‌ی کارشناس آماده است. آن را از پنل دلفین دریافت کنید و به جای این برنامه اجرا کنید.",
+        fa_digits(version)
+    )
+}
+
+pub fn error_text(reason: &str) -> &'static str {
+    match reason {
+        "network" => "دریافت نسخه‌ی تازه کامل نشد. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.",
+        "size" | "hash" => "فایل دریافت‌شده با نسخه‌ی دلفین یکی نبود و کنار گذاشته شد. برنامه‌ی شما تغییری نکرد.",
+        "write" => "نسخه‌ی تازه را نتوانستیم کنار برنامه ذخیره کنیم. برنامه‌ی شما تغییری نکرد.",
+        "elevation" => "برای نصب نسخه‌ی تازه اجازه‌ی مدیر ویندوز لازم است. دوباره تلاش کنید و در پنجره‌ی ویندوز «بله» را بزنید.",
+        "blocked" => "به‌روزرسانی خودکار چند دقیقه پیش انجام نشد.",
+        _ => "به‌روزرسانی خودکار انجام نشد.",
+    }
+}
+
+pub fn phone_text(phone: &str) -> String {
+    if phone.trim().is_empty() {
+        "اگر درست نشد با پشتیبانی دلفین تماس بگیرید.".to_owned()
+    } else {
+        format!("اگر درست نشد با پشتیبانی دلفین تماس بگیرید: {}", fa_digits(phone.trim()))
+    }
+}
+
+/// The numbers the portal pushed (`dolphin-support-phone`; "-" means empty), else the compiled one.
+pub fn pick_phone(pushed: &str, compiled: &str) -> String {
+    let p = pushed.trim();
+    if p.is_empty() || p == "-" {
+        compiled.to_owned()
+    } else {
+        p.to_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
