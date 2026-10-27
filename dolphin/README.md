@@ -25,7 +25,7 @@ always builds all three. A `production` run with a release tag (`vX.Y.Z`, or `vX
 candidate, where `X.Y.Z` is `dolphin/version.txt`) publishes
 `DolphinConnect-<version>-x64.exe`, `DolphinConnect-<version>-x86.exe`, `DolphinConnect-Technician-<version>-x64.exe`,
 `SHA256SUMS` and `baked-settings.json` as a GitHub release (`<version>` is the tag without the `v`). vcpkg packages
-are kept between runs (`files` binary cache in `C:cpkg-binary-cache`, saved by `actions/cache`); dev runs use thin
+are kept between runs (`files` binary cache in `C:\vcpkg-binary-cache`, saved by `actions/cache`); dev runs use thin
 LTO, production full LTO.
 
 **Versions (TB-4).** Our apps have their own SemVer number, `dolphin/version.txt` (first: `2.0.0`, owner decision
