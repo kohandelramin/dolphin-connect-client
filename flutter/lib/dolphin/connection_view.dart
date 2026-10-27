@@ -37,7 +37,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
         label: Text(label),
         selected: value,
         onSelected: (v) => setState(() => set(v)),
-        selectedColor: const Color(0xFFDBE7FB),
+        selectedColor: DolphinColors.azureTint,
         checkmarkColor: DolphinColors.azure,
       );
 
@@ -146,7 +146,7 @@ class DolphinSessionView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                  color: const Color(0xFFDBEAFE),
+                  color: DolphinColors.azureSoft,
                   borderRadius: BorderRadius.circular(99)),
               child: const Text('● در جلسه',
                   style: TextStyle(

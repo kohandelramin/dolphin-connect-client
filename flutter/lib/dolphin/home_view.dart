@@ -25,7 +25,7 @@ String groupId(String id) {
   return out.toString();
 }
 
-/// The customer's main window (design 2026-10-26, option B). Pure: everything comes in as values.
+/// The customer's main window (design 2026-10-26, option B; portal look 2026-10-27). Pure: everything comes in as values.
 class DolphinHomeView extends StatelessWidget {
   final String id;
   final DolphinServerState state;
@@ -33,33 +33,26 @@ class DolphinHomeView extends StatelessWidget {
   final String phone;
   final String siteLabel;
 
+  /// Opens the request section (the customer portal inside the app); hidden when null.
+  final VoidCallback? onRequests;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
       required this.state,
       required this.onCopy,
       required this.phone,
-      required this.siteLabel});
+      required this.siteLabel,
+      this.onRequests});
 
   @override
   Widget build(BuildContext context) {
     final (label, fg, bg) = switch (state) {
-      DolphinServerState.ready => (
-          'آماده؛ منتظر کارشناس',
-          const Color(0xFF0F766E),
-          const Color(0xFFCCFBF1)
-        ),
-      DolphinServerState.connecting => (
-          'در حال اتصال به سرور دلفین…',
-          DolphinColors.muted,
-          const Color(0xFFEEF2F8)
-        ),
-      DolphinServerState.offline => (
-          'به سرور دلفین وصل نیست',
-          const Color(0xFFB91C1C),
-          const Color(0xFFFEE2E2)
-        ),
+      DolphinServerState.ready => ('آماده؛ منتظر کارشناس', DolphinColors.aquaText, DolphinColors.aquaSoft),
+      DolphinServerState.connecting => ('در حال اتصال به سرور دلفین…', DolphinColors.muted, DolphinColors.azureSoft),
+      DolphinServerState.offline => ('به سرور دلفین وصل نیست', DolphinColors.dangerText, DolphinColors.dangerSoft),
     };
+    final onRequests = this.onRequests;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -68,41 +61,59 @@ class DolphinHomeView extends StatelessWidget {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: Column(
                   children: [
-                    const Text('این شناسه را پشت تلفن به کارشناس دلفین بگویید',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: DolphinColors.muted, fontSize: 13)),
-                    const SizedBox(height: 10),
-                    Directionality(
-                      textDirection: TextDirection.ltr,
-                      child: SelectableText(groupId(id),
-                          style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2,
-                              color: state == DolphinServerState.offline
-                                  ? DolphinColors.muted
-                                  : DolphinColors.ink)),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: onCopy,
-                      style: OutlinedButton.styleFrom(
-                          foregroundColor: DolphinColors.azure,
-                          side: const BorderSide(color: DolphinColors.azure)),
-                      child: const Text('کپی شناسه'),
-                    ),
-                    const SizedBox(height: 16),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                            width: 8, height: 8, decoration: BoxDecoration(color: fg, shape: BoxShape.circle)),
+                        const SizedBox(width: 8),
+                        Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      ]),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
                       decoration: BoxDecoration(
-                          color: bg, borderRadius: BorderRadius.circular(99)),
-                      child: Text('● $label',
-                          style: TextStyle(
-                              color: fg, fontWeight: FontWeight.w700, fontSize: 13)),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(DolphinRadii.card),
+                        border: Border.all(color: DolphinColors.line),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text('این شناسه را پشت تلفن به کارشناس دلفین بگویید',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                          const SizedBox(height: 10),
+                          Directionality(
+                            textDirection: TextDirection.ltr,
+                            child: SelectableText(groupId(id),
+                                style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 2,
+                                    color: state == DolphinServerState.offline
+                                        ? DolphinColors.muted
+                                        : DolphinColors.ink)),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: onCopy,
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('کپی شناسه'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: DolphinColors.azureStrong,
+                              side: const BorderSide(color: DolphinColors.lineStrong),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -110,8 +121,27 @@ class DolphinHomeView extends StatelessWidget {
                           ? 'اینترنت را بررسی کنید؛ برنامه خودش دوباره تلاش می‌کند.'
                           : 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: DolphinColors.muted, fontSize: 12),
+                      style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
                     ),
+                    if (onRequests != null) ...[
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: TextButton.icon(
+                          onPressed: onRequests,
+                          icon: const Icon(Icons.forum_outlined, size: 18),
+                          label: const Text('درخواست‌ها و پیام‌ها',
+                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: DolphinColors.azureStrong,
+                            backgroundColor: DolphinColors.azureSoft,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

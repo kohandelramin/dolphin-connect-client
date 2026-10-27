@@ -53,6 +53,28 @@ void main() {
     expect(copied, isTrue);
   });
 
+  testWidgets('home opens the request section when asked, and hides the button otherwise', (tester) async {
+    var opened = false;
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789',
+        state: DolphinServerState.ready,
+        onCopy: () {},
+        onRequests: () => opened = true,
+        phone: '',
+        siteLabel: 'support.dolphindev.ir')));
+    await tester.tap(find.text('درخواست‌ها و پیام‌ها'));
+    expect(opened, isTrue);
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '', siteLabel: 'x')));
+    expect(find.text('درخواست‌ها و پیام‌ها'), findsNothing);
+  });
+
+  test('the customer app only answers hello with its own ID and never connects out', () {
+    expect(customerReply(const PanelMessage('dolphin-hello'), '123456789'), '{"type":"dolphin-id","id":"123456789"}');
+    expect(customerReply(const PanelMessage('dolphin-connect', '987654321'), '123456789'), isNull);
+    expect(customerReply(const PanelMessage('dolphin-hello'), ''), isNull);
+  });
+
   testWidgets('home says when the server is unreachable', (tester) async {
     await tester.pumpWidget(_app(DolphinHomeView(
         id: '123456789',

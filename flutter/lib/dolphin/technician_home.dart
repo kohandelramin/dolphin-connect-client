@@ -1,15 +1,11 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:webview_windows/webview_windows.dart';
 
 import '../common.dart';
 import '../models/platform_model.dart';
-import 'brand.dart';
-import 'panel_bridge.dart';
 import 'home_view.dart';
+import 'panel_bridge.dart';
+import 'portal_view.dart';
 import 'theme.dart';
 
 /// The technician build's main window: own ID, a manual connect field, and the staff panel.
@@ -21,14 +17,8 @@ class DolphinTechnicianHome extends StatefulWidget {
 }
 
 class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
-  final _web = WebviewController();
-  final _subs = <StreamSubscription>[];
   final _manual = TextEditingController();
   String _myId = '';
-  bool _ready = false;
-  bool _noWebView = false;
-
-  String get _home => '${DolphinBrand.portalUrl}/staff/computers';
 
   @override
   void initState() {
@@ -36,37 +26,14 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     bind.mainGetMyId().then((id) {
       if (mounted) setState(() => _myId = id);
     });
-    _initWebView();
   }
 
-  Future<void> _initWebView() async {
-    try {
-      if (await WebviewController.getWebViewVersion() == null) {
-        if (mounted) setState(() => _noWebView = true);
-        return;
-      }
-      await _web.initialize();
-      await _web.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
-      _subs.add(_web.url.listen((url) {
-        if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);
-      }));
-      _subs.add(_web.webMessage.listen(_onMessage));
-      await _web.loadUrl(_home);
-      if (mounted) setState(() => _ready = true);
-    } catch (_) {
-      if (mounted) setState(() => _noWebView = true);
-    }
-  }
-
-  Future<void> _onMessage(dynamic raw) async {
-    final m = parsePanelMessage(raw);
-    if (m == null || !mounted) return;
+  Future<String?> _onMessage(PanelMessage m) async {
     if (m.type == 'dolphin-hello') {
-      final id = _myId.isNotEmpty ? _myId : await bind.mainGetMyId();
-      await _web.postWebMessage(jsonEncode({'type': 'dolphin-id', 'id': id}));
-    } else if (m.type == 'dolphin-connect') {
-      connect(context, m.id);
+      return idReply(_myId.isNotEmpty ? _myId : await bind.mainGetMyId());
     }
+    if (m.type == 'dolphin-connect' && mounted) connect(context, m.id);
+    return null;
   }
 
   void _connectManual() {
@@ -76,29 +43,37 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
 
   @override
   void dispose() {
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _web.dispose();
     _manual.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final fieldBorder = OutlineInputBorder(
+        borderRadius: BorderRadius.circular(DolphinRadii.field),
+        borderSide: const BorderSide(color: DolphinColors.lineStrong));
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Column(
         children: [
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: const BoxDecoration(
+                color: Colors.white, border: Border(bottom: BorderSide(color: DolphinColors.line))),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Row(
               children: [
-                const Text('دلفین کانکتِ کارشناس',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: DolphinColors.azure)),
+                const Text('دلفین کانکت',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: DolphinColors.azureStrong)),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                      color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
+                  child: const Text('کارشناس',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DolphinColors.azureStrong)),
+                ),
                 const SizedBox(width: 16),
-                const Text('شناسه‌ی شما:', style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
+                const Text('شناسه‌ی شما', style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
                 const SizedBox(width: 6),
                 Directionality(
                   textDirection: TextDirection.ltr,
@@ -107,7 +82,7 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
                 ),
                 IconButton(
                   tooltip: 'کپی شناسه',
-                  icon: const Icon(Icons.copy, size: 16),
+                  icon: const Icon(Icons.copy, size: 16, color: DolphinColors.muted),
                   onPressed: _myId.isEmpty
                       ? null
                       : () {
@@ -117,39 +92,32 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
                 ),
                 const Spacer(),
                 SizedBox(
-                  width: 170,
+                  width: 180,
                   child: TextField(
                     controller: _manual,
                     textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(isDense: true, hintText: 'شناسه‌ی مشتری'),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'شناسه‌ی مشتری',
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: fieldBorder,
+                      enabledBorder: fieldBorder,
+                    ),
                     onSubmitted: (_) => _connectManual(),
                   ),
                 ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: DolphinColors.azure,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control))),
                   onPressed: _connectManual,
                   child: const Text('اتصال'),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: DolphinColors.line),
-          Expanded(
-            child: _noWebView
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'نمایش پنل در برنامه به «Microsoft Edge WebView2» نیاز دارد. آن را نصب کنید، یا پنل را در مرورگر باز کنید و شناسه‌ی مشتری را در کادر بالا وارد کنید.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-                : !_ready
-                    ? const Center(child: CircularProgressIndicator())
-                    : Webview(_web),
-          ),
+          Expanded(child: DolphinPortalView(path: '/staff/computers', onMessage: _onMessage)),
         ],
       ),
     );
