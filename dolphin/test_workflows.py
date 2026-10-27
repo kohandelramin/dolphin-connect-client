@@ -39,7 +39,7 @@ class BuildWorkflowTest(unittest.TestCase):
 
 
     def test_std_only_rust_files_are_tested_in_ci(self):
-        for path in ("dolphin/version_resource.rs",):
+        for path in ("dolphin/version_resource.rs", "src/dolphin_update_core.rs"):
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
 
     def test_every_exe_has_its_version_resource_checked(self):

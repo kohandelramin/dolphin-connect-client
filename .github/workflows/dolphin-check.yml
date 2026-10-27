@@ -42,6 +42,7 @@ jobs:
         run: |
           rustc --version
           rustc --edition 2021 --test dolphin/version_resource.rs -o "$RUNNER_TEMP/version_resource" && "$RUNNER_TEMP/version_resource"
+          rustc --edition 2021 --test src/dolphin_update_core.rs -o "$RUNNER_TEMP/update_core" && "$RUNNER_TEMP/update_core"
 
   generate-bridge:
     needs: test
