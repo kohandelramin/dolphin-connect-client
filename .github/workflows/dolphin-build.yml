@@ -190,6 +190,17 @@ jobs:
           cp dolphin/build/baked-settings.json out/
           cd out && sha256sum *.exe && ls -l
 
+      - name: Version resource (TB-4)
+        shell: pwsh
+        run: |
+          $outer = Get-Item "out/$env:OUT_NAME-$env:DOLPHIN_VERSION-x64.exe"
+          $inner = Get-Item "rustdesk/$env:APP_EXE"
+          $outer.VersionInfo, $inner.VersionInfo | Format-List FileName, FileVersion, ProductVersion, ProductName, FileDescription
+          if ($outer.VersionInfo.FileVersion -ne $env:DOLPHIN_FILE_VERSION) { throw "outer FileVersion '$($outer.VersionInfo.FileVersion)', expected '$env:DOLPHIN_FILE_VERSION'" }
+          if ($outer.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION) { throw "outer ProductVersion '$($outer.VersionInfo.ProductVersion)', expected '$env:DOLPHIN_VERSION'" }
+          $n = $env:DOLPHIN_FILE_VERSION.Split('.')
+          if ($inner.VersionInfo.FileMajorPart -ne [int]$n[0] -or $inner.VersionInfo.FilePrivatePart -ne [int]$n[3]) { throw "inner exe FileVersion numbers are not $env:DOLPHIN_FILE_VERSION (pubspec version)" }
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dolphin-connect-${{ inputs.profile }}-${{ matrix.variant }}-x64
@@ -289,6 +300,17 @@ jobs:
           mkdir -p out
           mv ./target/release/rustdesk-portable-packer.exe "out/DolphinConnect-${DOLPHIN_VERSION}-x86.exe"
           cd out && sha256sum *.exe && ls -l
+
+      - name: Version resource (TB-4)
+        shell: pwsh
+        run: |
+          $outer = Get-Item "out/DolphinConnect-$env:DOLPHIN_VERSION-x86.exe"
+          $inner = Get-Item "Release/DolphinConnect.exe"
+          $outer.VersionInfo, $inner.VersionInfo | Format-List FileName, FileVersion, ProductVersion, ProductName, FileDescription
+          foreach ($exe in @($outer, $inner)) {
+            if ($exe.VersionInfo.FileVersion -ne $env:DOLPHIN_FILE_VERSION) { throw "$($exe.Name) FileVersion '$($exe.VersionInfo.FileVersion)', expected '$env:DOLPHIN_FILE_VERSION'" }
+            if ($exe.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION) { throw "$($exe.Name) ProductVersion '$($exe.VersionInfo.ProductVersion)', expected '$env:DOLPHIN_VERSION'" }
+          }
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

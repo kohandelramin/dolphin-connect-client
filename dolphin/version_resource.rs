@@ -2,6 +2,20 @@
 // include!. Standard library only and no inner doc comments (include! takes items only), so CI tests it alone:
 // rustc --edition 2021 --test dolphin/version_resource.rs
 
+// "2.0.0.412" -> the 64-bit FILEVERSION/PRODUCTVERSION value Windows shows as 2.0.0.412. None unless four numbers
+// of at most 65535 (build_plan.py guarantees that for the workflow's DOLPHIN_FILE_VERSION).
+#[allow(dead_code)]
+pub fn pack_file_version(v: &str) -> Option<u64> {
+    let parts = v
+        .split('.')
+        .map(|p| if p.bytes().all(|b| b.is_ascii_digit()) { p.parse::<u16>().ok().map(u64::from) } else { None })
+        .collect::<Option<Vec<u64>>>()?;
+    if parts.len() != 4 {
+        return None;
+    }
+    Some((parts[0] << 48) | (parts[1] << 32) | (parts[2] << 16) | parts[3])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

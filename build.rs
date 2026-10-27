@@ -1,3 +1,5 @@
+include!("dolphin/version_resource.rs");
+
 #[cfg(windows)]
 fn build_windows() {
     let file = "src/platform/windows.cc";
@@ -33,6 +35,16 @@ fn build_manifest() {
                 winapi::um::winnt::SUBLANG_ENGLISH_US,
             ))
             .set_manifest_file("res/manifest.xml");
+        // Dolphin Connect (TB-4): our version on the Sciter exe; the workflow sets both variables.
+        println!("cargo:rerun-if-env-changed=DOLPHIN_VERSION");
+        println!("cargo:rerun-if-env-changed=DOLPHIN_FILE_VERSION");
+        if let (Ok(version), Ok(file_version)) = (std::env::var("DOLPHIN_VERSION"), std::env::var("DOLPHIN_FILE_VERSION")) {
+            let packed = pack_file_version(&file_version).expect("DOLPHIN_FILE_VERSION must be four numbers up to 65535");
+            res.set("FileVersion", &file_version)
+                .set("ProductVersion", &version)
+                .set_version_info(winres::VersionInfo::FILEVERSION, packed)
+                .set_version_info(winres::VersionInfo::PRODUCTVERSION, packed);
+        }
         match res.compile() {
             Err(e) => {
                 write!(std::io::stderr(), "{}", e).unwrap();
