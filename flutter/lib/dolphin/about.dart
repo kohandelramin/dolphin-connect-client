@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/platform_model.dart';
 import 'brand.dart';
+import 'digits.dart';
 import 'theme.dart';
 
 /// The only place the upstream licence is mentioned. AGPL-3.0 needs the copyright notice and the source offer.
@@ -21,11 +22,7 @@ class DolphinAbout extends StatelessWidget {
           children: [
             const Text(DolphinBrand.nameFa,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            FutureBuilder<String>(
-              future: bind.mainGetVersion(),
-              builder: (context, snapshot) => Text('نسخه‌ی ${snapshot.data ?? ''}',
-                  style: const TextStyle(color: DolphinColors.muted)),
-            ),
+            Text(versionLabel(DolphinBrand.version), style: const TextStyle(color: DolphinColors.muted)),
             FutureBuilder<String>(
               future: bind.mainGetMyId(),
               builder: (context, snapshot) => SelectableText('شناسه‌ی این رایانه: ${snapshot.data ?? ''}',

@@ -527,7 +527,8 @@ impl UI {
     }
 
     fn get_version(&self) -> String {
-        get_version()
+        // Dolphin Connect (TB-4): About shows our version; the protocol keeps using crate::VERSION.
+        crate::dolphin::DOLPHIN_VERSION.to_owned()
     }
 
     fn get_fingerprint(&self) -> String {
