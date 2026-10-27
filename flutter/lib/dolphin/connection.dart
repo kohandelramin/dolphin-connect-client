@@ -7,6 +7,7 @@ import '../consts.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'connection_view.dart';
+import 'verify.dart';
 
 /// Customer build's connection window for one incoming client. Unlike upstream, accepting does not
 /// minimize the window: the customer keeps seeing who is connected and the End button (SECURITY control 2).
@@ -20,15 +21,19 @@ class DolphinConnection extends StatefulWidget {
 
 class _DolphinConnectionState extends State<DolphinConnection> {
   Timer? _timer;
+  final _shownAt = DateTime.now();
   Duration _elapsed = Duration.zero;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (widget.client.authorized && !widget.client.disconnected) {
-        setState(() => _elapsed += const Duration(seconds: 1));
-      }
+    // Twice a second: re-check what the portal said about this peer, and count the session's time.
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (t) {
+      setState(() {
+        if (widget.client.authorized && !widget.client.disconnected && t.tick.isEven) {
+          _elapsed += const Duration(seconds: 1);
+        }
+      });
     });
   }
 
@@ -36,6 +41,18 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  TechVerdict _verdict() {
+    String opt(String key) => bind.mainGetOptionSync(key: key);
+    return verifyTechnician(
+      peerId: widget.client.peerId,
+      techId: opt(kDolphinTechIdOption),
+      techName: opt(kDolphinTechNameOption),
+      until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
+      nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      waitedMs: DateTime.now().difference(_shownAt).inMilliseconds,
+    );
   }
 
   void _permissions(bool keyboard, bool clipboard, bool file) {
@@ -52,17 +69,19 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   Widget build(BuildContext context) {
     final model = Provider.of<ServerModel>(context);
     final c = widget.client;
-    final technician = c.name.isEmpty ? c.peerId : c.name;
+    final peerName = c.name.isEmpty ? c.peerId : c.name;
     if (c.disconnected) {
       return DolphinEndedView(onClose: () => bind.cmCloseConnection(connId: c.id));
     }
+    final verdict = _verdict();
     if (!c.authorized) {
       final showElevate = bind.cmCanElevate() &&
           model.showElevation &&
           c.type_() == ClientType.remote &&
           bind.mainGetBuildinOption(key: kOptionHideElevateButtonInAcceptWindow) != 'Y';
       return DolphinAcceptView(
-        technician: technician,
+        verdict: verdict,
+        peerName: peerName,
         showElevate: showElevate,
         onAccept: (keyboard, clipboard, file) {
           _permissions(keyboard, clipboard, file);
@@ -78,7 +97,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       );
     }
     return DolphinSessionView(
-      technician: technician,
+      technician: verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName,
       elapsed: _elapsed,
       fileEnabled: c.file,
       onFile: (enabled) {

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
+import 'verify.dart';
 
 typedef DolphinAccept = void Function(bool keyboard, bool clipboard, bool file);
 
-/// The prompt a customer answers before a technician gets in. File transfer starts off.
+/// The prompt a customer answers before a technician gets in. File transfer starts off. The name shown is the
+/// one the portal vouches for ([verdict]); a peer the portal did not authorize gets no Accept button.
 class DolphinAcceptView extends StatefulWidget {
-  final String technician;
+  final TechVerdict verdict;
+  final String peerName;
   final DolphinAccept onAccept;
   final VoidCallback onDeny;
   final bool showElevate;
@@ -14,7 +17,8 @@ class DolphinAcceptView extends StatefulWidget {
 
   const DolphinAcceptView(
       {super.key,
-      required this.technician,
+      required this.verdict,
+      required this.peerName,
       required this.onAccept,
       required this.onDeny,
       this.showElevate = false,
@@ -40,24 +44,43 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
   @override
   Widget build(BuildContext context) {
     final onAcceptElevate = widget.onAcceptElevate;
+    final state = widget.verdict.state;
+    final canAccept = state == TechCheck.verified || state == TechCheck.unverifiable;
+    final (String title, String note, Color color, IconData icon) = switch (state) {
+      TechCheck.verified => (
+          '${widget.verdict.name.isEmpty ? widget.peerName : widget.verdict.name} از دلفین',
+          'کارشناس تأییدشده‌ی دلفین می‌خواهد به این رایانه وصل شود',
+          DolphinColors.azure,
+          Icons.verified_user,
+        ),
+      TechCheck.checking => ('در حال بررسی هویت کارشناس…', 'چند لحظه صبر کنید', DolphinColors.muted, Icons.hourglass_top),
+      TechCheck.unverifiable => (
+          widget.peerName,
+          'هویت کارشناس قابل بررسی نیست؛ فقط اگر همین حالا پشت تلفن با کارشناس دلفین هستید بپذیرید',
+          const Color(0xFFB45309),
+          Icons.help_outline,
+        ),
+      TechCheck.rejected => (
+          'این اتصال از کارشناس دلفین نیست',
+          'دلفین برای این رایانه اتصالی ثبت نکرده است؛ «رد» را بزنید',
+          DolphinColors.danger,
+          Icons.gpp_bad,
+        ),
+    };
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const CircleAvatar(
-                radius: 22,
-                backgroundColor: DolphinColors.azure,
-                child: Icon(Icons.support_agent, color: Colors.white)),
+            CircleAvatar(radius: 22, backgroundColor: color, child: Icon(icon, color: Colors.white)),
             const SizedBox(height: 10),
-            Text('${widget.technician} از دلفین',
+            Text(title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            const Text('می‌خواهد به این رایانه وصل شود',
-                style: TextStyle(color: DolphinColors.muted)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.danger : null)),
+            Text(note, textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
             const SizedBox(height: 12),
-            Wrap(
+            if (canAccept) Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 alignment: WrapAlignment.center,
@@ -68,27 +91,24 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
                 ]),
             const SizedBox(height: 14),
             Row(children: [
-              Expanded(
-                child: FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure),
-                  onPressed: () => widget.onAccept(keyboard, clipboard, file),
-                  child: const Text('پذیرفتن'),
+              if (canAccept)
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure),
+                    onPressed: () => widget.onAccept(keyboard, clipboard, file),
+                    child: const Text('پذیرفتن'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
+              if (canAccept) const SizedBox(width: 8),
               Expanded(
                   child: OutlinedButton(
                       onPressed: widget.onDeny, child: const Text('رد'))),
             ]),
-            if (widget.showElevate && onAcceptElevate != null)
+            if (canAccept && widget.showElevate && onAcceptElevate != null)
               TextButton(
                 onPressed: () => onAcceptElevate(keyboard, clipboard, file),
                 child: const Text('پذیرفتن با اجازه‌ی مدیر ویندوز'),
               ),
-            const SizedBox(height: 8),
-            const Text('اگر این نام را نمی‌شناسید «رد» را بزنید.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
           ],
         ),
       ),

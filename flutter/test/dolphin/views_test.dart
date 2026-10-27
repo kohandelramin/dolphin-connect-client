@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
+import 'package:flutter_hbb/dolphin/panel_bridge.dart';
 import 'package:flutter_hbb/dolphin/technician_id.dart';
+import 'package:flutter_hbb/dolphin/verify.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,19 +63,68 @@ void main() {
     expect(find.textContaining('وصل نیست'), findsOneWidget);
   });
 
-  testWidgets('accept prompt: file transfer off by default, accept passes the toggles',
+  testWidgets('verified prompt: portal name, file transfer off by default, accept passes the toggles',
       (tester) async {
     List<bool>? got;
     var denied = false;
     await tester.pumpWidget(_app(DolphinAcceptView(
-        technician: 'علی رضایی',
+        verdict: const TechVerdict(TechCheck.verified, 'رحمت کهندل'),
+        peerName: 'DESKTOP-A1',
         onAccept: (k, c, f) => got = [k, c, f],
         onDeny: () => denied = true)));
-    expect(find.textContaining('علی رضایی'), findsOneWidget);
+    expect(find.textContaining('رحمت کهندل از دلفین'), findsOneWidget);
+    expect(find.textContaining('DESKTOP-A1'), findsNothing);
     await tester.tap(find.text('پذیرفتن'));
     expect(got, [true, true, false]);
     await tester.tap(find.text('رد'));
     expect(denied, isTrue);
+  });
+
+  testWidgets('a connection the portal did not authorize has no Accept button', (tester) async {
+    await tester.pumpWidget(_app(DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.rejected),
+        peerName: 'Dolphin Support',
+        onAccept: (k, c, f) {},
+        onDeny: () {})));
+    expect(find.textContaining('از کارشناس دلفین نیست'), findsOneWidget);
+    expect(find.text('پذیرفتن'), findsNothing);
+    expect(find.text('رد'), findsOneWidget);
+  });
+
+  testWidgets('while checking, only Deny is offered', (tester) async {
+    await tester.pumpWidget(_app(DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.checking), peerName: 'x', onAccept: (k, c, f) {}, onDeny: () {})));
+    expect(find.textContaining('در حال بررسی'), findsOneWidget);
+    expect(find.text('پذیرفتن'), findsNothing);
+  });
+
+  test('the panel may only ask to connect to a valid ID or say hello', () {
+    expect(parsePanelMessage({'type': 'dolphin-connect', 'id': '123 456 789'})?.id, '123456789');
+    expect(parsePanelMessage('{"type":"dolphin-connect","id":"123456789"}')?.type, 'dolphin-connect');
+    expect(parsePanelMessage({'type': 'dolphin-hello'})?.type, 'dolphin-hello');
+    expect(parsePanelMessage({'type': 'dolphin-connect', 'id': 'x;rm'}), isNull);
+    expect(parsePanelMessage({'type': 'other'}), isNull);
+    expect(parsePanelMessage('not json'), isNull);
+  });
+
+  test('the panel stays on the portal', () {
+    const portal = 'https://support.dolphindev.ir';
+    expect(isPanelUrl('https://support.dolphindev.ir/staff/computers', portal), isTrue);
+    expect(isPanelUrl('https://support.dolphindev.ir', portal), isTrue);
+    expect(isPanelUrl('https://support.dolphindev.ir.evil.example/', portal), isFalse);
+    expect(isPanelUrl('https://example.com/', portal), isFalse);
+  });
+
+  test('the portal decides who may connect', () {
+    TechVerdict v(String techId, {String peer = '287654321', int until = 2000, int now = 1000, int waited = 0}) =>
+        verifyTechnician(peerId: peer, techId: techId, techName: 'رحمت', until: until, nowSeconds: now, waitedMs: waited);
+    expect(v('287654321').state, TechCheck.verified);
+    expect(v('287654321').name, 'رحمت');
+    expect(v('').state, TechCheck.unverifiable); // never heard from the portal
+    expect(v('-').state, TechCheck.checking); // nobody yet: wait for the next heartbeat
+    expect(v('-', waited: 7000).state, TechCheck.rejected);
+    expect(v('111111111', waited: 7000).state, TechCheck.rejected); // someone else
+    expect(v('287654321', now: 3000, waited: 7000).state, TechCheck.rejected); // authorization expired
   });
 
   testWidgets('technician build shows its own ID with copy', (tester) async {

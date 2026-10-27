@@ -25,7 +25,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 import '../widgets/button.dart';
 import '../../dolphin/home.dart'; // Dolphin Connect: customer main window
-import '../../dolphin/technician_id.dart'; // Dolphin Connect: technician's own ID
+import '../../dolphin/technician_home.dart'; // Dolphin Connect: technician app with the staff panel
 
 class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({Key? key}) : super(key: key);
@@ -63,6 +63,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final isIncomingOnly = bind.isIncomingOnly();
     // Dolphin Connect: the customer build shows our own main window.
     if (isIncomingOnly) return _buildBlock(child: const DolphinHome());
+    // Dolphin Connect: the technician build shows the staff panel and connects from it.
+    if (bind.isOutgoingOnly()) return _buildBlock(child: const DolphinTechnicianHome());
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,8 +96,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         child: loadLogo(),
       ),
       buildTip(context),
-      // Dolphin Connect: the technician build shows its own ID, which staff save in the portal.
-      if (isOutgoingOnly) const DolphinTechnicianId(),
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
       FutureBuilder<Widget>(

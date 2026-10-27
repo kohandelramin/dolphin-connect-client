@@ -128,7 +128,11 @@ class RenderTest(unittest.TestCase):
     def test_brand_dart_has_the_values_escaped(self):
         s = copy.deepcopy(SETTINGS)
         s["brand"]["support-phone"] = "021-12345678"
-        dart = g.render_brand_dart(s)
+        dart = g.render_brand_dart(s, PROFILE)
+        # The technician app shows the staff panel from the same server as the API.
+        self.assertIn("static const String portalUrl = 'https://support.dolphindev.ir';", dart)
+        self.assertIn("static const String portalUrl = 'http://127.0.0.1:3010';",
+                      g.render_brand_dart(s, {**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}))
         self.assertIn("static const String nameFa = 'دلفین کانکت';", dart)
         self.assertIn("static const String supportPhone = '021-12345678';", dart)
         self.assertIn("static const String siteLabel = 'support.dolphindev.ir';", dart)
