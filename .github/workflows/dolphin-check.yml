@@ -1,0 +1,65 @@
+name: Dolphin check
+
+# Fast checks without a Windows build (about 5 minutes): Python tests, profile and rebrand checks, the bridge, Dart
+# analyze and widget tests. Runs on every push to `dolphin`; the Dolphin build calls it first, so a release runs
+# exactly the same checks (TB-1).
+on:
+  push:
+    branches: [dolphin]
+  workflow_call:
+    inputs:
+      profile:
+        type: string
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      PROFILE: ${{ inputs.profile || 'dev' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Unit tests and profile check
+        run: |
+          pip install pillow==11.3.0
+          python -m unittest discover -s dolphin -p "test_*.py" -v
+          python dolphin/gen_profile.py "$PROFILE" customer
+          python dolphin/gen_profile.py "$PROFILE" technician
+      - name: No visible RustDesk text or links (fails early, before the long builds)
+        run: python dolphin/rebrand.py
+
+  generate-bridge:
+    needs: test
+    uses: ./.github/workflows/bridge.yml
+
+  # Dart has no local toolchain here: the Dolphin screens are analyzed and widget-tested in CI.
+  analyze-and-test:
+    needs: [test, generate-bridge]
+    runs-on: ubuntu-22.04
+    env:
+      PROFILE: ${{ inputs.profile || 'dev' }}
+      FLUTTER_VERSION: "3.24.5"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+      - name: Restore bridge files
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: bridge-artifact
+          path: ./
+      - name: Dolphin settings (brand.dart)
+        run: python dolphin/gen_profile.py "$PROFILE" customer
+      - uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - name: Analyze and widget tests
+        working-directory: flutter
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/dolphin lib/main.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/server_page.dart lib/desktop/pages/desktop_setting_page.dart test/dolphin
+          flutter test test/dolphin

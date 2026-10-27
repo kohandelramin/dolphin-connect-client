@@ -5,6 +5,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILD = (ROOT / ".github" / "workflows" / "dolphin-build.yml").read_text(encoding="utf-8")
+CHECK = (ROOT / ".github" / "workflows" / "dolphin-check.yml").read_text(encoding="utf-8")
 
 
 class BuildWorkflowTest(unittest.TestCase):
@@ -25,6 +26,16 @@ class BuildWorkflowTest(unittest.TestCase):
         self.assertEqual(len(hits), 2)  # the x64 and the x86 job
         for i in hits:
             self.assertIn("if: inputs.profile == 'dev'", "\n".join(lines[max(0, i - 6):i]))
+
+    def test_the_fast_check_runs_on_every_push_to_dolphin_and_is_reusable(self):
+        self.assertRegex(CHECK, r"\non:\n  push:\n    branches: \[dolphin\]\n  workflow_call:\n")
+        for job in ("test:", "generate-bridge:", "analyze-and-test:"):
+            self.assertIn(f"\n  {job}\n", CHECK)
+
+    def test_the_build_runs_the_same_check_first(self):
+        self.assertIn("uses: ./.github/workflows/dolphin-check.yml", BUILD)
+        self.assertNotIn("\n  analyze-and-test:\n", BUILD)
+        self.assertIn("needs: [check, guard]", BUILD)
 
 
 if __name__ == "__main__":
