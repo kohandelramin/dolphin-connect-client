@@ -19,10 +19,12 @@ Everything else is upstream RustDesk. Copyright notices of the RustDesk authors 
 
 ## Build
 
-GitHub Actions → **Dolphin build** → Run workflow, choose the profile (`dev` or `production`). Each run
-builds three clients. A `production` run with a release tag (`1.5.0-dc.N`) publishes
+GitHub Actions → **Dolphin build** → Run workflow, choose the profile (`dev` or `production`) and, for dev runs,
+which apps (`builds`: `customer-x64` by default, `technician-x64`, `customer-x86`, `x64`, `all`). A production run
+always builds all three. A `production` run with a release tag (`1.5.0-dc.N`) publishes
 `DolphinConnect-<tag>-x64.exe`, `DolphinConnect-<tag>-x86.exe`, `DolphinConnect-Technician-<tag>-x64.exe`,
-`SHA256SUMS` and `baked-settings.json` as a GitHub release.
+`SHA256SUMS` and `baked-settings.json` as a GitHub release. vcpkg packages are kept between runs (`files` binary
+cache in `C:\vcpkg-binary-cache`, saved by `actions/cache`); dev runs use thin LTO, production full LTO.
 
 The Dolphin Connect portal serves each customer binary under two names: one ending in `install.exe`, which
 opens RustDesk's installer (`src/common.rs` `is_setup`), and a portable name. The x86 build's outer

@@ -8,6 +8,11 @@ on:
         type: choice
         options: [dev, production]
         default: dev
+      builds:
+        description: "dev only: which apps to build (production always builds all three)"
+        type: choice
+        options: [customer-x64, technician-x64, customer-x86, x64, all]
+        default: customer-x64
       release-tag:
         description: "production only: publish a release with this tag (1.5.0-dc.N); empty = artifact only"
         type: string
@@ -20,7 +25,9 @@ env:
   SCITER_RUST_VERSION: "1.75"
   LLVM_VERSION: "15.0.6"
   FLUTTER_VERSION: "3.24.5"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  # vcpkg removed its GitHub Actions cache backend, so every Windows job rebuilt ffmpeg, aom and 14 other libraries (~15 min,
+  # run 40498394513, TB-1). The `files` backend writes one zip per package here; actions/cache keeps the folder.
+  VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-binary-cache,readwrite'
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   UPSTREAM_VERSION: "1.5.0"
   # 32-bit Sciter runtime for the x86 build, pinned to the last commit that changed it (2022-01-01).
@@ -40,15 +47,29 @@ jobs:
           python dolphin/gen_profile.py "${{ inputs.profile }}" technician
       - name: No visible RustDesk text or links (fails early, before the long builds)
         run: python dolphin/rebrand.py
-      - name: Refuse a release that is not production
-        if: inputs.release-tag != '' && inputs.profile != 'production'
-        run: |
-          echo "Releases are production builds only." >&2
-          exit 1
+
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      x64: ${{ steps.plan.outputs.x64 }}
+      x86: ${{ steps.plan.outputs.x86 }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Which apps to build (production builds all three)
+        id: plan
+        shell: bash
+        env:
+          PROFILE: ${{ inputs.profile }}
+          BUILDS: ${{ inputs.builds }}
+          TAG: ${{ inputs.release-tag }}
+        run: python dolphin/build_plan.py plan --profile "$PROFILE" --builds "$BUILDS" --tag "$TAG" | tee -a "$GITHUB_OUTPUT"
       - name: Release tag format
         if: inputs.release-tag != ''
+        shell: bash
+        env:
+          TAG: ${{ inputs.release-tag }}
         run: |
-          [[ "${{ inputs.release-tag }}" =~ ^${UPSTREAM_VERSION//./\\.}-dc\.[0-9]+$ ]] || { echo "tag must be ${UPSTREAM_VERSION}-dc.N" >&2; exit 1; }
+          [[ "$TAG" =~ ^${UPSTREAM_VERSION//./\\.}-dc\.[0-9]+$ ]] || { echo "tag must be ${UPSTREAM_VERSION}-dc.N" >&2; exit 1; }
 
   generate-bridge:
     needs: test
@@ -81,25 +102,19 @@ jobs:
           flutter test test/dolphin
 
   build-windows:
-    needs: [test, generate-bridge, analyze-and-test]
+    needs: [test, guard, generate-bridge, analyze-and-test]
+    if: needs.guard.outputs.x64 != '[]'
     runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
-        variant: [customer, technician]
+        variant: ${{ fromJSON(needs.guard.outputs.x64) }}
     env:
       VERSION: ${{ inputs.release-tag != '' && inputs.release-tag || format('{0}-{1}', 'dev', github.run_number) }}
       # The portal (Plan 7) derives these names: DolphinConnect-<v>-x64.exe, DolphinConnect-Technician-<v>-x64.exe.
       OUT_NAME: ${{ matrix.variant == 'technician' && 'DolphinConnect-Technician' || 'DolphinConnect' }}
       APP_EXE: ${{ matrix.variant == 'technician' && 'DolphinConnectTech.exe' || 'DolphinConnect.exe' }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
@@ -152,23 +167,41 @@ jobs:
           targets: x86_64-pc-windows-msvc
           components: "rustfmt"
 
+      # Before rust-cache: it puts CARGO_* variables into its key, so dev and production keep separate caches.
+      - name: Faster Rust profile for dev builds (production keeps full LTO and one codegen unit)
+        if: inputs.profile == 'dev'
+        shell: bash
+        run: |
+          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
+
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: windows-2022
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
+      - name: vcpkg binary cache (zips kept between runs)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:\vcpkg-binary-cache
+          key: vcpkg-bin-x64-windows-static-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**') }}
+          restore-keys: |
+            vcpkg-bin-x64-windows-static-${{ env.VCPKG_COMMIT_ID }}-
+
       - name: Install vcpkg dependencies
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
         shell: bash
         run: |
-          $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+          mkdir -p /c/vcpkg-binary-cache
+          $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed" 2>&1 | tee "$RUNNER_TEMP/vcpkg.log"
+          grep -iE "restored [0-9]+ package|stored binar|binary cach" "$RUNNER_TEMP/vcpkg.log" || true
 
       - name: Build
         run: |
@@ -204,18 +237,12 @@ jobs:
   # Customer build for Windows 7/8 and 32-bit Windows. Adapted from upstream 1.5.0 `build-for-windows-sciter`:
   # no signing, no virtual-display driver, our generator and branding, sciter.dll pinned by commit and SHA-256.
   build-windows-x86:
-    needs: test
+    needs: [test, guard]
+    if: needs.guard.outputs.x86 == 'true'
     runs-on: windows-2022
     env:
       VERSION: ${{ inputs.release-tag != '' && inputs.release-tag || format('{0}-{1}', 'dev', github.run_number) }}
     steps:
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
@@ -242,23 +269,40 @@ jobs:
             --profile minimal --no-self-update --force-non-host
           rustup default nightly-2023-10-13-i686-pc-windows-msvc --force-non-host
 
+      - name: Faster Rust profile for dev builds (production keeps full LTO and one codegen unit)
+        if: inputs.profile == 'dev'
+        shell: bash
+        run: |
+          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
+
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: windows-2022-sciter
 
-      - name: Setup vcpkg with Github Actions binary cache
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgDirectory: C:\vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
+      - name: vcpkg binary cache (zips kept between runs)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:\vcpkg-binary-cache
+          key: vcpkg-bin-x86-windows-static-${{ env.VCPKG_COMMIT_ID }}-${{ hashFiles('vcpkg.json', 'res/vcpkg/**') }}
+          restore-keys: |
+            vcpkg-bin-x86-windows-static-${{ env.VCPKG_COMMIT_ID }}-
+
       - name: Install vcpkg dependencies
         env:
           VCPKG_DEFAULT_HOST_TRIPLET: x86-windows-static
         shell: bash
         run: |
-          $VCPKG_ROOT/vcpkg install --triplet x86-windows-static --x-install-root="$VCPKG_ROOT/installed"
+          mkdir -p /c/vcpkg-binary-cache
+          $VCPKG_ROOT/vcpkg install --triplet x86-windows-static --x-install-root="$VCPKG_ROOT/installed" 2>&1 | tee "$RUNNER_TEMP/vcpkg.log"
+          grep -iE "restored [0-9]+ package|stored binar|binary cach" "$RUNNER_TEMP/vcpkg.log" || true
 
       - name: Build (Sciter, 32-bit)
         shell: bash
