@@ -32,6 +32,17 @@ jobs:
       - name: No visible RustDesk text or links (fails early, before the long builds)
         run: python dolphin/rebrand.py
 
+  # Files with no crate dependencies are tested with plain rustc: the full crate needs vcpkg and a Windows runner.
+  rust-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Std-only Rust tests
+        shell: bash
+        run: |
+          rustc --version
+          rustc --edition 2021 --test dolphin/version_resource.rs -o "$RUNNER_TEMP/version_resource" && "$RUNNER_TEMP/version_resource"
+
   generate-bridge:
     needs: test
     uses: ./.github/workflows/bridge.yml
