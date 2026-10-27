@@ -14,7 +14,7 @@ on:
         options: [customer-x64, technician-x64, customer-x86, x64, all]
         default: customer-x64
       release-tag:
-        description: "production only: publish a release with this tag (1.5.0-dc.N); empty = artifact only"
+        description: "production only: publish a release tagged vX.Y.Z or vX.Y.Z-rc.N (X.Y.Z = dolphin/version.txt); empty = artifact only"
         type: string
         default: ""
 
@@ -29,6 +29,7 @@ env:
   # run 40498394513, TB-1). The `files` backend writes one zip per package here; actions/cache keeps the folder.
   VCPKG_BINARY_SOURCES: 'clear;files,C:\vcpkg-binary-cache,readwrite'
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  # RustDesk's own version stays crate::VERSION (the protocol compares it); ours is dolphin/version.txt (TB-4).
   UPSTREAM_VERSION: "1.5.0"
   # 32-bit Sciter runtime for the x86 build, pinned to the last commit that changed it (2022-01-01).
   SCITER_DLL_URL: "https://github.com/c-smile/sciter-sdk/raw/1c6b588cd090506d4b044dead06d7eae6e2235b7/bin.win/x32/sciter.dll"
@@ -45,23 +46,19 @@ jobs:
     outputs:
       x64: ${{ steps.plan.outputs.x64 }}
       x86: ${{ steps.plan.outputs.x86 }}
+      version: ${{ steps.plan.outputs.version }}
+      file_version: ${{ steps.plan.outputs.file_version }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Which apps to build (production builds all three)
+      - name: Apps and version (production builds all three; a tag must match dolphin/version.txt)
         id: plan
         shell: bash
         env:
           PROFILE: ${{ inputs.profile }}
           BUILDS: ${{ inputs.builds }}
           TAG: ${{ inputs.release-tag }}
-        run: python dolphin/build_plan.py plan --profile "$PROFILE" --builds "$BUILDS" --tag "$TAG" | tee -a "$GITHUB_OUTPUT"
-      - name: Release tag format
-        if: inputs.release-tag != ''
-        shell: bash
-        env:
-          TAG: ${{ inputs.release-tag }}
-        run: |
-          [[ "$TAG" =~ ^${UPSTREAM_VERSION//./\\.}-dc\.[0-9]+$ ]] || { echo "tag must be ${UPSTREAM_VERSION}-dc.N" >&2; exit 1; }
+        run: python dolphin/build_plan.py plan --profile "$PROFILE" --builds "$BUILDS" --tag "$TAG" --run "${{ github.run_number }}" | tee -a "$GITHUB_OUTPUT"
 
   build-windows:
     needs: [check, guard]
@@ -72,8 +69,9 @@ jobs:
       matrix:
         variant: ${{ fromJSON(needs.guard.outputs.x64) }}
     env:
-      VERSION: ${{ inputs.release-tag != '' && inputs.release-tag || format('{0}-{1}', 'dev', github.run_number) }}
-      # The portal (Plan 7) derives these names: DolphinConnect-<v>-x64.exe, DolphinConnect-Technician-<v>-x64.exe.
+      DOLPHIN_VERSION: ${{ needs.guard.outputs.version }}
+      DOLPHIN_FILE_VERSION: ${{ needs.guard.outputs.file_version }}
+      # The portal derives these names: DolphinConnect-<version>-x64.exe, DolphinConnect-Technician-<version>-x64.exe.
       OUT_NAME: ${{ matrix.variant == 'technician' && 'DolphinConnect-Technician' || 'DolphinConnect' }}
       APP_EXE: ${{ matrix.variant == 'technician' && 'DolphinConnectTech.exe' || 'DolphinConnect.exe' }}
     steps:
@@ -87,11 +85,12 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - name: Dolphin settings and branding
+      - name: Dolphin settings, version and branding
         shell: bash
         run: |
           pip install pillow==11.3.0
-          python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}"
+          python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}" "$DOLPHIN_VERSION"
+          python dolphin/build_plan.py pubspec --run "${{ github.run_number }}"
           python dolphin/brand.py
           python dolphin/rebrand.py
 
@@ -187,7 +186,7 @@ jobs:
           python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${APP_EXE}"
           popd
           mkdir -p out
-          mv ./target/release/rustdesk-portable-packer.exe "out/${OUT_NAME}-${VERSION}-x64.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "out/${OUT_NAME}-${DOLPHIN_VERSION}-x64.exe"
           cp dolphin/build/baked-settings.json out/
           cd out && sha256sum *.exe && ls -l
 
@@ -203,17 +202,18 @@ jobs:
     if: needs.guard.outputs.x86 == 'true'
     runs-on: windows-2022
     env:
-      VERSION: ${{ inputs.release-tag != '' && inputs.release-tag || format('{0}-{1}', 'dev', github.run_number) }}
+      DOLPHIN_VERSION: ${{ needs.guard.outputs.version }}
+      DOLPHIN_FILE_VERSION: ${{ needs.guard.outputs.file_version }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
 
-      - name: Dolphin settings and branding
+      - name: Dolphin settings, version and branding
         shell: bash
         run: |
           pip install pillow==11.3.0
-          python dolphin/gen_profile.py "${{ inputs.profile }}" customer
+          python dolphin/gen_profile.py "${{ inputs.profile }}" customer "$DOLPHIN_VERSION"
           python dolphin/brand.py
           python dolphin/rebrand.py
 
@@ -287,7 +287,7 @@ jobs:
           python3 ./generate.py -f ../../Release/ -o . -e ../../Release/DolphinConnect.exe
           popd
           mkdir -p out
-          mv ./target/release/rustdesk-portable-packer.exe "out/DolphinConnect-${VERSION}-x86.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "out/DolphinConnect-${DOLPHIN_VERSION}-x86.exe"
           cd out && sha256sum *.exe && ls -l
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -296,11 +296,15 @@ jobs:
           path: out/
 
   release:
-    needs: [build-windows, build-windows-x86]
+    needs: [guard, build-windows, build-windows-x86]
     if: inputs.profile == 'production' && inputs.release-tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TAG: ${{ inputs.release-tag }}
+      DOLPHIN_VERSION: ${{ needs.guard.outputs.version }}
+      PRERELEASE: ${{ needs.guard.outputs.prerelease }}
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -310,7 +314,7 @@ jobs:
       - name: Checksums and expected files
         run: |
           cd out
-          v="${{ inputs.release-tag }}"
+          v="$DOLPHIN_VERSION"
           for f in "DolphinConnect-$v-x64.exe" "DolphinConnect-$v-x86.exe" "DolphinConnect-Technician-$v-x64.exe" baked-settings.json; do
             test -f "$f" || { echo "missing $f" >&2; exit 1; }
           done
@@ -320,7 +324,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ inputs.release-tag }}" out/* \
+          flag=""
+          if [ "$PRERELEASE" = "true" ]; then flag="--prerelease"; fi
+          gh release create "$TAG" out/* $flag \
             --repo "${{ github.repository }}" --target "${{ github.sha }}" \
-            --title "Dolphin Connect ${{ inputs.release-tag }}" \
-            --notes "Windows clients, RustDesk ${UPSTREAM_VERSION} with the changes in dolphin/README.md: customer x64, customer x86 (Windows 7/8 and 32-bit), technician x64. Unsigned. Verify with SHA256SUMS."
+            --title "Dolphin Connect $DOLPHIN_VERSION" \
+            --notes "Windows apps, Dolphin Connect $DOLPHIN_VERSION (RustDesk ${UPSTREAM_VERSION} with the changes in dolphin/README.md): customer x64, customer x86 (Windows 7/8 and 32-bit), technician x64. Unsigned. Verify with SHA256SUMS. Changes: dolphin/CHANGELOG.md."

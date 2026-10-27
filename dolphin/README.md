@@ -21,17 +21,25 @@ Everything else is upstream RustDesk. Copyright notices of the RustDesk authors 
 
 GitHub Actions → **Dolphin build** → Run workflow, choose the profile (`dev` or `production`) and, for dev runs,
 which apps (`builds`: `customer-x64` by default, `technician-x64`, `customer-x86`, `x64`, `all`). A production run
-always builds all three. A `production` run with a release tag (`1.5.0-dc.N`) publishes
-`DolphinConnect-<tag>-x64.exe`, `DolphinConnect-<tag>-x86.exe`, `DolphinConnect-Technician-<tag>-x64.exe`,
-`SHA256SUMS` and `baked-settings.json` as a GitHub release. vcpkg packages are kept between runs (`files` binary
-cache in `C:\vcpkg-binary-cache`, saved by `actions/cache`); dev runs use thin LTO, production full LTO.
+always builds all three. A `production` run with a release tag (`vX.Y.Z`, or `vX.Y.Z-rc.N` for a release
+candidate, where `X.Y.Z` is `dolphin/version.txt`) publishes
+`DolphinConnect-<version>-x64.exe`, `DolphinConnect-<version>-x86.exe`, `DolphinConnect-Technician-<version>-x64.exe`,
+`SHA256SUMS` and `baked-settings.json` as a GitHub release (`<version>` is the tag without the `v`). vcpkg packages
+are kept between runs (`files` binary cache in `C:cpkg-binary-cache`, saved by `actions/cache`); dev runs use thin
+LTO, production full LTO.
+
+**Versions (TB-4).** Our apps have their own SemVer number, `dolphin/version.txt` (first: `2.0.0`, owner decision
+D3). Releases are `X.Y.Z`, release candidates `X.Y.Z-rc.N`, test builds `X.Y.Z-dev.<run>` (never offered to
+customers, never update themselves). Windows FileVersion is `X.Y.Z.<run>`. RustDesk's own `1.5.0` stays
+`crate::VERSION` because the protocol compares it with peers. After a release, raise `version.txt` to the next
+planned number, so test builds sort after the release.
 
 The Dolphin Connect portal serves each customer binary under two names: one ending in `install.exe`, which
 opens RustDesk's installer (`src/common.rs` `is_setup`), and a portable name. The x86 build's outer
 (packer) exe has default file properties; the inner `DolphinConnect.exe` is branded. Its `sciter.dll` is
 pinned by commit and SHA-256 in the workflow.
 
-Local generation: `python dolphin/gen_profile.py <profile> <customer|technician>`.
+Local generation: `python dolphin/gen_profile.py <profile> <customer|technician> <version>`.
 
 Tests (no Rust toolchain needed): `python -m unittest discover -s dolphin -p "test_*.py"` (needs Pillow).
 

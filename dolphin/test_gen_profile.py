@@ -108,7 +108,7 @@ class SettingsTest(unittest.TestCase):
 
 class RenderTest(unittest.TestCase):
     def test_renders_sorted_rust_constants_with_the_profile_in_override(self):
-        rust = g.render_rust(SETTINGS, PROFILE, "production", "customer")
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0")
         self.assertIn('pub const APP_NAME: &str = "DolphinConnect";', rust)
         self.assertIn('pub const RENDEZVOUS_SERVER: &str = "remote.dolphindev.ir";', rust)
         self.assertIn(f'("key", "{KEY}")', rust)
@@ -121,18 +121,18 @@ class RenderTest(unittest.TestCase):
         self.assertIn('("disable-installation", "N")', hard)
 
     def test_the_technician_variant_is_outgoing_with_its_own_name(self):
-        rust = g.render_rust(SETTINGS, PROFILE, "production", "technician")
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "technician", "2.0.0")
         self.assertIn('("conn-type", "outgoing")', rust.split("pub const HARD_SETTINGS")[1])
         self.assertIn('pub const APP_NAME: &str = "DolphinConnectTech";', rust)
 
     def test_brand_dart_has_the_values_escaped(self):
         s = copy.deepcopy(SETTINGS)
         s["brand"]["support-phone"] = "021-12345678"
-        dart = g.render_brand_dart(s, PROFILE)
+        dart = g.render_brand_dart(s, PROFILE, "2.0.0")
         # The technician app shows the staff panel from the same server as the API.
         self.assertIn("static const String portalUrl = 'https://support.dolphindev.ir';", dart)
         self.assertIn("static const String portalUrl = 'http://127.0.0.1:3010';",
-                      g.render_brand_dart(s, {**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}))
+                      g.render_brand_dart(s, {**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}, "2.0.0"))
         self.assertIn("static const String nameFa = 'دلفین کانکت';", dart)
         self.assertIn("static const String supportPhone = '021-12345678';", dart)
         self.assertIn("static const String siteLabel = 'support.dolphindev.ir';", dart)
@@ -149,8 +149,8 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(s), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "dev.json").write_text(json.dumps(PROFILE), encoding="utf-8")
-            self.assertEqual(g.main(["production", "customer"], root), 1)
-            self.assertEqual(g.main(["dev", "customer"], root), 0)
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root), 1)
+            self.assertEqual(g.main(["dev", "customer", "2.0.0"], root), 0)
             self.assertIn("class DolphinBrand", (root / "flutter" / "lib" / "dolphin" / "brand.dart").read_text(encoding="utf-8"))
 
     def test_rust_strings_are_escaped_and_control_characters_refused(self):
@@ -175,14 +175,37 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(with_phone), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
-            self.assertEqual(g.main(["production", "customer"], root), 0)
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root), 0)
             self.assertIn('("conn-type", "incoming")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
             self.assertIn("approve-mode", (root / "dolphin" / "build" / "baked-settings.json").read_text(encoding="utf-8"))
-            self.assertEqual(g.main(["production", "technician"], root), 0)
+            self.assertEqual(g.main(["production", "technician", "2.0.0"], root), 0)
             self.assertIn('("conn-type", "outgoing")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
-            self.assertEqual(g.main(["empty", "customer"], root), 1)
-            self.assertEqual(g.main(["production", "guest"], root), 1)
+            self.assertEqual(g.main(["empty", "customer", "2.0.0"], root), 1)
+            self.assertEqual(g.main(["production", "guest", "2.0.0"], root), 1)
             self.assertEqual(g.main(["production"], root), 2)
+
+
+class VersionTest(unittest.TestCase):
+    def test_rust_and_dart_carry_the_dolphin_version_the_portal_and_the_phone(self):
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0-rc.1")
+        self.assertIn('pub const DOLPHIN_VERSION: &str = "2.0.0-rc.1";', rust)
+        self.assertIn('pub const PORTAL_URL: &str = "https://support.dolphindev.ir";', rust)
+        self.assertIn('pub const SUPPORT_PHONE: &str = "021-44200250";', rust)
+        self.assertIn("static const String version = '2.0.0-rc.1';", g.render_brand_dart(SETTINGS, PROFILE, "2.0.0-rc.1"))
+        self.assertEqual(g.portal_url({**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}), "http://127.0.0.1:3010")
+
+    def test_main_refuses_a_version_that_is_not_ours(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "dolphin" / "profiles").mkdir(parents=True)
+            (root / "src").mkdir()
+            (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
+            (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+            for bad in ("v2.0.0", "2.0", "2.0.0-beta.1", "1.5.0-dc.4", ""):
+                self.assertEqual(g.main(["production", "customer", bad], root), 1, bad)
+            self.assertEqual(g.main(["production", "customer", "2.0.0-dev.7"], root), 0)
+            self.assertIn('DOLPHIN_VERSION: &str = "2.0.0-dev.7"', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

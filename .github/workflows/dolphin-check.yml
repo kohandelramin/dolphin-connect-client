@@ -26,8 +26,9 @@ jobs:
         run: |
           pip install pillow==11.3.0
           python -m unittest discover -s dolphin -p "test_*.py" -v
-          python dolphin/gen_profile.py "$PROFILE" customer
-          python dolphin/gen_profile.py "$PROFILE" technician
+          v="$(cat dolphin/version.txt)-dev.${{ github.run_number }}"
+          python dolphin/gen_profile.py "$PROFILE" customer "$v"
+          python dolphin/gen_profile.py "$PROFILE" technician "$v"
       - name: No visible RustDesk text or links (fails early, before the long builds)
         run: python dolphin/rebrand.py
 
@@ -52,7 +53,7 @@ jobs:
           name: bridge-artifact
           path: ./
       - name: Dolphin settings (brand.dart)
-        run: python dolphin/gen_profile.py "$PROFILE" customer
+        run: python dolphin/gen_profile.py "$PROFILE" customer "$(cat dolphin/version.txt)-dev.${{ github.run_number }}"
       - uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
         with:
           channel: "stable"
