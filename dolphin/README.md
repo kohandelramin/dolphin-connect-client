@@ -39,3 +39,16 @@ Tests (no Rust toolchain needed): `python -m unittest discover -s dolphin -p "te
 
 Based on commit `fada664df7a294d1d1a9ca3e7cd3637069122f17` (tag `1.5.0`). To move to a newer release,
 branch from the new tag, cherry-pick the `dolphin` commits, and rebuild.
+
+### Build times
+
+Dev profile, `builds=customer-x64`, same commit (`7dbd4ea`), measured 2026-10-27. Before this change a full run
+(run 40498394513) took 32 m 60 s for `build-windows (customer)`, of which about 15 min was vcpkg rebuilding everything.
+
+| Run | Cache | Whole run | build-windows (customer) | vcpkg step |
+|---|---|---|---|---|
+| 40571892473 | cold (vcpkg: "Restored 0 package(s)"; zips stored afterwards) | 59 m 51 s | 51 m 23 s (Build step 24 m) | 17 m 37 s |
+| 40580914538 | warm (vcpkg: "Restored 16 package(s) ... in 1.7 s") | 21 m 57 s | 17 m 51 s (Build step 9 m 22 s) | 25 s |
+
+The warm run also gains from the Rust cache and thin LTO. A cold run is slower than before because it now also
+saves the caches; it only happens when `vcpkg.json`, `res/vcpkg/**` or the vcpkg commit changes.
