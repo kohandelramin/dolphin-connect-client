@@ -26,6 +26,11 @@ class DolphinAbout extends StatelessWidget {
               builder: (context, snapshot) => Text('نسخه‌ی ${snapshot.data ?? ''}',
                   style: const TextStyle(color: DolphinColors.muted)),
             ),
+            FutureBuilder<String>(
+              future: bind.mainGetMyId(),
+              builder: (context, snapshot) => SelectableText('شناسه‌ی این رایانه: ${snapshot.data ?? ''}',
+                  style: const TextStyle(color: DolphinColors.muted)),
+            ),
             const SizedBox(height: 12),
             const Text('© ۱۴۰۵ دلفین · بخش‌هایی © Purslane Tech Pte. Ltd.'),
             Wrap(children: [

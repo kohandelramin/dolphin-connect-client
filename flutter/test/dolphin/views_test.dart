@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
+import 'package:flutter_hbb/dolphin/technician_id.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,6 +74,15 @@ void main() {
     expect(got, [true, true, false]);
     await tester.tap(find.text('رد'));
     expect(denied, isTrue);
+  });
+
+  testWidgets('technician build shows its own ID with copy', (tester) async {
+    var copied = false;
+    await tester.pumpWidget(_app(DolphinTechnicianIdView(id: '287654321', onCopy: () => copied = true)));
+    expect(find.text('287 654 321'), findsOneWidget);
+    expect(find.textContaining('حساب من'), findsOneWidget);
+    await tester.tap(find.text('کپی'));
+    expect(copied, isTrue);
   });
 
   testWidgets('session view shows the technician, time and End', (tester) async {
