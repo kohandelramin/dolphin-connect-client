@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'digits.dart';
+import 'recent_sessions.dart';
 import 'theme.dart';
 
 /// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
@@ -44,6 +45,9 @@ class DolphinHomeView extends StatelessWidget {
   final String code;
   final VoidCallback? onCopyCode;
 
+  /// UN-15: the last finished sessions on this PC, newest first (pushed by the portal).
+  final List<RecentSession> recent;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -53,7 +57,8 @@ class DolphinHomeView extends StatelessWidget {
       required this.siteLabel,
       this.onRequests,
       this.code = '',
-      this.onCopyCode});
+      this.onCopyCode,
+      this.recent = const []});
 
   @override
   Widget build(BuildContext context) =>
@@ -160,6 +165,32 @@ class DolphinHomeView extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
                     ),
+                    if (recent.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(DolphinRadii.card),
+                          border: Border.all(color: DolphinColors.line),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('آخرین اتصال‌ها به این رایانه',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                            const SizedBox(height: 6),
+                            for (final s in recent.take(3))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(recentLine(s, DateTime.now()),
+                                    style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (onRequests != null) ...[
                       const SizedBox(height: 14),
                       SizedBox(

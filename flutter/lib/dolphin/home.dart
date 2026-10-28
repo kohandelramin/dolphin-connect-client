@@ -13,6 +13,7 @@ import 'brand.dart';
 import 'customer_requests.dart';
 import 'home_view.dart';
 import 'panel_bridge.dart';
+import 'recent_sessions.dart';
 import 'window_sizes.dart';
 
 /// Pushed by the portal with every heartbeat (app/src/lib/engine/policy.ts SUPPORT_PHONE_OPTION),
@@ -108,6 +109,7 @@ class _DolphinHomeState extends State<DolphinHome> {
             showToast('کپی شد');
           },
           onRequests: () => _show(true),
+          recent: parseRecentSessions(bind.mainGetOptionSync(key: kDolphinRecentSessionsOption)),
         );
       }),
     );
