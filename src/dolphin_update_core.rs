@@ -304,9 +304,23 @@ pub fn pick_phone(pushed: &str, compiled: &str) -> String {
     }
 }
 
+/// "2.0.0-rc.2" -> "2.0.0": the numeric X.Y.Z of a Dolphin version, for Windows' VersionMajor/Minor/Build DWORDs
+/// in the Programs list (the full version goes into DisplayVersion).
+pub fn release_core(version: &str) -> &str {
+    version.split(|c| c == '-' || c == '+').next().unwrap_or(version)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_programs_list_gets_numeric_parts_of_our_version() {
+        assert_eq!(release_core("2.0.0"), "2.0.0");
+        assert_eq!(release_core("2.0.0-rc.2"), "2.0.0");
+        assert_eq!(release_core("2.1.0-dev.412"), "2.1.0");
+        assert_eq!(release_core("2.0.0+15"), "2.0.0");
+    }
 
     const SHA: &str = "a386381bde59a6cc9d804469fb27b1df16bb0c3085ffc2cb1a28c46b388654f3";
 

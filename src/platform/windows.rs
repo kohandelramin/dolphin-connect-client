@@ -1600,7 +1600,8 @@ pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> Res
     let mut version_major = "0";
     let mut version_minor = "0";
     let mut version_build = "0";
-    let versions: Vec<&str> = crate::VERSION.split(".").collect();
+    // Dolphin Connect (TB-4): the Programs list shows our version, not RustDesk's; DWORDs from the X.Y.Z core.
+    let versions: Vec<&str> = crate::dolphin_update_core::release_core(crate::dolphin::DOLPHIN_VERSION).split(".").collect();
     if versions.len() > 0 {
         version_major = versions[0];
     }
@@ -1750,11 +1751,12 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
 {import_config}
 {after_install}
 {install_remote_printer}
+ie4uinit.exe -show
 {sleep}
     ",
         display_icon = shortcut_icon_location.as_deref().unwrap_or(exe.as_str()),
         nested_exe = escape_nested_cmd_ampersands(&exe),
-        version = crate::VERSION.replace("-", "."),
+        version = crate::dolphin::DOLPHIN_VERSION, // Dolphin Connect (TB-4)
         build_date = crate::BUILD_DATE,
         after_install = get_after_install(
             &exe,
@@ -3440,7 +3442,8 @@ pub fn update_me(debug: bool) -> ResultType<()> {
     let mut version_major = "0";
     let mut version_minor = "0";
     let mut version_build = "0";
-    let versions: Vec<&str> = crate::VERSION.split(".").collect();
+    // Dolphin Connect (TB-4): the Programs list shows our version, not RustDesk's; DWORDs from the X.Y.Z core.
+    let versions: Vec<&str> = crate::dolphin_update_core::release_core(crate::dolphin::DOLPHIN_VERSION).split(".").collect();
     if versions.len() > 0 {
         version_major = versions[0];
     }
@@ -3450,7 +3453,7 @@ pub fn update_me(debug: bool) -> ResultType<()> {
     if versions.len() > 2 {
         version_build = versions[2];
     }
-    let version = crate::VERSION.replace("-", ".");
+    let version = crate::dolphin::DOLPHIN_VERSION; // Dolphin Connect (TB-4)
     let size = get_directory_size_kb(&path);
     let build_date = crate::BUILD_DATE;
     // Use the icon in the previous installation directory if possible.
@@ -3554,6 +3557,7 @@ taskkill /F /IM {app_name}.exe{filter}
 {restore_service_cmd}
 {uninstall_printer_cmd}
 {install_printer_cmd}
+ie4uinit.exe -show
 {sleep}
     ",
         app_name = app_name,
