@@ -221,7 +221,24 @@ pub fn core_main() -> Option<Vec<String>> {
         #[cfg(windows)]
         {
             use crate::platform;
-            if args[0] == "--uninstall" {
+            if args[0] == "--dolphin-notify" {
+                // UN-16: the technician app starts itself with this to show a Windows notice for a new waiting
+                // request (flutter/lib/dolphin/technician_home.dart). One line of plain text, then exit.
+                let text: String = args
+                    .get(1)
+                    .map(|s| s.chars().filter(|c| !c.is_control()).take(120).collect())
+                    .unwrap_or_default();
+                if !text.trim().is_empty() {
+                    Toast::new(Toast::POWERSHELL_APP_ID)
+                        .title(&config::APP_NAME.read().unwrap())
+                        .text1(&text)
+                        .sound(Some(Sound::Default))
+                        .duration(Duration::Short)
+                        .show()
+                        .ok();
+                }
+                return None;
+            } else if args[0] == "--uninstall" {
                 if let Err(err) = platform::uninstall_me(true) {
                     log::error!("Failed to uninstall: {}", err);
                 }

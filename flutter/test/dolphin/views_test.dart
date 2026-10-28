@@ -126,6 +126,12 @@ void main() {
     expect(parsePanelMessage({'type': 'dolphin-connect', 'id': '123 456 789'})?.id, '123456789');
     expect(parsePanelMessage('{"type":"dolphin-connect","id":"123456789"}')?.type, 'dolphin-connect');
     expect(parsePanelMessage({'type': 'dolphin-hello'})?.type, 'dolphin-hello');
+    // UN-16: a new waiting request becomes one plain line for the Windows notice.
+    final notice = parsePanelMessage({'type': 'dolphin-new-request', 'text': ' درخواست تازه:\nشرکت الف '});
+    expect(notice?.type, 'dolphin-new-request');
+    expect(notice?.text, 'درخواست تازه: شرکت الف');
+    expect(parsePanelMessage({'type': 'dolphin-new-request', 'text': ''}), isNull);
+    expect(parsePanelMessage({'type': 'dolphin-new-request', 'text': 'x' * 300})?.text.length, kNewRequestMaxLength);
     expect(parsePanelMessage({'type': 'dolphin-connect', 'id': 'x;rm'}), isNull);
     expect(parsePanelMessage({'type': 'other'}), isNull);
     expect(parsePanelMessage('not json'), isNull);

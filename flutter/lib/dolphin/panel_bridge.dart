@@ -23,7 +23,17 @@ class PanelMessage {
   const PanelMessage.callResult(this.ok, this.text, [this.id = ''])
       : type = 'dolphin-call-result',
         code = '';
+
+  /// `dolphin-new-request` (UN-16): the panel saw a new waiting request; [text] is the line for the Windows notice.
+  const PanelMessage.newRequest(this.text)
+      : type = 'dolphin-new-request',
+        id = '',
+        code = '',
+        ok = false;
 }
+
+/// The Windows notice for a new request is one short line; longer text is cut.
+const kNewRequestMaxLength = 120;
 
 final panelIdPattern = RegExp(r'^[A-Za-z0-9_-]{6,32}$');
 
@@ -46,6 +56,13 @@ PanelMessage? parsePanelMessage(dynamic raw) {
   final type = data['type'];
   if (type == 'dolphin-hello') return const PanelMessage('dolphin-hello');
   if (type == 'dolphin-code-request') return const PanelMessage('dolphin-code-request');
+  if (type == 'dolphin-new-request') {
+    final text = data['text'];
+    if (text is! String || text.trim().isEmpty) return null;
+    // One line, no control characters: it becomes a command-line argument for the notice (src/core_main.rs).
+    final t = text.trim().replaceAll(RegExp(r'[\x00-\x1f\x7f]'), ' ');
+    return PanelMessage.newRequest(t.length > kNewRequestMaxLength ? t.substring(0, kNewRequestMaxLength) : t);
+  }
   if (type == 'dolphin-call-result') {
     final ok = data['ok'];
     final text = data['text'];

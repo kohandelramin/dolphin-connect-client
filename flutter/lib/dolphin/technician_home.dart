@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../common.dart';
@@ -40,6 +42,11 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     if (m.type == 'dolphin-connect' && mounted) {
       // In code mode the panel sends the customer's one-time code with the ID (WF-3).
       connect(context, m.id, password: m.code.isEmpty ? null : m.code);
+    }
+    if (m.type == 'dolphin-new-request') {
+      // UN-16: a Windows notice with its sound, shown by this same program started with one argument; it exits after.
+      Process.start(Platform.resolvedExecutable, ['--dolphin-notify', m.text], mode: ProcessStartMode.detached)
+          .then((_) {}, onError: (_) {}); // no notice if Windows refuses; the panel still shows the request
     }
     if (m.type == 'dolphin-call-result') {
       if (_call.answer(m.text, ok: m.ok, id: m.id) && m.ok) _manual.clear();
