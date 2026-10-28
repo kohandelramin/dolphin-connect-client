@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'digits.dart';
 import 'theme.dart';
 import 'verify.dart';
 
@@ -107,7 +108,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
             if (canAccept && widget.showElevate && onAcceptElevate != null)
               TextButton(
                 onPressed: () => onAcceptElevate(keyboard, clipboard, file),
-                child: const Text('پذیرفتن با اجازه‌ی مدیر ویندوز'),
+                child: const Text('پذیرفتن، با اجازه‌ی نصب برنامه'),
               ),
           ],
         ),
@@ -116,24 +117,49 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
   }
 }
 
-String _mmss(Duration d) =>
-    '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+/// From the moment the customer accepted, read from the clock rather than counted in ticks (U7).
+Duration sessionElapsed(DateTime? start, DateTime now) =>
+    start == null || now.isBefore(start) ? Duration.zero : now.difference(start);
 
-/// While a technician is connected: who, for how long, file transfer, and the End button.
+/// "۰۴:۱۲", or "۱:۰۲:۰۳" from an hour on. Persian digits via the shared [faDigits].
+String sessionClock(Duration d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final h = d.inHours;
+  final m = d.inMinutes % 60;
+  final s = d.inSeconds % 60;
+  return faDigits(h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}');
+}
+
+/// While a technician is connected: who, for how long, what he may do, and the End button. Every permission stays
+/// in the customer's hands for the whole session (SECURITY.md control 1; UX-13).
 class DolphinSessionView extends StatelessWidget {
   final String technician;
   final Duration elapsed;
-  final bool fileEnabled;
-  final ValueChanged<bool> onFile;
+  final bool keyboard;
+  final bool clipboard;
+  final bool file;
+
+  /// `permission` is `keyboard`, `clipboard` or `file` (bind.cmSwitchPermission names).
+  final void Function(String permission, bool enabled) onToggle;
   final VoidCallback onEnd;
 
   const DolphinSessionView(
       {super.key,
       required this.technician,
       required this.elapsed,
-      required this.fileEnabled,
-      required this.onFile,
+      required this.keyboard,
+      required this.clipboard,
+      required this.file,
+      required this.onToggle,
       required this.onEnd});
+
+  Widget _chip(String label, String name, bool value) => FilterChip(
+        label: Text(label),
+        selected: value,
+        onSelected: (v) => onToggle(name, v),
+        selectedColor: DolphinColors.azureTint,
+        checkmarkColor: DolphinColors.azure,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -145,24 +171,21 @@ class DolphinSessionView extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                  color: DolphinColors.azureSoft,
-                  borderRadius: BorderRadius.circular(99)),
-              child: const Text('● در جلسه',
-                  style: TextStyle(
-                      color: DolphinColors.azure, fontWeight: FontWeight.w700)),
+              decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
+              child: const Text('● در جلسه', style: TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 10),
-            Text(technician,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            Text(_mmss(elapsed),
-                textDirection: TextDirection.ltr,
-                style: const TextStyle(color: DolphinColors.muted)),
+            Text(technician, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(sessionClock(elapsed), textDirection: TextDirection.ltr, style: const TextStyle(color: DolphinColors.muted)),
             const SizedBox(height: 10),
-            FilterChip(
-                label: const Text('انتقال فایل'),
-                selected: fileEnabled,
-                onSelected: onFile),
+            Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
+              _chip('موس و صفحه‌کلید', 'keyboard', keyboard),
+              _chip('کلیپ‌بورد', 'clipboard', clipboard),
+              _chip('انتقال فایل', 'file', file),
+            ]),
+            const SizedBox(height: 6),
+            const Text('هر کدام را خاموش کنید، کارشناس دیگر نمی‌تواند از آن استفاده کند.',
+                textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,

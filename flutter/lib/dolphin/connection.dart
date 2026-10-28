@@ -22,17 +22,15 @@ class DolphinConnection extends StatefulWidget {
 class _DolphinConnectionState extends State<DolphinConnection> {
   Timer? _timer;
   final _shownAt = DateTime.now();
-  Duration _elapsed = Duration.zero;
+  DateTime? _sessionStart;
 
   @override
   void initState() {
     super.initState();
-    // Twice a second: re-check what the portal said about this peer, and count the session's time.
-    _timer = Timer.periodic(const Duration(milliseconds: 500), (t) {
+    // Twice a second: re-check what the portal said about this peer, and note when the session started.
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       setState(() {
-        if (widget.client.authorized && !widget.client.disconnected && t.tick.isEven) {
-          _elapsed += const Duration(seconds: 1);
-        }
+        if (widget.client.authorized && !widget.client.disconnected) _sessionStart ??= DateTime.now();
       });
     });
   }
@@ -84,10 +82,12 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         peerName: peerName,
         showElevate: showElevate,
         onAccept: (keyboard, clipboard, file) {
+          _sessionStart = DateTime.now();
           _permissions(keyboard, clipboard, file);
           model.sendLoginResponse(c, true);
         },
         onAcceptElevate: (keyboard, clipboard, file) {
+          _sessionStart = DateTime.now();
           _permissions(keyboard, clipboard, file);
           model.sendLoginResponse(c, true);
           model.setShowElevation(false);
@@ -98,11 +98,17 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     }
     return DolphinSessionView(
       technician: verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName,
-      elapsed: _elapsed,
-      fileEnabled: c.file,
-      onFile: (enabled) {
-        bind.cmSwitchPermission(connId: c.id, name: 'file', enabled: enabled);
-        setState(() => c.file = enabled);
+      elapsed: sessionElapsed(_sessionStart, DateTime.now()),
+      keyboard: c.keyboard,
+      clipboard: c.clipboard,
+      file: c.file,
+      onToggle: (name, enabled) {
+        bind.cmSwitchPermission(connId: c.id, name: name, enabled: enabled);
+        setState(() {
+          if (name == 'keyboard') c.keyboard = enabled;
+          if (name == 'clipboard') c.clipboard = enabled;
+          if (name == 'file') c.file = enabled;
+        });
       },
       onEnd: () => bind.cmCloseConnection(connId: c.id),
     );

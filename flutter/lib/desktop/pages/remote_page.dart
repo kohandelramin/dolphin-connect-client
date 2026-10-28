@@ -23,6 +23,7 @@ import '../widgets/remote_toolbar.dart';
 import '../widgets/kb_layout_type_chooser.dart';
 import '../widgets/tabbar_widget.dart';
 import 'macos_full_screen_focus_recovery.dart';
+import '../../dolphin/permissions.dart'; // Dolphin Connect: what the customer allows (UX-13)
 
 import 'package:flutter_hbb/native/custom_cursor.dart'
     if (dart.library.html) 'package:flutter_hbb/web/custom_cursor.dart';
@@ -777,6 +778,10 @@ class _RemotePageState extends State<RemotePage>
                         ])
                       : remoteToolbar(context)),
               _ffi.ffiModel.pi.isSet.isFalse ? emptyOverlay() : Offstage(),
+              // Dolphin Connect: what the customer allows right now (UX-13).
+              ListenableBuilder(
+                  listenable: _ffi.ffiModel,
+                  builder: (context, _) => DolphinPermissionStrip(permissions: _ffi.ffiModel.permissions)),
             ],
           ),
         ],
