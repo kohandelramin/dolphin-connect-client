@@ -80,7 +80,8 @@ class _DolphinHomeState extends State<DolphinHome> {
         final code = dolphinCode(
             approveMode: model.approveMode,
             showCode: bind.mainGetOptionSync(key: kDolphinShowCodeOption),
-            password: model.serverPasswd.text);
+            password: model.serverPasswd.text,
+            inSession: model.clients.any((c) => !c.disconnected));
         if (_requests) return DolphinCustomerRequests(id: id, code: code, onBack: () => _show(false));
         return DolphinHomeView(
           id: id,

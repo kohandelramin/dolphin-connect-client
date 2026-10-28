@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'digits.dart';
@@ -202,22 +204,77 @@ class DolphinSessionView extends StatelessWidget {
   }
 }
 
-/// After a session ends, until the customer closes the window.
-class DolphinEndedView extends StatelessWidget {
+/// How long the ended screen waits for the portal's word before it says the technician ended the session (Plan 13 F5).
+const kDolphinEndSettleMs = 4000;
+
+/// The ended screen closes itself after this long, as «بستن» would (D15).
+const kDolphinEndedAutoCloseMs = 60000;
+
+enum DolphinEndReason { you, technician, portal }
+
+/// Why the session ended (UX-6). The CM gets no reason from the connection (Plan 13 F4), so: our own «پایان» or «رد» is
+/// "you"; a portal that no longer vouches for this peer (what it pushed with the cut) is "portal"; anything else, once
+/// the portal had [kDolphinEndSettleMs] to say otherwise, is "technician" (a dropped link looks the same). Null meanwhile.
+DolphinEndReason? endReason({required bool byCustomer, required TechCheck verdictNow, required int sinceEndMs}) {
+  if (byCustomer) return DolphinEndReason.you;
+  if (verdictNow == TechCheck.rejected) return DolphinEndReason.portal;
+  if (sinceEndMs < kDolphinEndSettleMs) return null;
+  return DolphinEndReason.technician;
+}
+
+String endReasonText(DolphinEndReason r) => switch (r) {
+      DolphinEndReason.you => 'شما پایان دادید.',
+      DolphinEndReason.technician => 'اتصال کارشناس بسته شد.',
+      DolphinEndReason.portal => 'پورتال دلفین این اتصال را قطع کرد.',
+    };
+
+/// After a session ends, until the customer closes the window (or a minute passes, D15).
+class DolphinEndedView extends StatefulWidget {
+  final DolphinEndReason? reason;
   final VoidCallback onClose;
-  const DolphinEndedView({super.key, required this.onClose});
+  const DolphinEndedView({super.key, required this.reason, required this.onClose});
 
   @override
-  Widget build(BuildContext context) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('جلسه پایان یافت.',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 10),
-            OutlinedButton(onPressed: onClose, child: const Text('بستن')),
-          ]),
-        ),
-      );
+  State<DolphinEndedView> createState() => _DolphinEndedViewState();
+}
+
+class _DolphinEndedViewState extends State<DolphinEndedView> {
+  Timer? _autoClose;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoClose = Timer(const Duration(milliseconds: kDolphinEndedAutoCloseMs), _close);
+  }
+
+  @override
+  void dispose() {
+    _autoClose?.cancel();
+    super.dispose();
+  }
+
+  void _close() {
+    _autoClose?.cancel();
+    widget.onClose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.reason;
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('جلسه پایان یافت.', style: TextStyle(fontWeight: FontWeight.w700)),
+          if (r != null) ...[
+            const SizedBox(height: 4),
+            Text(endReasonText(r), textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
+          ],
+          const SizedBox(height: 10),
+          OutlinedButton(onPressed: _close, child: const Text('بستن')),
+        ]),
+      ),
+    );
+  }
 }

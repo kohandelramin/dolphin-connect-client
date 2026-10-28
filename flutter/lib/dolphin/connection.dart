@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../consts.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'connection_view.dart';
 import 'verify.dart';
+
+/// Connections the customer ended from this window («پایان» or «رد»), for the ended screen's reason (UX-6).
+final _endedByCustomer = <int>{};
 
 /// Customer build's connection window for one incoming client. Unlike upstream, accepting does not
 /// minimize the window: the customer keeps seeing who is connected and the End button (SECURITY control 2).
@@ -23,6 +27,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   Timer? _timer;
   final _shownAt = DateTime.now();
   DateTime? _sessionStart;
+  DateTime? _endedAt;
+  bool _closing = false;
 
   @override
   void initState() {
@@ -31,6 +37,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       setState(() {
         if (widget.client.authorized && !widget.client.disconnected) _sessionStart ??= DateTime.now();
+        if (widget.client.disconnected) _endedAt ??= DateTime.now();
       });
     });
   }
@@ -41,7 +48,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     super.dispose();
   }
 
-  TechVerdict _verdict() {
+  TechVerdict _verdict({bool decided = false}) {
     String opt(String key) => bind.mainGetOptionSync(key: key);
     return verifyTechnician(
       peerId: widget.client.peerId,
@@ -49,8 +56,17 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       techName: opt(kDolphinTechNameOption),
       until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
       nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      waitedMs: DateTime.now().difference(_shownAt).inMilliseconds,
+      // After the end there is nothing to wait for: decide on what the portal pushed.
+      waitedMs: decided ? kDolphinVerifyWaitMs : DateTime.now().difference(_shownAt).inMilliseconds,
     );
+  }
+
+  /// As upstream's tab close for an ended connection (server_page.dart handleClose).
+  Future<void> _closeEnded() async {
+    if (_closing) return;
+    _closing = true;
+    await bind.cmRemoveDisconnectedConnection(connId: widget.client.id);
+    if (await bind.cmGetClientsLength() == 0) await windowManager.close();
   }
 
   void _permissions(bool keyboard, bool clipboard, bool file) {
@@ -69,7 +85,19 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     final c = widget.client;
     final peerName = c.name.isEmpty ? c.peerId : c.name;
     if (c.disconnected) {
-      return DolphinEndedView(onClose: () => bind.cmCloseConnection(connId: c.id));
+      if (!c.authorized) {
+        // Refused or cut before Accept: nothing to report, so the tab goes as it did before (UX-6).
+        WidgetsBinding.instance.addPostFrameCallback((_) => _closeEnded());
+        return const SizedBox.shrink();
+      }
+      final endedAt = _endedAt;
+      return DolphinEndedView(
+        reason: endReason(
+            byCustomer: _endedByCustomer.contains(c.id),
+            verdictNow: _verdict(decided: true).state,
+            sinceEndMs: endedAt == null ? 0 : DateTime.now().difference(endedAt).inMilliseconds),
+        onClose: _closeEnded,
+      );
     }
     final verdict = _verdict();
     if (!c.authorized) {
@@ -93,7 +121,10 @@ class _DolphinConnectionState extends State<DolphinConnection> {
           model.setShowElevation(false);
           bind.cmElevatePortable(connId: c.id);
         },
-        onDeny: () => bind.cmCloseConnection(connId: c.id),
+        onDeny: () {
+          _endedByCustomer.add(c.id);
+          bind.cmCloseConnection(connId: c.id);
+        },
       );
     }
     return DolphinSessionView(
@@ -110,7 +141,10 @@ class _DolphinConnectionState extends State<DolphinConnection> {
           if (name == 'file') c.file = enabled;
         });
       },
-      onEnd: () => bind.cmCloseConnection(connId: c.id),
+      onEnd: () {
+        _endedByCustomer.add(c.id);
+        bind.cmCloseConnection(connId: c.id);
+      },
     );
   }
 }

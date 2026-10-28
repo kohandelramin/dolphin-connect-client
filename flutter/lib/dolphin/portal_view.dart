@@ -11,11 +11,12 @@ import 'theme.dart';
 /// Lets the screen around a portal page send it a message (the technician app's own field, WF-2).
 class DolphinPortalLink {
   Future<void> Function(String message)? _send;
+  bool Function()? _onPortal;
 
   /// Sends [message] to the page; false while the page is not loaded (or WebView2 is missing).
   Future<bool> send(String message) async {
     final send = _send;
-    if (send == null) return false;
+    if (send == null || !(_onPortal?.call() ?? false)) return false;
     await send(message);
     return true;
   }
@@ -41,6 +42,9 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
   final _subs = <StreamSubscription>[];
   bool _ready = false;
   bool _noWebView = false;
+  String _url = '';
+
+  bool get _onPortal => isPortalPage(_url, DolphinBrand.portalUrl);
 
   String get _home => '${DolphinBrand.portalUrl}${widget.path}';
 
@@ -59,11 +63,13 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       await _web.initialize();
       await _web.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
       _subs.add(_web.url.listen((url) {
+        _url = url;
         if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);
       }));
       _subs.add(_web.webMessage.listen(_onMessage));
       await _web.loadUrl(_home);
       widget.link?._send = _web.postWebMessage;
+      widget.link?._onPortal = () => _onPortal;
       if (mounted) setState(() => _ready = true);
     } catch (_) {
       if (mounted) setState(() => _noWebView = true);
@@ -72,9 +78,10 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
 
   Future<void> _onMessage(dynamic raw) async {
     final m = parsePanelMessage(raw);
-    if (m == null || !mounted) return;
+    // Only our portal page is heard; a foreign top-level page may load before the redirect home happens.
+    if (m == null || !mounted || !_onPortal) return;
     final reply = await widget.onMessage(m);
-    if (reply != null && mounted) await _web.postWebMessage(reply);
+    if (reply != null && mounted && _onPortal) await _web.postWebMessage(reply);
   }
 
   @override
@@ -83,6 +90,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       s.cancel();
     }
     widget.link?._send = null;
+    widget.link?._onPortal = null;
     _web.dispose();
     super.dispose();
   }

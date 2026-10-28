@@ -567,6 +567,12 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                 }
                                 Data::Close => {
                                     log::info!("cm ipc connection closed from connection request");
+                                    // Dolphin Connect: keep the ended tab so the customer sees why it ended (UX-6);
+                                    // flutter/lib/dolphin/connection.dart closes it, or at once if it was never accepted.
+                                    #[cfg(feature = "flutter")]
+                                    {
+                                        self.close = false;
+                                    }
                                     break;
                                 }
                                 Data::Disconnected => {

@@ -69,6 +69,18 @@ Flutter SDK cache (Install flutter 98 s); run 40627982963 is the final configura
 because it also saves the caches; it only happens when `vcpkg.json`, `res/vcpkg/**`, the vcpkg commit or the Rust profile
 changes.
 
+## Code-mode safety (review P13 T7–T9)
+
+The apps answer, and send, only while the in-app WebView shows the portal itself (`isPortalPage`: the portal address
+or a path, query or fragment under it; never `''`, `about:blank` or another origin). The customer app hands out its
+one-time code only to that page, and it shows no code and answers no code request while a technician is connected,
+because the client rotates the code at a successful login and the technician sees the customer's screen.
+
+PC checks, unverified: (1) that webview_windows delivers `urlChanged` before that page's `webMessageReceived`, so
+the current address is known when a message arrives; (2) an external link inside the in-app portal returns to home and
+the code is not answered while off-portal; (3) the code disappears from the window while a technician is connected and
+the next code shows after the session ends.
+
 ## Upstream
 
 Based on commit `fada664df7a294d1d1a9ca3e7cd3637069122f17` (tag `1.5.0`). To move to a newer release,

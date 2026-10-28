@@ -69,6 +69,15 @@ PanelMessage? parsePanelMessage(dynamic raw) {
 bool isPanelUrl(String url, String portalUrl) =>
     url.isEmpty || url == 'about:blank' || url == portalUrl || url.startsWith('$portalUrl/');
 
+/// True only for a page of our portal: the portal address itself, or a path, query or fragment under it. Strict on
+/// purpose: '', about:blank, another scheme, `portal.evil.example` and `portal@evil.example` are all false. The app
+/// answers (and sends to) only such a page, because the code it hands over logs into this PC.
+bool isPortalPage(String url, String portalUrl) =>
+    url == portalUrl ||
+    url.startsWith('$portalUrl/') ||
+    url.startsWith('$portalUrl?') ||
+    url.startsWith('$portalUrl#');
+
 /// The app's answer to the page's hello: its own ID (app/src/lib/app-bridge.ts parseAppMessage).
 String idReply(String id) => jsonEncode({'type': 'dolphin-id', 'id': id});
 
@@ -92,8 +101,13 @@ const kDolphinShowCodeOption = 'dolphin-show-code';
 
 /// The one-time code to show and hand over, or '' when this PC is not in code mode. `approve-mode` alone cannot tell:
 /// an unlinked PC also gets "password" (Plan 13 F2), so the portal says it outright.
-String dolphinCode({required String approveMode, required String showCode, required String password}) =>
-    approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
+///
+/// While a technician is connected there is no code: the client rotates it when a login succeeds, and the technician
+/// is looking at this screen (review P13 T9).
+String dolphinCode(
+        {required String approveMode, required String showCode, required String password, bool inSession = false}) =>
+    !inSession &&
+            approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
 
 /// The customer app's answer to the request form's code request (app/src/lib/app-bridge.ts parseAppMessage).
 String codeReply(String code) => jsonEncode({'type': 'dolphin-code', 'code': code});

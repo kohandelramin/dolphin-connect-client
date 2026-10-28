@@ -37,6 +37,17 @@ class DolphinCallWait extends ChangeNotifier {
   /// True from the moment the panel is asked until an answer or the timeout; the field is disabled meanwhile.
   bool busy = false;
   Timer? _timer;
+  int _call = 0;
+
+  /// Whether [token] (from [waiting]) is still the latest call.
+  bool isCurrent(int token) => token == _call;
+
+  /// The panel's answer: applied only while a call is waiting. A late one (after the timeout) changes nothing.
+  bool answer(String message, {required bool ok}) {
+    if (!busy) return false;
+    show(message, ok: ok);
+    return true;
+  }
 
   void show(String message, {required bool ok}) {
     _timer?.cancel();
@@ -46,10 +57,12 @@ class DolphinCallWait extends ChangeNotifier {
     notifyListeners();
   }
 
-  void waiting() {
+  int waiting() {
+    final token = ++_call;
     show(kPanelChecking, ok: true);
     busy = true;
     _timer = Timer(wait, () => show(kPanelNoAnswer, ok: false));
+    return token;
   }
 
   @override
