@@ -8,6 +8,7 @@ use std::{
 use bin_reader::{normalize_path, BinaryReader};
 
 pub mod bin_reader;
+mod dolphin_wait;
 #[cfg(windows)]
 mod ui;
 
@@ -245,6 +246,9 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     }
 
     cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    // Dolphin Connect (TB-20): the app replaces this file when it updates itself.
+    cmd.env(dolphin_wait::PACKER_ENV, &exe);
+    cmd.env_remove(dolphin_wait::WAIT_PID_ENV);
     if use_null_stdio() {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -288,6 +292,11 @@ fn main() -> Result<(), String> {
     let quick_support = false;
 
     let mut ui = false;
+    // Dolphin Connect (TB-20): started by an old app that is updating itself; unpack only after it has exited.
+    #[cfg(windows)]
+    if let Some(pid) = dolphin_wait::parse_pid(std::env::var(dolphin_wait::WAIT_PID_ENV).ok().as_deref(), std::process::id()) {
+        dolphin_wait::wait_for_exit(pid, dolphin_wait::WAIT_MS);
+    }
     let reader = BinaryReader::new()?;
     if let Some(exe) = setup(
         reader,

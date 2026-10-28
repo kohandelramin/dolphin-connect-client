@@ -8,6 +8,35 @@ pub const WAIT_PID_ENV: &str = "DOLPHIN_WAIT_PID";
 pub const PACKER_ENV: &str = "DOLPHIN_PACKER";
 pub const WAIT_MS: u32 = 30_000;
 
+/// The pid to wait for: digits only, not zero, not ourselves.
+pub fn parse_pid(value: Option<&str>, own_pid: u32) -> Option<u32> {
+    let v = value?;
+    if v.is_empty() || !v.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let pid: u32 = v.parse().ok()?;
+    if pid == 0 || pid == own_pid {
+        None
+    } else {
+        Some(pid)
+    }
+}
+
+/// Waits until the process has exited (true) or the time is up (false). A pid that is already gone returns at once.
+#[cfg(windows)]
+pub fn wait_for_exit(pid: u32, timeout_ms: u32) -> bool {
+    use winapi::um::{handleapi::CloseHandle, processthreadsapi::OpenProcess, synchapi::WaitForSingleObject, winbase::WAIT_OBJECT_0, winnt::SYNCHRONIZE};
+    unsafe {
+        let handle = OpenProcess(SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            return true;
+        }
+        let done = WaitForSingleObject(handle, timeout_ms) == WAIT_OBJECT_0;
+        CloseHandle(handle);
+        done
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
