@@ -6990,12 +6990,11 @@ mod raii {
             // code is rotated at login (above), but the customer window hides it by polling, so it could be on
             // screen for a few seconds while the technician is connected. Rotating again when the last authorised
             // connection closes makes any code seen during a session dead afterwards. This Drop runs only for
-            // authorised connections (a failed login never creates an AuthedConnID), and only when the approve
-            // mode accepts the one-time password.
-            if AUTHED_CONNS.lock().unwrap().is_empty()
-                && hbb_common::password_security::approve_mode()
-                    != hbb_common::password_security::ApproveMode::Click
-            {
+            // authorised connections (a failed login never creates an AuthedConnID). In click mode the rotation is
+            // harmless (no code is shown or accepted), so there is no mode condition. The AUTHED_CONNS lock is
+            // released before the password code runs.
+            let no_authed_conns = AUTHED_CONNS.lock().unwrap().is_empty();
+            if no_authed_conns {
                 hbb_common::password_security::update_temporary_password();
             }
             // End Dolphin Connect.

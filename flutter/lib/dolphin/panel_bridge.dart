@@ -112,6 +112,10 @@ String dolphinCode(
     !inSession &&
             approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
 
+/// Until the first read of the session count it is unknown, and unknown hides the code: a session accepted while the
+/// update screen was up is live when home opens (final review).
+bool codeHiddenFor(int? connected) => connected == null || connected > 0;
+
 /// Authorised remote sessions the server reports in `mainGetConnectStatus()` (`video_conn_count`, from the server's
 /// own connection list over IPC). `model.clients` cannot serve: on desktop it is filled only in the `--cm` process,
 /// so it is always empty in the main window. 0 on anything unexpected: bad JSON, a missing field or a wrong type.
