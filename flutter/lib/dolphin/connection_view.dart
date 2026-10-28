@@ -222,6 +222,10 @@ DolphinEndReason? endReason({required bool byCustomer, required TechCheck verdic
   return DolphinEndReason.technician;
 }
 
+/// The reason is fixed once it is known: a later portal push or an expired authorization must not rewrite what the
+/// customer is reading. Only null (still settling) can become a value, once.
+DolphinEndReason? latchReason(DolphinEndReason? current, DolphinEndReason? computed) => current ?? computed;
+
 String endReasonText(DolphinEndReason r) => switch (r) {
       DolphinEndReason.you => 'شما پایان دادید.',
       DolphinEndReason.technician => 'اتصال کارشناس بسته شد.',

@@ -781,7 +781,8 @@ class _RemotePageState extends State<RemotePage>
               // Dolphin Connect: what the customer allows right now (UX-13).
               ListenableBuilder(
                   listenable: _ffi.ffiModel,
-                  builder: (context, _) => DolphinPermissionStrip(permissions: _ffi.ffiModel.permissions)),
+                  builder: (context, _) => DolphinPermissionStrip(
+                      permissions: _ffi.ffiModel.permissions, ready: _ffi.ffiModel.pi.isSet.isTrue)),
             ],
           ),
         ],

@@ -29,6 +29,9 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   DateTime? _sessionStart;
   DateTime? _endedAt;
   bool _closing = false;
+  // Fixed at the first build after the end (see latchReason); the screen must not change its mind.
+  bool? _byCustomer;
+  DolphinEndReason? _reason;
 
   @override
   void initState() {
@@ -65,8 +68,14 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   Future<void> _closeEnded() async {
     if (_closing) return;
     _closing = true;
-    await bind.cmRemoveDisconnectedConnection(connId: widget.client.id);
-    if (await bind.cmGetClientsLength() == 0) await windowManager.close();
+    _endedByCustomer.remove(widget.client.id);
+    try {
+      await bind.cmRemoveDisconnectedConnection(connId: widget.client.id);
+      if (await bind.cmGetClientsLength() == 0) await windowManager.close();
+    } finally {
+      // A failure must not leave «بستن» and the automatic close dead.
+      _closing = false;
+    }
   }
 
   void _permissions(bool keyboard, bool clipboard, bool file) {
@@ -91,11 +100,15 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         return const SizedBox.shrink();
       }
       final endedAt = _endedAt;
+      _byCustomer ??= _endedByCustomer.contains(c.id);
+      _reason = latchReason(
+          _reason,
+          endReason(
+              byCustomer: _byCustomer!,
+              verdictNow: _verdict(decided: true).state,
+              sinceEndMs: endedAt == null ? 0 : DateTime.now().difference(endedAt).inMilliseconds));
       return DolphinEndedView(
-        reason: endReason(
-            byCustomer: _endedByCustomer.contains(c.id),
-            verdictNow: _verdict(decided: true).state,
-            sinceEndMs: endedAt == null ? 0 : DateTime.now().difference(endedAt).inMilliseconds),
+        reason: _reason,
         onClose: _closeEnded,
       );
     }

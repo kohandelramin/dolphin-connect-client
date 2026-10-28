@@ -14,10 +14,13 @@ List<(String, bool)> permissionStates(Map<String, bool> p) => [
 /// the phone. It never takes input.
 class DolphinPermissionStrip extends StatelessWidget {
   final Map<String, bool> permissions;
-  const DolphinPermissionStrip({super.key, required this.permissions});
+  /// False until the peer info is set: an unknown permission counts as allowed, which would show a false all-green.
+  final bool ready;
+  const DolphinPermissionStrip({super.key, required this.permissions, this.ready = true});
 
   @override
   Widget build(BuildContext context) {
+    if (!ready) return const SizedBox.shrink();
     final states = permissionStates(permissions);
     return IgnorePointer(
       child: Align(
