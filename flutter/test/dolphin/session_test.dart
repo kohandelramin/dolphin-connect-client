@@ -82,6 +82,8 @@ void main() {
       await tester.pumpWidget(_app(DolphinEndedView(reason: reason, onClose: () {})));
       expect(find.text('جلسه پایان یافت.'), findsOneWidget);
       expect(find.text(text), findsOneWidget);
+      // UN-13: the way back after a restart.
+      expect(find.text(kDolphinRebootHint), findsOneWidget);
     }
     var closed = false;
     await tester.pumpWidget(_app(DolphinEndedView(reason: null, onClose: () => closed = true)));

@@ -243,6 +243,9 @@ String endReasonText(DolphinEndReason r) => switch (r) {
       DolphinEndReason.portal => 'پورتال دلفین این اتصال را قطع کرد.',
     };
 
+/// UN-13: installing Dolphin software often needs a restart; the customer must know the way back.
+const kDolphinRebootHint = 'اگر کارشناس خواست رایانه را دوباره روشن کنید، بعد از آن دلفین کانکت را باز کنید و دوباره تماس بگیرید.';
+
 /// After a session ends, until the customer closes the window (or a minute passes, D15).
 class DolphinEndedView extends StatefulWidget {
   final DolphinEndReason? reason;
@@ -289,6 +292,9 @@ class _DolphinEndedViewState extends State<DolphinEndedView> {
             const SizedBox(height: 4),
             Text(endReasonText(r), textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
           ],
+          const SizedBox(height: 6),
+          const Text(kDolphinRebootHint,
+              textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.6)),
           const SizedBox(height: 10),
           OutlinedButton(onPressed: _close, child: const Text('بستن')),
         ]),
