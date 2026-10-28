@@ -13,6 +13,7 @@ import 'brand.dart';
 import 'customer_requests.dart';
 import 'home_view.dart';
 import 'panel_bridge.dart';
+import 'window_sizes.dart';
 
 /// Pushed by the portal with every heartbeat (app/src/lib/engine/policy.ts SUPPORT_PHONE_OPTION),
 /// so admins change the numbers without a new release.
@@ -21,8 +22,6 @@ const kDolphinSupportPhoneOption = 'dolphin-support-phone';
 /// The ID screen's content size; upstream adds the title bar (common.dart getIncomingOnlyHomeSize).
 const kDolphinHomeSize = Size(320, 400);
 
-/// The request section needs room for the portal's pages.
-const kDolphinRequestsSize = Size(980, 720);
 
 /// Customer build's main window: the ID screen, or the request section (the customer portal).
 class DolphinHome extends StatefulWidget {
@@ -65,7 +64,10 @@ class _DolphinHomeState extends State<DolphinHome> {
   Future<void> _fitWindow() async {
     if (_requests) {
       setResizable(true);
-      await windowManager.setSize(kDolphinRequestsSize);
+      // UX-18: fit the screen (a 1366 × 768 laptop cannot take 980 × 720 plus the title bar).
+      final displays = WidgetsBinding.instance.platformDispatcher.displays;
+      final screen = displays.isEmpty ? kDolphinRequestsSize : displays.first.size / displays.first.devicePixelRatio;
+      await windowManager.setSize(requestsSize(screen));
       await windowManager.center();
     } else {
       await windowManager.setSize(getIncomingOnlyHomeSize());
