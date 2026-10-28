@@ -128,7 +128,7 @@ class CheckWiringTest(unittest.TestCase):
         # `rustc ... && run` does not trip errexit when rustc fails (run 40639363014 was green with 20 errors).
         step = job(CHECK, "rust-unit")
         self.assertIsNone(re.search(r"rustc[^\n]*&&", step))
-        self.assertEqual(len(re.findall(r"^\s*rustc ", step, re.M)), 3)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 3)
         self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 3)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
