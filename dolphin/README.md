@@ -15,7 +15,15 @@ AGPL-3.0, with the changes below. The full source of every build we ship is this
 | Customer screens (main window, accept prompt, session view), Dolphin theme, embedded Vazirmatn, About with the licence line | `flutter/lib/dolphin/`, `flutter/assets/fonts/`; hooks marked `// Dolphin Connect` in `flutter/lib/main.dart`, `desktop/pages/desktop_home_page.dart`, `desktop/pages/server_page.dart`, `desktop/pages/desktop_setting_page.dart`, plus the `Vazirmatn` family in `pubspec.yaml` | Own brand (portal design 2026-10-26-own-brand-client) |
 | Build workflow; upstream workflows removed | `.github/workflows/dolphin-build.yml` | Three Windows builds: customer x64 (Flutter), customer x86 (Sciter), technician x64 |
 | Own version (2.0.0 on), FileVersion `X.Y.Z.<run>`, reported to the portal | `dolphin/version.txt`, `dolphin/build_plan.py`, `dolphin/version_resource.rs`, `build.rs`, `libs/portable/build.rs`, `src/hbbs_http/sync.rs` (`dolphin_version`), `flutter/lib/dolphin/about.dart`, `src/ui.rs` (`get_version`) | The portal and the customer can tell builds apart (TB-4) |
-| Update before the app opens: ask the portal, download from it, check size and SHA-256, swap, restart | `src/dolphin_update_core.rs` (rules, texts), `src/dolphin_update.rs`, hooks in `src/flutter_ffi.rs` (`main_get_common`, `main_set_common`) | Owner decisions D10–D12 (TB-20). Upstream's own updater stays off |
+| Update before the app opens: ask the portal, download from it, check size and SHA-256, swap, restart | `src/dolphin_update_core.rs` (rules, texts), `src/dolphin_update.rs`, hooks in `src/flutter_ffi.rs` (`main_get_common`, `main_set_common`) | Owner decisions D10–D12 and D19 (TB-20). Upstream's own updater stays off |
+| Update screens: x64 `flutter/lib/dolphin/update.dart`, `update_view.dart`; x86 `src/ui/dolphin_update.html`, handlers in `src/ui.rs`, inlined by `res/inline-sciter.py`. «ادامه با همین نسخه» (D19, this run only) sets `DOLPHIN_UPDATE_CONTINUE` for the x86 relaunch. The install waits while a session is open; a download with no bytes for 30 s fails | `src/dolphin_update.rs`, `src/dolphin_update_core.rs`, `src/lib.rs`, `src/flutter_ffi.rs`, `src/ui.rs` | A failed update never locks a customer out; an update never cuts a live session |
+| The connection count (`video_conn_count`, `Data::VideoConnCount`) is also built in the Sciter build | `src/ui_interface.rs` (`UiStatus`), `src/ipc.rs` | The x86 window hides the one-time code during a session, and the update waits for it to end |
+| One-time code rotated again when the last authorised connection closes | `src/server/connection.rs` (`AuthedConnID::drop`, marked block) | A code seen during a session is dead afterwards (code mode) |
+| Closed-session tab kept with who ended it, 60 s ended screen | `src/ui_cm_interface.rs` (hook behind `feature = "flutter"`), `flutter/lib/dolphin/connection.dart`, `connection_view.dart` | The customer sees who ended the session (D15, D16) |
+| Technician sees the customer's permission toggles as a strip | `flutter/lib/desktop/pages/remote_page.dart` (marked hook), `flutter/lib/dolphin/permissions.dart` | Plan 13 T10–T11 |
+| x86 one-time code hidden while a technician is connected | `src/ui/index.tis` (`PasswordEyeArea`, `updatePasswordArea`, marked `// Dolphin Connect:`) | Same rule as `dolphinCode(inSession:)` on x64 |
+| Persian overlay for the technician app's texts | `dolphin/rebrand.py` (`FA_OVERLAY`) → `src/lang/fa.rs` | Own wording, no reversed text |
+| Checks and Dart analysis on every push | `.github/workflows/dolphin-check.yml`, `dolphin-analyze.yml`, `bridge.yml` (upstream's, now cached) | CI is the only test runner |
 | The packer passes its path to the app (`DOLPHIN_PACKER`) and waits for the old app (`DOLPHIN_WAIT_PID`) | `libs/portable/src/dolphin_wait.rs`, `libs/portable/src/main.rs` | A portable app can replace the file the customer started |
 
 Everything else is upstream RustDesk. Copyright notices of the RustDesk authors are kept.
@@ -39,8 +47,8 @@ planned number, so test builds sort after the release.
 
 The Dolphin Connect portal serves each customer binary under two names: one ending in `install.exe`, which
 opens RustDesk's installer (`src/common.rs` `is_setup`), and a portable name. The x86 build's outer
-(packer) exe has default file properties; the inner `DolphinConnect.exe` is branded. Its `sciter.dll` is
-pinned by commit and SHA-256 in the workflow.
+(packer) exe is branded by `libs/portable/build.rs` and the inner `DolphinConnect.exe` by the Sciter resource file;
+CI checks FileVersion and ProductVersion of both. Its `sciter.dll` is pinned by commit and SHA-256 in the workflow.
 
 Local generation: `python dolphin/gen_profile.py <profile> <customer|technician> <version>`.
 
@@ -75,19 +83,24 @@ The apps answer, and send, only while the in-app WebView shows the portal itself
 or a path, query or fragment under it; never `''`, `about:blank` or another origin). The customer app hands out its
 one-time code only to that page.
 
-The code is hidden (no display, no «کپی رمز», no answer to a code request) while the server reports a connection:
-`home.dart` reads `video_conn_count` from `mainGetConnectStatus()` every 2 s (`connectedCount`). `model.clients` is not
+The code is hidden (no display, no «کپی رمز», no answer to a code request) while the server reports a connection,
+and until the first read of that count: `home.dart` reads `video_conn_count` from `mainGetConnectStatus()` once at
+start and then every 2 s (`connectedCount`, `codeHiddenFor`). The x86 window hides it the same way (`index.tis`). `model.clients` is not
 used: on desktop it is empty in the main window, because connections live in the `--cm` process. The client rotates
 the code at a successful login (upstream) and again when the last authorised connection closes (the
 `// Dolphin Connect:` block in `src/server/connection.rs`, `AuthedConnID::drop`; not for failed logins, not in click
-mode). So a code seen during the polling lag (up to about 3 s) is dead afterwards. The portal profile URL is written
+mode is not a condition: rotating in click mode is harmless). So a code seen during the polling lag (about 4 s) is
+dead afterwards. The portal profile URL is written
 in WebView2's normalised form (lower-case host, no default port) by `gen_profile.portal_url`.
 
 PC checks, unverified: (1) that webview_windows delivers `urlChanged` before that page's `webMessageReceived`, so
 the current address is known when a message arrives; (2) an external link inside the in-app portal returns to home and
-the code is not answered while off-portal; (3) the code disappears from the window within about 3 s of a technician
-connecting, and the next code shows after the session ends; (4) a code seen during a session no longer works
-afterwards. Known small gap: a reply that passes the origin check is executed natively after a platform-channel hop,
+the code is not answered while off-portal; (3) the code disappears from the window within about 4 s of a technician
+connecting (the poll is 2 s, plus the status refresh and the password poll: about 4 s), and the next code shows after
+the session ends; (4) a code seen during a session no longer works
+afterwards. Accepted residual: the code rotated at login can be visible for about 4 s while the technician is
+connected, and a second connection with that code would still need the portal to authorise it (every connection is
+authorised by the portal); the rotation when the session closes kills it either way. Known small gap: a reply that passes the origin check is executed natively after a platform-channel hop,
 and `PostWebMessageAsJson` has no target origin; a foreign page cannot reach this window, so it is theoretical.
 
 ## Upstream
