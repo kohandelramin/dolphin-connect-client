@@ -11,6 +11,11 @@ on:
       profile:
         type: string
         default: dev
+      # The build workflow generates the bridge itself and runs the Dart analysis beside the Windows builds, so
+      # it asks for the fast jobs only. A push runs everything.
+      fast-only:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,34 +51,14 @@ jobs:
           rustc --edition 2021 --test libs/portable/src/dolphin_wait.rs -o "$RUNNER_TEMP/dolphin_wait" && "$RUNNER_TEMP/dolphin_wait"
 
   generate-bridge:
+    if: ${{ !inputs.fast-only }}
     needs: test
     uses: ./.github/workflows/bridge.yml
 
   # Dart has no local toolchain here: the Dolphin screens are analyzed and widget-tested in CI.
   analyze-and-test:
+    if: ${{ !inputs.fast-only }}
     needs: [test, generate-bridge]
-    runs-on: ubuntu-22.04
-    env:
-      PROFILE: ${{ inputs.profile || 'dev' }}
-      FLUTTER_VERSION: "3.24.5"
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          submodules: recursive
-      - name: Restore bridge files
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: bridge-artifact
-          path: ./
-      - name: Dolphin settings (brand.dart)
-        run: python dolphin/gen_profile.py "$PROFILE" customer "$(cat dolphin/version.txt)-dev.${{ github.run_number }}"
-      - uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225 # v2.12.0
-        with:
-          channel: "stable"
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-      - name: Analyze and widget tests
-        working-directory: flutter
-        run: |
-          flutter pub get
-          flutter analyze --no-fatal-infos --no-fatal-warnings lib/dolphin lib/main.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/server_page.dart lib/desktop/pages/desktop_setting_page.dart test/dolphin
-          flutter test test/dolphin
+    uses: ./.github/workflows/dolphin-analyze.yml
+    with:
+      profile: ${{ inputs.profile || 'dev' }}

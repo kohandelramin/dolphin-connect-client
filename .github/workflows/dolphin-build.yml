@@ -36,8 +36,20 @@ env:
   SCITER_DLL_SHA256: "285f3e6a051a7c61845cd7e4d2120781b6bdf411239f70a85c65b38a52d38f28"
 
 jobs:
+  # The fast checks (Python tests, profile and rebrand checks, std-only Rust tests). The bridge and the Dart analysis
+  # run below as their own jobs, so the Windows builds wait for the bridge only, not for the analysis.
   check:
     uses: ./.github/workflows/dolphin-check.yml
+    with:
+      profile: ${{ inputs.profile }}
+      fast-only: true
+
+  bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  analyze-and-test:
+    needs: bridge
+    uses: ./.github/workflows/dolphin-analyze.yml
     with:
       profile: ${{ inputs.profile }}
 
@@ -61,7 +73,7 @@ jobs:
         run: python dolphin/build_plan.py plan --profile "$PROFILE" --builds "$BUILDS" --tag "$TAG" --run "${{ github.run_number }}" | tee -a "$GITHUB_OUTPUT"
 
   build-windows:
-    needs: [check, guard]
+    needs: [check, guard, bridge]
     if: needs.guard.outputs.x64 != '[]'
     runs-on: windows-2022
     strategy:
@@ -74,6 +86,9 @@ jobs:
       # The portal derives these names: DolphinConnect-<version>-x64.exe, DolphinConnect-Technician-<version>-x64.exe.
       OUT_NAME: ${{ matrix.variant == 'technician' && 'DolphinConnect-Technician' || 'DolphinConnect' }}
       APP_EXE: ${{ matrix.variant == 'technician' && 'DolphinConnectTech.exe' || 'DolphinConnect.exe' }}
+      # Brotli quality for the portable packer: 5 is much faster for dev builds; production keeps 11 (generate.py's
+      # default). The packer's decoder reads any quality.
+      PACK_LEVEL: ${{ inputs.profile == 'dev' && '5' || '11' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -105,6 +120,11 @@ jobs:
           channel: "stable"
           flutter-version: ${{ env.FLUTTER_VERSION }}
           architecture: x64
+          # The SDK folder is cached. The next two steps change it (custom engine, patch) and the cache is saved after
+          # them, so both steps run every time and are safe on a restored, already changed SDK. The key carries the
+          # hash of the patch so a new patch gets a fresh SDK.
+          cache: true
+          cache-key: flutter-:os:-:channel:-:version:-:arch:-${{ hashFiles('.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff') }}
 
       - name: Replace engine with rustdesk custom flutter engine
         run: |
@@ -119,7 +139,12 @@ jobs:
         run: |
           cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
           cd $(dirname $(dirname $(which flutter)))
-          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+          # A restored SDK cache already has the patch.
+          if git apply --reverse --check flutter_3.24.4_dropdown_menu_enableFilter.diff 2>/dev/null; then
+            echo "patch already applied"
+          else
+            git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
@@ -133,7 +158,7 @@ jobs:
         if: inputs.profile == 'dev'
         shell: bash
         run: |
-          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_LTO=off" >> "$GITHUB_ENV"
           echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -183,7 +208,7 @@ jobs:
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../rustdesk/ -o . -e "../../rustdesk/${APP_EXE}"
+          python3 ./generate.py -f ../../rustdesk/ -o . -l "$PACK_LEVEL" -e "../../rustdesk/${APP_EXE}"
           popd
           mkdir -p out
           mv ./target/release/rustdesk-portable-packer.exe "out/${OUT_NAME}-${DOLPHIN_VERSION}-x64.exe"
@@ -215,6 +240,7 @@ jobs:
     env:
       DOLPHIN_VERSION: ${{ needs.guard.outputs.version }}
       DOLPHIN_FILE_VERSION: ${{ needs.guard.outputs.file_version }}
+      PACK_LEVEL: ${{ inputs.profile == 'dev' && '5' || '11' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -246,7 +272,7 @@ jobs:
         if: inputs.profile == 'dev'
         shell: bash
         run: |
-          echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+          echo "CARGO_PROFILE_RELEASE_LTO=off" >> "$GITHUB_ENV"
           echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -295,7 +321,7 @@ jobs:
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../Release/ -o . -e ../../Release/DolphinConnect.exe
+          python3 ./generate.py -f ../../Release/ -o . -l "$PACK_LEVEL" -e ../../Release/DolphinConnect.exe
           popd
           mkdir -p out
           mv ./target/release/rustdesk-portable-packer.exe "out/DolphinConnect-${DOLPHIN_VERSION}-x86.exe"
@@ -318,7 +344,7 @@ jobs:
           path: out/
 
   release:
-    needs: [guard, build-windows, build-windows-x86]
+    needs: [guard, check, analyze-and-test, build-windows, build-windows-x86]
     if: inputs.profile == 'production' && inputs.release-tag != ''
     runs-on: ubuntu-latest
     permissions:

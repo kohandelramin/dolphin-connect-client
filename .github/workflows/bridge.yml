@@ -39,7 +39,26 @@ jobs:
         with:
           submodules: recursive
 
+      # Dolphin CI: the generated files depend only on the Rust crate that frb parses (src/**, libs/** with the
+      # hbb_common submodule, the Cargo files, build.rs), the pubspec files freezed resolves against, the Flutter
+      # version, the tool versions and the runner image (env + this file), and the patch scripts. The key hashes
+      # all of them (a superset of the true inputs, so a hit can never be stale; a Dart-only change in flutter/lib
+      # does not change the output, so it is left out). On a hit every generation step below is skipped.
+      - name: Generated bridge cache (Dolphin)
+        id: gen
+        uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3
+        with:
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+          key: bridge-gen-v1-${{ matrix.job.os }}-${{ matrix.job.flutter-version }}-${{ env.FLUTTER_RUST_BRIDGE_VERSION }}-${{ env.CARGO_EXPAND_VERSION }}-${{ env.RUST_VERSION }}-${{ hashFiles('src/**', 'libs/**', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'flutter/pubspec.yaml', 'flutter/pubspec.lock', '.github/patches/**', '.github/workflows/bridge.yml') }}
+
       - name: Install prerequisites
+        if: steps.gen.outputs.cache-hit != 'true'
         run: |
           sudo apt-get install ca-certificates -y
           sudo apt-get update -y
@@ -59,17 +78,20 @@ jobs:
             wget
 
       - name: Install Rust toolchain
+        if: steps.gen.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: ${{ matrix.job.target }}
           components: "rustfmt"
 
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - if: steps.gen.outputs.cache-hit != 'true'
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           prefix-key: bridge-${{ matrix.job.os }}
 
       - name: Cache Bridge
+        if: steps.gen.outputs.cache-hit != 'true'
         id: cache-bridge
         uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c # v3
         with:
@@ -77,6 +99,7 @@ jobs:
           key: bridge-${{ matrix.job.flutter-version }}
 
       - name: Install flutter
+        if: steps.gen.outputs.cache-hit != 'true'
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: "stable"
@@ -84,6 +107,7 @@ jobs:
           cache: true
 
       - name: Install flutter rust bridge deps
+        if: steps.gen.outputs.cache-hit != 'true'
         shell: bash
         run: |
           cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
@@ -99,6 +123,7 @@ jobs:
           pushd flutter && flutter pub get && popd
 
       - name: Run flutter rust bridge
+        if: steps.gen.outputs.cache-hit != 'true'
         run: |
           ~/.cargo/bin/flutter_rust_bridge_codegen --rust-input ./src/flutter_ffi.rs --dart-output ./flutter/lib/generated_bridge.dart --c-output ./flutter/macos/Runner/bridge_generated.h
           cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
