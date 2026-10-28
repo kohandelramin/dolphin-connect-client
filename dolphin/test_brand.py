@@ -54,6 +54,25 @@ class IconTest(unittest.TestCase):
             self.assertIn((256, 256), sizes)
             self.assertIn((16, 16), sizes)
 
+    def test_icons_are_rendered_per_size_and_small_ones_drop_the_tile(self):
+        icon = Image.open(brand.ICON).convert("RGBA")
+        with tempfile.TemporaryDirectory() as tmp:
+            app, tray = pathlib.Path(tmp) / "app.ico", pathlib.Path(tmp) / "tray.ico"
+            brand.write_ico(icon, app)
+            brand.write_ico(icon, tray, tray=True)
+            with Image.open(app) as ico:
+                self.assertEqual(sorted(ico.info["sizes"]), sorted(brand.ICO_SIZES))
+                ico.size = (256, 256)
+                big = ico.convert("RGBA")
+                ico.size = (16, 16)
+                small = ico.convert("RGBA")
+            # 256 keeps the light tile (opaque corner area), 16 is the mark alone (transparent corner).
+            self.assertGreater(big.getpixel((40, 40))[3], 200)
+            self.assertLess(small.getpixel((0, 0))[3], 40)
+            with Image.open(tray) as ico:
+                ico.size = (256, 256)
+                self.assertLess(ico.convert("RGBA").getpixel((2, 2))[3], 40)  # tray: no tile at any size
+
     def test_svg_embeds_the_mark_as_png(self):
         svg = brand.svg_with_png(Image.new("RGBA", (351, 350), "blue"))
         self.assertTrue(svg.startswith("<svg"))
@@ -116,7 +135,7 @@ class WindowIconTest(unittest.TestCase):
         return [Image.open(io.BytesIO(base64.b64decode(b))) for b in re.findall(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)]
 
     def test_both_icons_become_the_dolphin_mark_at_the_same_size(self):
-        mark = Image.open(brand.MARK).convert("RGBA")
+        mark = Image.open(brand.ICON).convert("RGBA")
         out = brand.brand_ui_icons(self._src(), mark)
         icons = self._decoded(out)
         self.assertEqual(len(icons), 2)
@@ -127,12 +146,12 @@ class WindowIconTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(icons[0].tobytes()).hexdigest(), hashlib.sha256(expected.tobytes()).hexdigest())
 
     def test_refuses_an_unexpected_layout(self):
-        mark = Image.open(brand.MARK).convert("RGBA")
+        mark = Image.open(brand.ICON).convert("RGBA")
         with self.assertRaises(ValueError):
             brand.brand_ui_icons("pub fn get_icon() -> String { String::new() }", mark)
 
     def test_the_real_ui_rs_has_two_128px_icons_that_are_replaced(self):
-        mark = Image.open(brand.MARK).convert("RGBA")
+        mark = Image.open(brand.ICON).convert("RGBA")
         real = (brand.ROOT / "src" / "ui.rs").read_text(encoding="utf-8")
         before = self._decoded(real)
         self.assertEqual([i.size for i in before], [(128, 128), (128, 128)])

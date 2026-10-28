@@ -8,11 +8,17 @@ import pathlib
 import re
 import sys
 
-from PIL import Image
+from PIL import Image, ImageFilter
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MARK = ROOT / "dolphin" / "brand" / "dolphin-mark.png"
-ICO_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+# The owner's app icon (2026-10-28): the mark on a rounded light tile, 1024 x 1024. Every icon and small PNG comes from it.
+ICON = ROOT / "dolphin" / "brand" / "dolphin-connect-icon.png"
+# Every size Windows asks for (taskbar 16-24 at 100-150 % scaling, Start 32-48, Explorer up to 256), so it never
+# stretches a neighbour size. Each is rendered on its own from the 1024 px source.
+ICO_SIZES = [(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)]
+# At this size and below the tile and the thin dolphin line eat the pixels: use the mark alone, cropped tight.
+TIGHT_MAX = 32
 ICO_TARGETS = ["res/icon.ico", "res/tray-icon.ico", "flutter/windows/runner/resources/app_icon.ico"]
 PNG_TARGETS = ["res/icon.png", "res/32x32.png", "res/64x64.png", "res/128x128.png", "res/128x128@2x.png"]
 SVG_TARGETS = ["flutter/assets/icon.svg"]
@@ -63,8 +69,38 @@ def write_png(mark, path):
     _square(mark, size).save(path, format="PNG")
 
 
-def write_ico(mark, path):
-    _square(mark, (256, 256)).save(path, format="ICO", sizes=ICO_SIZES)
+def tight(icon):
+    """The blue mark without the light tile: crop to the saturated pixels, with a small margin."""
+    rgb = icon.convert("RGB")
+    sat = rgb.convert("HSV").split()[1].point(lambda v: 255 if v > 90 else 0)
+    box = sat.getbbox()
+    if not box:
+        return icon
+    pad = max(box[2] - box[0], box[3] - box[1]) // 24
+    box = (max(0, box[0] - pad), max(0, box[1] - pad), min(icon.width, box[2] + pad), min(icon.height, box[3] + pad))
+    mark = icon.crop(box)
+    # Keep only the mark: the tile's light pixels become transparent, so the small icon sits on any taskbar colour.
+    # Closing (grow, then shrink) fills the white dolphin line inside the blue disc, so it stays white, not a hole.
+    k = max(3, (box[2] - box[0]) // 60) | 1
+    alpha = sat.crop(box).filter(ImageFilter.MaxFilter(k)).filter(ImageFilter.MinFilter(k)).filter(ImageFilter.GaussianBlur(0.6))
+    return Image.merge("RGBA", (*mark.convert("RGB").split(), alpha))
+
+
+def render(icon, size, tight_icon=None):
+    """One icon size from the large source: LANCZOS, then a light sharpen where detail would go soft."""
+    source = tight_icon if (tight_icon is not None and size[0] <= TIGHT_MAX) else icon
+    img = _square(source, size)
+    if size[0] <= 48:
+        img = img.filter(ImageFilter.UnsharpMask(radius=0.6, percent=80, threshold=2))
+    return img
+
+
+def write_ico(icon, path, tray=False):
+    """Every size rendered on its own (Pillow would otherwise shrink one 256 px picture). The tray icon is the mark
+    alone at every size: it sits on the taskbar's own colour, never on a tile."""
+    small = tight(icon)
+    frames = [render(small if tray else icon, s, small) for s in ICO_SIZES]
+    frames[-1].save(path, format="ICO", sizes=ICO_SIZES, append_images=frames[:-1])
 
 
 def svg_with_png(mark):
@@ -96,9 +132,9 @@ def brand_ui_icons(text, mark):
 
 
 def main(root=ROOT):
-    mark = Image.open(MARK).convert("RGBA")
+    mark = Image.open(ICON if ICON.exists() else MARK).convert("RGBA")
     for rel in ICO_TARGETS:
-        write_ico(mark, root / rel)
+        write_ico(mark, root / rel, tray=rel.endswith("tray-icon.ico"))
     for rel in PNG_TARGETS:
         write_png(mark, root / rel)
     for rel in SVG_TARGETS:
