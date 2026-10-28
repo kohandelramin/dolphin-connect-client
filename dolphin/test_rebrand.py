@@ -188,6 +188,37 @@ class PaletteTest(unittest.TestCase):
         for value in re.findall(r"#([0-9a-fA-F]{6})", page):
             self.assertIn(value.lower(), allowed, f"#{value} in dolphin_update.html is not a theme.dart token")
 
+    def _copied_tis_tree(self, tmp):
+        root = pathlib.Path(tmp)
+        (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
+        (root / "src" / "ui").mkdir(parents=True)
+        (root / "src" / "lang").mkdir(parents=True)
+        for rel in ("src/ui/msgbox.tis", "src/ui/index.tis"):
+            (root / rel).write_text((r.ROOT / rel).read_text(encoding="utf-8"), encoding="utf-8")
+        return root
+
+    def test_the_x86_message_box_and_about_colours_are_replaced_and_reach_aa(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._copied_tis_tree(tmp)
+            self.assertEqual(r.main(root, overlay={}), 0)
+            tokens = r.dolphin_tokens(THEME)
+            msgbox = (root / "src" / "ui" / "msgbox.tis").read_text(encoding="utf-8").lower()
+            index = (root / "src" / "ui" / "index.tis").read_text(encoding="utf-8").lower()
+            for old in ("32bea6", "e04f5f", "2c8cff", "0071ff"):
+                self.assertNotIn(old, msgbox)
+                self.assertNotIn(old, index)
+            for token in ("aquaText", "msgError", "azure"):
+                self.assertIn(f'"#{tokens[token]}"', msgbox)
+                self.assertGreaterEqual(_ratio("ffffff", tokens[token]), 4.5, token)
+            self.assertIn(f"background: #{tokens['azure']};", index)
+
+    def test_the_x86_colour_rewrite_fails_when_a_literal_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._copied_tis_tree(tmp)
+            path = root / "src" / "ui" / "msgbox.tis"
+            path.write_text(path.read_text(encoding="utf-8").replace("#32bea6", "#32bea7"), encoding="utf-8")
+            self.assertEqual(r.main(root, overlay={}), 1)
+
     def test_upstream_blue_does_not_drive_the_flutter_app(self):
         azure = r.dolphin_tokens(THEME)["azure"].upper()
         common = (r.ROOT / "flutter" / "lib" / "common.dart").read_text(encoding="utf-8")

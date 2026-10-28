@@ -28,6 +28,18 @@ RUST_TEXT = {
         ('const ISSUER: &str = "RustDesk";', 'const ISSUER: &str = "Dolphin Connect";'),
     ],
 }
+# x86 (Sciter) literals that carry upstream colours below AA with white text (D20): file -> (old, new template, token).
+# `{}` is the token's hex from theme.dart. Each must occur exactly once, like RUST_TEXT.
+X86_COLOURS = {
+    "src/ui/msgbox.tis": [
+        ('"#32bea6"', '"#{}"', "aquaText"),
+        ('"#e04f5f"', '"#{}"', "msgError"),
+        ('"#2C8CFF"', '"#{}"', "azure"),
+    ],
+    "src/ui/index.tis": [
+        ("background: #2c8cff;", "background: #{};", "azure"),
+    ],
+}
 THEME_DART = ROOT / "flutter" / "lib" / "dolphin" / "theme.dart"
 TOKEN = re.compile(r"static const (\w+) = Color\(0xFF([0-9A-Fa-f]{6})\)")
 
@@ -222,6 +234,22 @@ def rewrite_rust(root=ROOT):
     return problems
 
 
+def rewrite_x86_colours(root, tokens):
+    """Exact replacements from the theme tokens; an upstream change that moves one of these fails the build."""
+    problems = []
+    for rel, rules in X86_COLOURS.items():
+        path = root / rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for old, new, token in rules:
+            if text.count(old) != 1:
+                problems.append(f"{rel}: expected exactly one {old!r}")
+            text = text.replace(old, new.format(tokens[token]))
+        path.write_text(text, encoding="utf-8")
+    return problems
+
+
 def _theme_text(root):
     path = root / "flutter" / "lib" / "dolphin" / "theme.dart"
     return (path if path.exists() else THEME_DART).read_text(encoding="utf-8")
@@ -229,6 +257,12 @@ def _theme_text(root):
 
 def main(root=ROOT, overlay=None):
     rust_problems = rewrite_rust(root)
+    if any((root / rel).exists() for rel in X86_COLOURS):
+        for needed in ("msgError",):
+            if needed not in dolphin_tokens(_theme_text(root)):
+                rust_problems.append(f"theme.dart: token {needed} not found")
+        if not rust_problems:
+            rust_problems += rewrite_x86_colours(root, dolphin_tokens(_theme_text(root)))
     if rust_problems:
         print("\n".join(rust_problems), file=sys.stderr)
         return 1
