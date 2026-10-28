@@ -33,6 +33,8 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 - rc.3: the customer window lists the last sessions on this PC, naming only registered technicians (UN-15).
 - rc.3: the technician app shows a Windows notice with a sound for a new waiting request (UN-16).
 - rc.3: the end screen says what to do after a restart: open Dolphin Connect again and call back (UN-13).
+- rc.4: recording is a fixed setting in the app, not a default a PC could change; the accept prompt allows a PC
+  clock up to 10 minutes fast, since the portal re-sends who may connect every 5 minutes and cuts expired sessions (TB-9).
 
 **یادداشت فارسی:** از این نسخه برنامه پیش از باز شدن، نسخه‌ی تازه را خودش از پورتال دلفین دریافت و نصب می‌کند.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.
