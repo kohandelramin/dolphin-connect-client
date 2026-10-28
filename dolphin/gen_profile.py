@@ -45,7 +45,15 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+(-(dev|rc)\.\d+)?$")
 
 def portal_url(profile):
     """The portal the apps talk to: the API server without its /rd path."""
-    return profile["api-server"].removesuffix("/rd").rstrip("/")
+    # The WebView reports its address normalised (lower-case host, no default port) and the apps compare by prefix,
+    # so write it that way here or the bridge would never match.
+    u = urlsplit(profile["api-server"].removesuffix("/rd").rstrip("/"))
+    host = u.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    default = {"https": 443, "http": 80}.get(u.scheme.lower())
+    port = f":{u.port}" if u.port and u.port != default else ""
+    return f"{u.scheme.lower()}://{host}{port}{u.path}"
 
 
 def _private_host(host):

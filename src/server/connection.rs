@@ -6986,6 +6986,19 @@ mod raii {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             clear_relative_mouse_active(self.0);
             AUTHED_CONNS.lock().unwrap().retain(|c| c.conn_id != self.0);
+            // Dolphin Connect: in code mode the one-time code must reach a technician only through the portal. The
+            // code is rotated at login (above), but the customer window hides it by polling, so it could be on
+            // screen for a few seconds while the technician is connected. Rotating again when the last authorised
+            // connection closes makes any code seen during a session dead afterwards. This Drop runs only for
+            // authorised connections (a failed login never creates an AuthedConnID), and only when the approve
+            // mode accepts the one-time password.
+            if AUTHED_CONNS.lock().unwrap().is_empty()
+                && hbb_common::password_security::approve_mode()
+                    != hbb_common::password_security::ApproveMode::Click
+            {
+                hbb_common::password_security::update_temporary_password();
+            }
+            // End Dolphin Connect.
             let remote_count = AUTHED_CONNS
                 .lock()
                 .unwrap()

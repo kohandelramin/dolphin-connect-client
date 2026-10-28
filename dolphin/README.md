@@ -73,13 +73,22 @@ changes.
 
 The apps answer, and send, only while the in-app WebView shows the portal itself (`isPortalPage`: the portal address
 or a path, query or fragment under it; never `''`, `about:blank` or another origin). The customer app hands out its
-one-time code only to that page, and it shows no code and answers no code request while a technician is connected,
-because the client rotates the code at a successful login and the technician sees the customer's screen.
+one-time code only to that page.
+
+The code is hidden (no display, no «کپی رمز», no answer to a code request) while the server reports a connection:
+`home.dart` reads `video_conn_count` from `mainGetConnectStatus()` every 2 s (`connectedCount`). `model.clients` is not
+used: on desktop it is empty in the main window, because connections live in the `--cm` process. The client rotates
+the code at a successful login (upstream) and again when the last authorised connection closes (the
+`// Dolphin Connect:` block in `src/server/connection.rs`, `AuthedConnID::drop`; not for failed logins, not in click
+mode). So a code seen during the polling lag (up to about 3 s) is dead afterwards. The portal profile URL is written
+in WebView2's normalised form (lower-case host, no default port) by `gen_profile.portal_url`.
 
 PC checks, unverified: (1) that webview_windows delivers `urlChanged` before that page's `webMessageReceived`, so
 the current address is known when a message arrives; (2) an external link inside the in-app portal returns to home and
-the code is not answered while off-portal; (3) the code disappears from the window while a technician is connected and
-the next code shows after the session ends.
+the code is not answered while off-portal; (3) the code disappears from the window within about 3 s of a technician
+connecting, and the next code shows after the session ends; (4) a code seen during a session no longer works
+afterwards. Known small gap: a reply that passes the origin check is executed natively after a platform-channel hop,
+and `PostWebMessageAsJson` has no target origin; a foreign page cannot reach this window, so it is theoretical.
 
 ## Upstream
 

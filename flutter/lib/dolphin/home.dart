@@ -35,6 +35,8 @@ class DolphinHome extends StatefulWidget {
 class _DolphinHomeState extends State<DolphinHome> {
   bool _requests = false;
   Timer? _options;
+  // Authorised remote sessions, from the server (see connectedCount). Read with the 2 s timer.
+  int _connected = 0;
 
   @override
   void initState() {
@@ -43,8 +45,9 @@ class _DolphinHomeState extends State<DolphinHome> {
     imcomingOnlyHomeSize = kDolphinHomeSize;
     WidgetsBinding.instance.addPostFrameCallback((_) => _fitWindow());
     // Options the portal pushes (support phone, whether to show the code) change without the server model noticing.
-    _options = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted) setState(() {});
+    _options = Timer.periodic(const Duration(seconds: 2), (_) async {
+      final n = connectedCount(await bind.mainGetConnectStatus());
+      if (mounted) setState(() => _connected = n);
     });
   }
 
@@ -81,7 +84,7 @@ class _DolphinHomeState extends State<DolphinHome> {
             approveMode: model.approveMode,
             showCode: bind.mainGetOptionSync(key: kDolphinShowCodeOption),
             password: model.serverPasswd.text,
-            inSession: model.clients.any((c) => !c.disconnected));
+            inSession: _connected > 0);
         if (_requests) return DolphinCustomerRequests(id: id, code: code, onBack: () => _show(false));
         return DolphinHomeView(
           id: id,

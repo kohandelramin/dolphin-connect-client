@@ -105,9 +105,22 @@ const kDolphinShowCodeOption = 'dolphin-show-code';
 /// While a technician is connected there is no code: the client rotates it when a login succeeds, and the technician
 /// is looking at this screen (review P13 T9).
 String dolphinCode(
-        {required String approveMode, required String showCode, required String password, bool inSession = false}) =>
+        {required String approveMode, required String showCode, required String password, required bool inSession}) =>
     !inSession &&
             approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
+
+/// Authorised remote sessions the server reports in `mainGetConnectStatus()` (`video_conn_count`, from the server's
+/// own connection list over IPC). `model.clients` cannot serve: on desktop it is filled only in the `--cm` process,
+/// so it is always empty in the main window. 0 on anything unexpected: bad JSON, a missing field or a wrong type.
+int connectedCount(String statusJson) {
+  try {
+    final status = jsonDecode(statusJson);
+    final n = status is Map ? status['video_conn_count'] : null;
+    return n is int && n > 0 ? n : 0;
+  } catch (_) {
+    return 0;
+  }
+}
 
 /// The customer app's answer to the request form's code request (app/src/lib/app-bridge.ts parseAppMessage).
 String codeReply(String code) => jsonEncode({'type': 'dolphin-code', 'code': code});
