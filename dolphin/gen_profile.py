@@ -82,6 +82,11 @@ def validate_profile(profile, name):
     except ValueError:
         errors.append("key: the server's base64 ed25519 public key (id_ed25519.pub); empty until hbbs has run")
     api = urlsplit(profile["api-server"])
+    try:
+        api.port  # raises ValueError for a port that is not a number or out of range
+    except ValueError:
+        errors.append("api-server: the port must be a number from 0 to 65535")
+        return errors
     if profile["api-server"].endswith("/") or not api.hostname:
         errors.append("api-server: absolute URL without a trailing slash")
     elif api.scheme != "https" and not (api.scheme == "http" and _private_host(api.hostname)):

@@ -45,7 +45,7 @@ class ProfileTest(unittest.TestCase):
         profile = {**PROFILE, "api-server": "http://[::1]:3010/rd"}
         self.assertEqual(g.validate_profile(profile, "dev"), [])
         self.assertEqual(g.portal_url(profile), "http://[::1]:3010")
-        self.assertTrue(g.validate_profile({**PROFILE, "api-server": "http://[2001:db8::1]:3010/rd"}, "dev"))  # public
+        self.assertTrue(g.validate_profile({**PROFILE, "api-server": "http://[2606:4700::1]:3010/rd"}, "dev"))  # public
 
     def test_refuses_unknown_or_missing_keys(self):
         self.assertTrue(g.validate_profile({**PROFILE, "extra": "x"}, "production"))
