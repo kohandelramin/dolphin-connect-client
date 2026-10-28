@@ -22,6 +22,11 @@ const kDolphinTechUntilOption = 'dolphin-tech-until';
 /// "Y" while the client's heartbeat to the portal is failing (src/dolphin_portal.rs, written by src/hbbs_http/sync.rs).
 const kDolphinPortalDownOption = 'dolphin-portal-down';
 
+/// TB-9 (B9): the end time comes from the portal's clock and is compared with this PC's, which can be wrong. The portal
+/// re-sends who may connect at least every 5 minutes and cuts expired sessions itself, so the prompt allows a PC clock
+/// up to this far ahead instead of refusing a technician who is still authorized.
+const kDolphinClockSkewSeconds = 600;
+
 /// How long the prompt waits for the next heartbeat (every 3 s while a connection is open).
 const kDolphinVerifyWaitMs = 6000;
 
@@ -37,7 +42,7 @@ TechVerdict verifyTechnician({
   bool portalDown = false,
 }) {
   if (techId.isEmpty) return const TechVerdict(TechCheck.unverifiable);
-  if (techId != '-' && techId == peerId && nowSeconds < until) {
+  if (techId != '-' && techId == peerId && nowSeconds < until + kDolphinClockSkewSeconds) {
     return TechVerdict(TechCheck.verified, techName == '-' ? '' : techName);
   }
   // The wait comes first: a new prompt shows "checking" before the outage text (neither state accepts).

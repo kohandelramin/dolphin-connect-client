@@ -19,11 +19,11 @@
     "allow-auto-disconnect": "Y",
     "auto-disconnect-timeout": "30",
     "enable-lan-discovery": "N",
-    "allow-auto-update": "N"
+    "allow-auto-update": "N",
+    "enable-record-session": "N"
   },
   "default": {
-    "approve-mode": "password",
-    "enable-record-session": "N"
+    "approve-mode": "password"
   },
   "local-override": {
     "enable-check-update": "N"

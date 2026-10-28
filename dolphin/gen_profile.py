@@ -26,6 +26,8 @@ FLOOR = (
     ("override", "enable-tunnel", "N"),
     ("override", "direct-server", "N"),
     ("override", "allow-auto-update", "N"),
+    # TB-9: recording stays off on the PC whatever is changed there (approved decision 6); opt-in needs a new build.
+    ("override", "enable-record-session", "N"),
     ("local-override", "enable-check-update", "N"),
     ("builtin", "allow-deep-link-server-settings", "N"),
 )

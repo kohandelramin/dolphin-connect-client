@@ -154,7 +154,9 @@ void main() {
     expect(v('-').state, TechCheck.checking); // nobody yet: wait for the next heartbeat
     expect(v('-', waited: 7000).state, TechCheck.rejected);
     expect(v('111111111', waited: 7000).state, TechCheck.rejected); // someone else
-    expect(v('287654321', now: 3000, waited: 7000).state, TechCheck.rejected); // authorization expired
+    expect(v('287654321', now: 2000 + kDolphinClockSkewSeconds, waited: 7000).state, TechCheck.rejected); // expired
+    // TB-9: a PC clock a few minutes ahead does not refuse a technician the portal still names.
+    expect(v('287654321', now: 2300, waited: 7000).state, TechCheck.verified);
   });
 
   testWidgets('technician build shows its own ID with copy', (tester) async {
