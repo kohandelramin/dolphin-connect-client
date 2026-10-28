@@ -154,6 +154,11 @@ class DolphinUpdateView extends StatelessWidget {
         const SizedBox(height: 8),
         Text(ready ? (progress.waiting ? kDolphinWaitingText : kDolphinApplyingText) : progress.text,
             style: const TextStyle(color: DolphinColors.muted)),
+        // A lost link to the session count must never strand the customer: continue never cuts the session.
+        if (progress.state == 'ready' && progress.waiting && onContinue != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton(onPressed: onContinue, child: const Text('ادامه با همین نسخه')),
+        ],
       ]);
     }
     return Directionality(

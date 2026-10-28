@@ -375,7 +375,13 @@ fn wait_for_no_session() -> bool {
     if let Some(at) = started {
         std::thread::sleep(STATUS_SETTLE.saturating_sub(at.elapsed()));
     }
-    while !rules::may_apply(live_sessions()) {
+    while !rules::install_may_go_on(CONTINUE.load(Ordering::SeqCst), live_sessions()) {
+        if CONTINUE.load(Ordering::SeqCst) {
+            // The customer chose «ادامه با همین نسخه» while waiting: no swap, the session is untouched.
+            HELD.store(false, Ordering::SeqCst);
+            WAITER.store(false, Ordering::SeqCst);
+            return false;
+        }
         if !HELD.swap(true, Ordering::SeqCst) {
             log::info!("dolphin update: a session is open, the install waits for it to end");
         }
@@ -383,7 +389,7 @@ fn wait_for_no_session() -> bool {
     }
     HELD.store(false, Ordering::SeqCst);
     WAITER.store(false, Ordering::SeqCst);
-    true
+    !CONTINUE.load(Ordering::SeqCst)
 }
 
 fn download(offer: &rules::Offer, watch: &Watch, attempt: u32) -> Result<(), &'static str> {
@@ -546,8 +552,10 @@ fn swap(staged: &Path, offer: &rules::Offer) -> &'static str {
                 // the screens show «در حال نصب…») and let `update_me` end us. UNVERIFIED on a PC (acceptance rows
                 // 46 and 47). If it never arrives, leave after INSTALLED_EXIT_FALLBACK: the screen never hangs.
                 std::thread::sleep(rules::INSTALLED_EXIT_FALLBACK);
-                log::error!("dolphin update: the installer did not end this process, leaving");
-                std::process::exit(0)
+                log::error!("dolphin update: the installer did not end this process");
+                // Not a silent exit: the screen shows «تلاش دوباره» and «ادامه با همین نسخه». If `update_me` still
+                // arrives late, its taskkill ends the process anyway.
+                "installer"
             }
             Err(e) => {
                 log::error!("update_to: {}", e);

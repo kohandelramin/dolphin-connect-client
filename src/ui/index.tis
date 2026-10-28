@@ -1226,7 +1226,10 @@ class PasswordArea: Reactor.Component {
     }
 }
 
-var password_cache = ["","","","",false];
+// Dolphin Connect: password_cache[4] is "code hidden"; it starts true (count unknown). The count is trusted only from
+// the third tick, once the status sync has delivered a real value (the first reads are the unsynced 0).
+var password_cache = ["","","","",true];
+var password_ticks = 0;
 function updatePasswordArea() {
     self.timer(1s, function() {
         var temporary_password = handler.temporary_password();
@@ -1251,7 +1254,8 @@ function updatePasswordArea() {
             update = true;
         }
         // Dolphin Connect: authorised sessions now (4th item of get_connect_status); hides the code while connected.
-        var in_session = handler.get_connect_status()[3] > 0;
+        var in_session = true;
+        if (password_ticks < 3) password_ticks += 1; else in_session = handler.get_connect_status()[3] > 0;
         if (password_cache[4] != in_session) {
             password_cache[4] = in_session;
             update = true;

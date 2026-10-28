@@ -84,13 +84,14 @@ or a path, query or fragment under it; never `''`, `about:blank` or another orig
 one-time code only to that page.
 
 The code is hidden (no display, no «کپی رمز», no answer to a code request) while the server reports a connection,
-and until the first read of that count: `home.dart` reads `video_conn_count` from `mainGetConnectStatus()` once at
-start and then every 2 s (`connectedCount`, `codeHiddenFor`). The x86 window hides it the same way (`index.tis`). `model.clients` is not
-used: on desktop it is empty in the main window, because connections live in the `--cm` process. The client rotates
-the code at a successful login (upstream) and again when the last authorised connection closes (the
-`// Dolphin Connect:` block in `src/server/connection.rs`, `AuthedConnID::drop`; not for failed logins, not in click
-mode is not a condition: rotating in click mode is harmless). So a code seen during the polling lag (about 4 s) is
-dead afterwards. The portal profile URL is written
+and until the count is known for real: `home.dart` has no immediate read (the first read would be the unsynced 0 and
+flash the code for 1–2 s when the window opens during a session), so the count is unknown, and the code hidden, until
+the first 2 s tick, then every 2 s (`connectedCount`, `codeHiddenFor`). The x86 window (`index.tis`) starts hidden and
+trusts the count from its third 1 s tick. `model.clients` is not used: on desktop it is empty in the main window,
+because connections live in the `--cm` process. The client rotates the code at a successful login (upstream) and again
+when the last authorised connection closes (the `// Dolphin Connect:` block in `src/server/connection.rs`,
+`AuthedConnID::drop`; not for failed logins; in every approve mode, since rotating in click mode is harmless). So a
+code seen during the polling lag (about 4 s) is dead afterwards. The portal profile URL is written
 in WebView2's normalised form (lower-case host, no default port) by `gen_profile.portal_url`.
 
 PC checks, unverified: (1) that webview_windows delivers `urlChanged` before that page's `webMessageReceived`, so
@@ -107,3 +108,11 @@ and `PostWebMessageAsJson` has no target origin; a foreign page cannot reach thi
 
 Based on commit `fada664df7a294d1d1a9ca3e7cd3637069122f17` (tag `1.5.0`). To move to a newer release,
 branch from the new tag, cherry-pick the `dolphin` commits, and rebuild.
+
+## Last fixes before 2.0.0
+
+- CI: `rust-unit` compiles and runs on separate lines, so a compile error fails the job (`test_workflows.py` forbids `rustc … &&`).
+- Update, installed app: if the elevated installer never ends the process within 120 s, the screen shows the failure («تلاش دوباره», «ادامه با همین نسخه») instead of closing silently.
+- Update, waiting for a session to end: «ادامه با همین نسخه» is offered too (Flutter and Sciter). It opens the current version, ends the wait without swapping, and never cuts the session.
+- Installer: after 60 s with the install not done, «نصب» comes back with a hint (a refused Windows prompt leaves no signal); «فقط این بار اجرا شود» runs once; the body text names shortcuts only when the options are on.
+- D5 (WF-11): in click mode the accept prompt has no «پذیرفتن» when the portal check is unreachable; it shows «پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.» and the support phone (`acceptAllowed`, `verify.dart`). Code mode is unchanged; Deny works. x86 (Sciter) is unchanged: its accept prompt (`src/ui/cm.tis`) has no portal check today (the D4 stopgap).

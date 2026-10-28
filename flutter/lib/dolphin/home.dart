@@ -45,7 +45,9 @@ class _DolphinHomeState extends State<DolphinHome> {
     imcomingOnlyHomeSize = kDolphinHomeSize;
     WidgetsBinding.instance.addPostFrameCallback((_) => _fitWindow());
     // Options the portal pushes (support phone, whether to show the code) change without the server model noticing.
-    _readConnected();
+    // No immediate read: the count reaches the app about 1 s after the status sync starts, and an early read would be
+    // the unsynced 0 (the code would flash during a session). The first read is the 2 s tick; until then it is unknown
+    // and the code stays hidden (codeHiddenFor(null)).
     _options = Timer.periodic(const Duration(seconds: 2), (_) => _readConnected());
   }
 

@@ -187,6 +187,17 @@ pub fn may_apply(connected: usize) -> bool {
     connected == 0
 }
 
+/// D19: the install goes on only if the customer did not choose «ادامه با همین نسخه» while it waited, and nobody is
+/// connected. Continuing never cuts a session and never swaps the app afterwards.
+pub fn install_may_go_on(continued: bool, connected: usize) -> bool {
+    !continued && may_apply(connected)
+}
+
+/// «ادامه با همین نسخه» is offered while a session holds the install back, so a lost IPC link never strands the customer.
+pub fn continue_offered_while_waiting(waiting: bool) -> bool {
+    waiting
+}
+
 /// Installed app: after the elevated update is started, upstream's `update_me` ends this process and restarts the
 /// main window. If that never happens we leave after this long, so the screen never hangs (review I2).
 pub const INSTALLED_EXIT_FALLBACK: Duration = Duration::from_secs(120);
@@ -261,6 +272,8 @@ pub fn error_text(reason: &str) -> &'static str {
         "size" | "hash" => "فایل دریافت‌شده با نسخه‌ی دلفین یکی نبود و کنار گذاشته شد. برنامه‌ی شما تغییری نکرد.",
         "write" => "نسخه‌ی تازه را نتوانستیم کنار برنامه ذخیره کنیم. برنامه‌ی شما تغییری نکرد.",
         "elevation" => "برای نصب نسخه‌ی تازه اجازه‌ی مدیر ویندوز لازم است. دوباره تلاش کنید و در پنجره‌ی ویندوز «بله» را بزنید.",
+        // The elevated installer never ended this process (unpack or AV failure, UAC closed).
+        "installer" => "نصب نسخه‌ی تازه کامل نشد. برنامه‌ی شما تغییری نکرد. دوباره تلاش کنید یا با همین نسخه ادامه دهید.",
         "blocked" => "به‌روزرسانی خودکار چند دقیقه پیش انجام نشد.",
         _ => "به‌روزرسانی خودکار انجام نشد.",
     }

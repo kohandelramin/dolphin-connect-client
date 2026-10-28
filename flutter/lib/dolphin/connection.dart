@@ -7,7 +7,10 @@ import 'package:window_manager/window_manager.dart';
 import '../consts.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
+import 'brand.dart';
 import 'connection_view.dart';
+import 'home.dart';
+import 'home_view.dart';
 import 'verify.dart';
 
 /// Connections the customer ended from this window («پایان» or «رد»), for the ended screen's reason (UX-6).
@@ -122,6 +125,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         verdict: verdict,
         peerName: peerName,
         showElevate: showElevate,
+        approveMode: model.approveMode,
+        phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
         onAccept: (keyboard, clipboard, file) {
           _sessionStart = DateTime.now();
           _permissions(keyboard, clipboard, file);

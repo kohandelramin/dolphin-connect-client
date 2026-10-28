@@ -131,14 +131,17 @@ class _InstallPageBodyState extends State<_InstallPageBody>
   Widget build(BuildContext context) {
     // Dolphin Connect: one «نصب» button instead of upstream's form (UX-2). install() keeps upstream's defaults: start-menu
     // and desktop shortcuts on, printer as installOptions says (off), default path. «Run without install» shows under
-    // upstream's condition.
-    if (kDolphinInstallView) {
-      return DolphinInstallView(
-          onInstall: install,
-          onRunWithoutInstall: bind.installShowRunWithoutInstall()
-              ? null
-              : () => bind.installRunWithoutInstall());
-    }
+    // upstream's condition. Upstream's form stays below in buildUpstream, uncalled, so merges stay small.
+    return DolphinInstallView(
+        onInstall: install,
+        shortcutsOn: startmenu.value && desktopicon.value,
+        onRunWithoutInstall: bind.installShowRunWithoutInstall()
+            ? null
+            : () => bind.installRunWithoutInstall());
+  }
+
+  /// Upstream's install form (not shown; see build).
+  Widget buildUpstream(BuildContext context) {
     final double em = 13;
     final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
     return Scaffold(
