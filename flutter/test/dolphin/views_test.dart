@@ -198,6 +198,16 @@ void main() {
     expect(v('-', down: false, waited: 7000).state, TechCheck.rejected);
   });
 
+  test('a new prompt shows "checking" first, even with the portal down; neither state accepts', () {
+    TechVerdict v(int waited) => verifyTechnician(
+        peerId: '287654321', techId: '-', techName: '-', until: 0, nowSeconds: 1000, waitedMs: waited, portalDown: true);
+    expect(v(0).state, TechCheck.checking);
+    expect(v(5999).state, TechCheck.checking);
+    expect(v(6000).state, TechCheck.unverifiable); // after the wait the outage text
+    expect(acceptAllowed(v(0)), isFalse);
+    expect(acceptAllowed(v(6000)), isFalse);
+  });
+
   testWidgets('unverifiable (the default code mode too): no Accept, the message and the phone, Deny works', (tester) async {
     var denied = false;
     await tester.pumpWidget(_app(DolphinAcceptView(

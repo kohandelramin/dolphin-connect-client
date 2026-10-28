@@ -432,11 +432,10 @@ mod tests {
 
     #[test]
     fn continuing_never_ends_a_process_that_hosts_a_live_session() {
-        assert!(!may_exit_for_continue(true, 1)); // x86 portable: the server is this process
-        assert!(!may_exit_for_continue(true, 3));
-        assert!(may_exit_for_continue(true, 0));
-        assert!(may_exit_for_continue(false, 1)); // installed: the session lives in the service
-        assert!(may_exit_for_continue(false, 0));
+        // The count is this process's own authorised connections: a process that hosts a session never exits.
+        assert!(!may_exit_for_continue(1)); // a portable run, or an installed UI that started the server itself
+        assert!(!may_exit_for_continue(3));
+        assert!(may_exit_for_continue(0)); // including a UI whose sessions live in the service (its own list is empty)
     }
 
     #[test]

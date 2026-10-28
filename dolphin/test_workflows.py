@@ -147,5 +147,40 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIn("password_ticks < 3", tis)
 
 
+class PortalDownWiringTest(unittest.TestCase):
+    """D5: nothing but source text proves the Rust writer and the Dart readers still meet (no local toolchain)."""
+
+    KEY = "dolphin-portal-down"
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_sync_writes_the_option_through_dolphin_portal_when_the_portal_really_answered(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        self.assertIn("crate::dolphin_portal::portal_down_write(", sync)
+        self.assertIn("crate::dolphin_portal::PORTAL_DOWN_OPTION", sync)
+        self.assertIn("Ok(s) if crate::dolphin_portal::portal_answered(s)", sync)
+        self.assertNotIn("response.is_ok()", sync)  # any HTTP status, a 502 page too, is an Ok
+
+    def test_the_prompt_reads_the_option(self):
+        connection = self.read("flutter", "lib", "dolphin", "connection.dart")
+        self.assertIn("portalDown: opt(kDolphinPortalDownOption) == 'Y'", connection)
+        verify = self.read("flutter", "lib", "dolphin", "verify.dart")
+        self.assertRegex(verify, r"const kDolphinPortalDownOption = 'dolphin-portal-down';")
+        self.assertIn("portalDown", verify.split("TechVerdict verifyTechnician", 1)[1])
+
+    def test_the_key_is_the_same_in_rust_and_dart(self):
+        rust = re.search(r'PORTAL_DOWN_OPTION: &str = "([^"]+)"', self.read("src", "dolphin_portal.rs")).group(1)
+        dart = re.search(r"kDolphinPortalDownOption = '([^']+)'", self.read("flutter", "lib", "dolphin", "verify.dart")).group(1)
+        self.assertEqual(rust, self.KEY)
+        self.assertEqual(dart, self.KEY)
+
+    def test_continue_counts_only_this_process_sessions(self):
+        update = self.read("src", "dolphin_update.rs")
+        body = update.split("fn can_continue_now()", 1)[1].split("\n}", 1)[0]
+        self.assertIn("AUTHED_CONNS", body)
+        self.assertNotIn("is_installed", body)
+
+
 if __name__ == "__main__":
     unittest.main()

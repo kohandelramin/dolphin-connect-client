@@ -20,6 +20,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_portal_answered_only_with_its_json() {
+        assert!(portal_answered("{}"));
+        assert!(portal_answered(r#"{"sysinfo":true,"strategy":{}}"#));
+        assert!(portal_answered("  \n{\"a\":1}")); // whitespace before the JSON
+        assert!(!portal_answered("<html><body>502 Bad Gateway</body></html>")); // the reverse proxy's error page
+        assert!(!portal_answered("Bad Gateway"));
+        assert!(!portal_answered(""));
+        assert!(!portal_answered("   \n"));
+    }
+
+    #[test]
     fn the_option_is_written_only_when_the_state_changes() {
         assert_eq!(portal_down_write("", false), Some("Y")); // the first failure is enough
         assert_eq!(portal_down_write("Y", false), None); // still down: no config write every 3 s
