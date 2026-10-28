@@ -5,6 +5,7 @@
 
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// A Dolphin version: X.Y.Z, X.Y.Z-rc.N (release candidate) or X.Y.Z-dev.N (test build), in SemVer order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -167,6 +168,44 @@ pub fn may_attempt(stored: &str, latest: &str, now: u64) -> bool {
         (Some(v), Some(at)) if v == latest => now.saturating_sub(at) >= RETRY_AFTER_SECS,
         _ => true,
     }
+}
+
+/// No new bytes for this long, once the answer has started: the download is given up on (review I1). Whole-request
+/// cap stays in dolphin_update.rs.
+pub const STALL_LIMIT: Duration = Duration::from_secs(30);
+/// Before the answer starts the strict client may probe the portal first (about 30 s each), so waiting for the first
+/// byte is allowed longer than a stall in the middle of the file.
+pub const FIRST_BYTE_LIMIT: Duration = Duration::from_secs(60);
+
+/// True when nothing arrived since `last_progress` for `limit`. A clock that went backwards is never a stall.
+pub fn stalled(last_progress: Instant, now: Instant, limit: Duration) -> bool {
+    now.saturating_duration_since(last_progress) >= limit
+}
+
+/// The update never swaps the app while someone is connected (review I3): a swap kills the service and the window.
+pub fn may_apply(connected: usize) -> bool {
+    connected == 0
+}
+
+/// Installed app: after the elevated update is started, upstream's `update_me` ends this process and restarts the
+/// main window. If that never happens we leave after this long, so the screen never hangs (review I2).
+pub const INSTALLED_EXIT_FALLBACK: Duration = Duration::from_secs(120);
+
+/// One text for `ready` and `applying` in both screens, and one while a session keeps the install waiting.
+pub const APPLYING_TEXT: &str = "در حال نصب…";
+pub const WAITING_TEXT: &str = "پس از پایان جلسه نصب می‌شود.";
+
+pub fn install_text(waiting: bool) -> &'static str {
+    if waiting {
+        WAITING_TEXT
+    } else {
+        APPLYING_TEXT
+    }
+}
+
+/// «دریافت دستی»: the panel's «حساب من» page for the staff-only technician file (D13), else the public page.
+pub fn download_page(portal: &str, staff: bool) -> String {
+    format!("{portal}{}", if staff { "/staff/me" } else { "/download" })
 }
 
 pub fn hex(bytes: &[u8]) -> String {

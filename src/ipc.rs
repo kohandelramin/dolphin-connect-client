@@ -475,7 +475,7 @@ pub enum Data {
         result: Result<Vec<u8>, String>,
     },
     CheckHwcodec,
-    #[cfg(feature = "flutter")]
+    // Dolphin Connect: not Flutter-only (the Sciter build reads it too, see ui_interface.rs UiStatus).
     VideoConnCount(Option<usize>),
     // Although the key is not necessary, it is used to avoid hardcoding the key.
     WaylandScreencastRestoreToken((String, String)),
@@ -921,7 +921,6 @@ async fn handle(data: Data, stream: &mut Connection) {
             }
             _ => {}
         },
-        #[cfg(feature = "flutter")]
         Data::VideoConnCount(None) => {
             let n = crate::server::AUTHED_CONNS
                 .lock()

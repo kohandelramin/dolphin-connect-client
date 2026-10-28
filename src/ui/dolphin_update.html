@@ -26,7 +26,9 @@
                 var error = p.state == "failed" ? p.error : "";
                 var busy = p.state == "ready" || p.state == "applying";
                 $(#bar).value = busy ? 100 : p.percent;
-                $(#status).text = p.state == "ready" ? "در حال جایگزینی و باز کردن دوباره…" : (p.state == "applying" ? "در حال نصب…" : p.text);
+                // The text comes from Rust for every state, so this screen and the Flutter one say the same words:
+                // «در حال نصب…» for ready/applying, «پس از پایان جلسه نصب می‌شود.» while a session keeps it waiting.
+                $(#status).text = p.text;
                 $(#error).text = error;
                 show($(#bar), error == "");
                 show($(#status), error == "");
@@ -34,8 +36,10 @@
                 show($(#phone), error != "");
                 show($(#buttons), error != "");
                 // D19: the way out of a failure; never while downloading or installing, never for "manual".
-                show($(#continue), error != "");
                 show($(#retry), error != "");
+                show($(#continue), error != "");
+                show($(#manual), error != "");
+                show($(#close), error != "");
             }
 
             function poll() {
@@ -68,6 +72,8 @@
                     show($(#bar), false);
                     show($(#retry), false);
                     show($(#continue), false);
+                    show($(#manual), true);
+                    show($(#close), true);
                     show($(#buttons), true);
                 } else {
                     start();
@@ -75,6 +81,7 @@
                 self.on("click", "button#retry", function() { start(); return true; });
                 self.on("click", "button#continue", function() { view.dolphin_update_continue(); return true; });
                 self.on("click", "button#manual", function() { view.open_url(info.downloadPage); return true; });
+                self.on("click", "button#close", function() { view.close(); return true; });
             }
         </script>
     </head>
@@ -90,6 +97,7 @@
                 <button id="retry" class="button">تلاش دوباره</button>
                 <button id="continue" class="button outline">ادامه با همین نسخه</button>
                 <button id="manual" class="button outline">دریافت دستی</button>
+                <button id="close" class="button outline">بستن</button>
             </div>
         </div>
     </body>

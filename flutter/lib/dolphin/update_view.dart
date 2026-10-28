@@ -6,6 +6,12 @@ import 'theme.dart';
 
 const kDolphinUpdateTitle = 'نسخه‌ی تازه‌ی دلفین کانکت';
 
+/// One text for `ready` and `applying`, in this screen and in the Sciter one (src/dolphin_update_core.rs APPLYING_TEXT).
+const kDolphinApplyingText = 'در حال نصب…';
+
+/// Shown while a session keeps the install waiting (WAITING_TEXT): nothing on screen can cut the session.
+const kDolphinWaitingText = 'پس از پایان جلسه نصب می‌شود.';
+
 /// What the app learned before opening (src/dolphin_update.rs `check`). The texts arrive in Persian from Rust, so the
 /// x64 and x86 screens say the same words.
 class DolphinUpdateCheck {
@@ -51,7 +57,11 @@ class DolphinUpdateProgress {
   final String text;
   final String error;
 
-  const DolphinUpdateProgress({required this.state, this.percent = 0, this.text = '', this.error = ''});
+  /// The download is done but a session is open, so the install waits for it to end (review I3).
+  final bool waiting;
+
+  const DolphinUpdateProgress(
+      {required this.state, this.percent = 0, this.text = '', this.error = '', this.waiting = false});
 
   static const idle = DolphinUpdateProgress(state: 'idle');
 
@@ -62,7 +72,12 @@ class DolphinUpdateProgress {
       String s(String key) => m[key] is String ? m[key] as String : '';
       final percent = m['percent'] is int ? (m['percent'] as int).clamp(0, 100).toInt() : 0;
       final state = s('state');
-      return DolphinUpdateProgress(state: state.isEmpty ? 'idle' : state, percent: percent, text: s('text'), error: s('error'));
+      return DolphinUpdateProgress(
+          state: state.isEmpty ? 'idle' : state,
+          percent: percent,
+          text: s('text'),
+          error: s('error'),
+          waiting: m['waiting'] == true);
     } catch (_) {
       return idle;
     }
@@ -103,7 +118,7 @@ class DolphinUpdateView extends StatelessWidget {
     ];
     if (check.state == 'manual') {
       children.add(Wrap(spacing: 8, runSpacing: 8, children: [
-        FilledButton(onPressed: onDownloadPage, child: const Text('باز کردن صفحه‌ی دریافت')),
+        FilledButton(onPressed: onDownloadPage, child: const Text('دریافت دستی')),
         TextButton(onPressed: onClose, child: const Text('بستن')),
       ]));
     } else if (error.isNotEmpty) {
@@ -120,8 +135,8 @@ class DolphinUpdateView extends StatelessWidget {
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: onRetry, child: const Text('تلاش دوباره')),
-          OutlinedButton(onPressed: onDownloadPage, child: const Text('دریافت دستی')),
           if (onContinue != null) OutlinedButton(onPressed: onContinue, child: const Text('ادامه با همین نسخه')),
+          OutlinedButton(onPressed: onDownloadPage, child: const Text('دریافت دستی')),
           TextButton(onPressed: onClose, child: const Text('بستن')),
         ]),
       ]);
@@ -137,7 +152,7 @@ class DolphinUpdateView extends StatelessWidget {
           backgroundColor: DolphinColors.azureSoft,
         ),
         const SizedBox(height: 8),
-        Text(ready ? 'در حال جایگزینی و باز کردن دوباره…' : progress.text,
+        Text(ready ? (progress.waiting ? kDolphinWaitingText : kDolphinApplyingText) : progress.text,
             style: const TextStyle(color: DolphinColors.muted)),
       ]);
     }

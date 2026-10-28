@@ -15,14 +15,19 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Mutex, Once,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        mpsc, Arc, Mutex, Once,
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 const CHECK_TIMEOUT: Duration = Duration::from_secs(4);
+/// Whole-request cap. A download that merely goes quiet is ended much sooner by `rules::STALL_LIMIT` (review I1).
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+/// While a session keeps the install waiting (review I3), look again this often.
+const SESSION_RECHECK: Duration = Duration::from_secs(3);
+/// The connection count arrives over a 1 s timer after `start_option_status_sync`; do not read it before that.
+const STATUS_SETTLE: Duration = Duration::from_secs(2);
 const ATTEMPT_OPTION: &str = "dolphin-update-attempt";
 /// Pushed by the portal with every heartbeat (app/src/lib/engine/policy.ts SUPPORT_PHONE_OPTION).
 const SUPPORT_PHONE_OPTION: &str = "dolphin-support-phone";
@@ -49,6 +54,15 @@ lazy_static::lazy_static! {
 /// D19: the customer chose to continue with the current version after a failed update. For this process only,
 /// never stored: the next start checks again.
 static CONTINUE: AtomicBool = AtomicBool::new(false);
+/// I3: the finished download waits for a live session to end. Shown by the screens as `waiting`.
+static HELD: AtomicBool = AtomicBool::new(false);
+/// Only one caller waits for the session to end (the screens call `apply` once, but be safe).
+static WAITER: AtomicBool = AtomicBool::new(false);
+/// Numbers a download, so the `.part` file of a given-up attempt is never the next attempt's.
+static ATTEMPTS: AtomicU32 = AtomicU32::new(0);
+lazy_static::lazy_static! {
+    static ref STATUS_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
+}
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
@@ -192,7 +206,8 @@ fn answer() -> Value {
         "lead": lead,
         "error": error,
         "phone": rules::phone_text(&phone()),
-        "downloadPage": format!("{portal}/download"),
+        // D13: the technician's file is in the panel (staff sign-in), not on the public page.
+        "downloadPage": rules::download_page(portal, config::is_outgoing_only()),
     })
 }
 
@@ -222,15 +237,23 @@ fn fetch_offer(portal: &str, build: &str) -> hbb_common::ResultType<Option<rules
     Ok(Some(offer))
 }
 
-/// {"state","percent","text","error"} for the screens; state is idle, downloading, ready, applying or failed.
+/// {"state","percent","text","error","waiting"} for the screens; state is idle, downloading, ready, applying or failed.
 pub fn progress() -> String {
     let p = PROGRESS.lock().unwrap().clone();
     let error = if p.state == "failed" { rules::error_text(p.reason) } else { "" };
+    let waiting = p.state == "ready" && HELD.load(Ordering::SeqCst);
+    // One text for ready and applying in both screens, another while a session keeps the install waiting.
+    let text = if p.state == "ready" || p.state == "applying" {
+        rules::install_text(waiting).to_owned()
+    } else {
+        rules::progress_text(p.received, p.total)
+    };
     json!({
         "state": p.state,
         "percent": rules::percent(p.received, p.total),
-        "text": rules::progress_text(p.received, p.total),
+        "text": text,
         "error": error,
+        "waiting": waiting,
     })
     .to_string()
 }
@@ -256,7 +279,9 @@ pub fn start_download() {
         }
         *p = Progress { state: "downloading", received: 0, total: offer.size, reason: "" };
     }
-    std::thread::spawn(move || match download(&offer) {
+    // I3: start reading the connection count now, so it has settled by the time the file is ready.
+    start_status_sync();
+    std::thread::spawn(move || match supervised_download(&offer) {
         Ok(()) => PROGRESS.lock().unwrap().state = "ready",
         Err(reason) => {
             log::error!("Dolphin update download failed: {}", reason);
@@ -273,7 +298,95 @@ fn staged_file(offer: &rules::Offer) -> Option<PathBuf> {
     Some(staging_dir().join(name))
 }
 
-fn download(offer: &rules::Offer) -> Result<(), &'static str> {
+/// What the supervisor and the download thread share (review I1).
+struct Watch {
+    last_progress: Mutex<Instant>,
+    /// True once the answer has started; before that the longer `FIRST_BYTE_LIMIT` applies.
+    body: AtomicBool,
+    /// Set by the supervisor when it gives up: the download thread then stops writing and touches nothing else.
+    cancel: AtomicBool,
+}
+
+impl Watch {
+    fn progress(&self) {
+        *self.last_progress.lock().unwrap() = Instant::now();
+    }
+}
+
+/// The download runs on its own thread; this one only watches the clock. A blocked read cannot be interrupted, so a
+/// download with no new bytes for `STALL_LIMIT` is abandoned: the screen gets `Err("network")` (attempt recorded,
+/// «تلاش دوباره» and «ادامه با همین نسخه» shown) and the stuck thread ends on its own when its read returns or the
+/// whole-request cap fires. Its `.part` file has its own name, so the next attempt never collides with it.
+fn supervised_download(offer: &rules::Offer) -> Result<(), &'static str> {
+    let watch = Arc::new(Watch {
+        last_progress: Mutex::new(Instant::now()),
+        body: AtomicBool::new(false),
+        cancel: AtomicBool::new(false),
+    });
+    let attempt = ATTEMPTS.fetch_add(1, Ordering::SeqCst) + 1;
+    let (tx, rx) = mpsc::channel();
+    {
+        let (watch, offer) = (watch.clone(), offer.clone());
+        std::thread::spawn(move || {
+            tx.send(download(&offer, &watch, attempt)).ok();
+        });
+    }
+    loop {
+        match rx.recv_timeout(Duration::from_secs(1)) {
+            Ok(result) => return result,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Err("network"),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                let limit = if watch.body.load(Ordering::SeqCst) { rules::STALL_LIMIT } else { rules::FIRST_BYTE_LIMIT };
+                if rules::stalled(*watch.last_progress.lock().unwrap(), Instant::now(), limit) {
+                    log::error!("Dolphin update download: no new bytes for {:?}, giving up", limit);
+                    watch.cancel.store(true, Ordering::SeqCst);
+                    return Err("network");
+                }
+            }
+        }
+    }
+}
+
+/// Starts the connection-count sync (the same one the main window uses) and remembers when.
+fn start_status_sync() {
+    let mut at = STATUS_STARTED.lock().unwrap();
+    if at.is_none() {
+        crate::ui_interface::start_option_status_sync();
+        *at = Some(Instant::now());
+    }
+}
+
+/// Authorised connections right now. The server's own list covers a portable run (the server is in this process,
+/// `core_main` starts it before any screen); the count the server reports over IPC covers the installed app, whose
+/// service is another process. Either one above zero holds the update back.
+fn live_sessions() -> usize {
+    let own = crate::server::AUTHED_CONNS.lock().unwrap().len();
+    own.max(crate::ui_interface::get_connect_status().video_conn_count)
+}
+
+/// I3: returns true when the swap may go on, after waiting for any live session to end. False when another caller
+/// already waits or nothing is ready. The state stays `ready` meanwhile (the screens show `waiting` and no button).
+fn wait_for_no_session() -> bool {
+    if PROGRESS.lock().unwrap().state != "ready" || WAITER.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+    start_status_sync();
+    let started = *STATUS_STARTED.lock().unwrap();
+    if let Some(at) = started {
+        std::thread::sleep(STATUS_SETTLE.saturating_sub(at.elapsed()));
+    }
+    while !rules::may_apply(live_sessions()) {
+        if !HELD.swap(true, Ordering::SeqCst) {
+            log::info!("dolphin update: a session is open, the install waits for it to end");
+        }
+        std::thread::sleep(SESSION_RECHECK);
+    }
+    HELD.store(false, Ordering::SeqCst);
+    WAITER.store(false, Ordering::SeqCst);
+    true
+}
+
+fn download(offer: &rules::Offer, watch: &Watch, attempt: u32) -> Result<(), &'static str> {
     let path = offer.path.as_deref().ok_or("manual")?;
     if config::is_outgoing_only() {
         return Err("manual");
@@ -283,7 +396,7 @@ fn download(offer: &rules::Offer) -> Result<(), &'static str> {
     }
     let target = staged_file(offer).ok_or("write")?;
     std::fs::create_dir_all(staging_dir()).map_err(|_| "write")?;
-    let part = rules::sibling(&target, ".part");
+    let part = rules::sibling(&target, &format!(".part{attempt}"));
     std::fs::remove_file(&part).ok();
     std::fs::remove_file(&target).ok();
     // Same origin as the check, always: the compiled-in portal plus a path check_offer accepted.
@@ -293,20 +406,30 @@ fn download(offer: &rules::Offer) -> Result<(), &'static str> {
     if !from_portal(&response) || !response.status().is_success() {
         return Err("network");
     }
-    if let Err(reason) = write_verified(&mut response, &part, offer) {
+    watch.body.store(true, Ordering::SeqCst);
+    watch.progress();
+    if let Err(reason) = write_verified(&mut response, &part, offer, watch) {
         std::fs::remove_file(&part).ok();
         return Err(reason);
+    }
+    if watch.cancel.load(Ordering::SeqCst) {
+        std::fs::remove_file(&part).ok();
+        return Err("network"); // given up on while finishing: the screen already shows the failure
     }
     std::fs::rename(&part, &target).map_err(|_| "write")
 }
 
-fn write_verified(body: &mut impl Read, part: &Path, offer: &rules::Offer) -> Result<(), &'static str> {
+fn write_verified(body: &mut impl Read, part: &Path, offer: &rules::Offer, watch: &Watch) -> Result<(), &'static str> {
     let mut file = std::fs::File::create(part).map_err(|_| "write")?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 64 * 1024];
     let mut received = 0u64;
     loop {
         let n = body.read(&mut buf).map_err(|_| "network")?;
+        if watch.cancel.load(Ordering::SeqCst) {
+            return Err("network"); // the supervisor gave up on this attempt; it must not touch the progress any more
+        }
+        watch.progress();
         if n == 0 {
             break;
         }
@@ -324,6 +447,9 @@ fn write_verified(body: &mut impl Read, part: &Path, offer: &rules::Offer) -> Re
 
 /// Swaps the verified file in and starts it. Returns only on failure, which the screens then show.
 pub fn apply_or_fail() {
+    if !wait_for_no_session() {
+        return;
+    }
     let Some(reason) = apply() else {
         return; // another apply is running, or nothing is ready: do nothing
     };
@@ -412,7 +538,17 @@ fn swap(staged: &Path, offer: &rules::Offer) -> &'static str {
         // UNVERIFIED (acceptance row 46): upstream's own installed-app update. The new exe runs `--update` with UAC
         // and copies itself over the installed one (src/platform/windows.rs update_me), restarting the service.
         return match crate::platform::update_to(&staged.to_string_lossy()) {
-            Ok(()) => std::process::exit(0),
+            Ok(()) => {
+                // Review I2. `run_uac` returns as soon as the elevated copy is created; that copy unpacks and runs
+                // `--update`, whose `update_me` lists the main-window processes (this one, started with no
+                // arguments), kills them and starts the main window again in the same session. Exiting here would
+                // leave that list empty and nobody would reopen the window. So stay (progress remains `applying`,
+                // the screens show «در حال نصب…») and let `update_me` end us. UNVERIFIED on a PC (acceptance rows
+                // 46 and 47). If it never arrives, leave after INSTALLED_EXIT_FALLBACK: the screen never hangs.
+                std::thread::sleep(rules::INSTALLED_EXIT_FALLBACK);
+                log::error!("dolphin update: the installer did not end this process, leaving");
+                std::process::exit(0)
+            }
             Err(e) => {
                 log::error!("update_to: {}", e);
                 "elevation"

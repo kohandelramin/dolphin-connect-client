@@ -44,7 +44,8 @@ pub struct UiStatus {
     pub mouse_time: i64,
     #[cfg(not(feature = "flutter"))]
     pub id: String,
-    #[cfg(feature = "flutter")]
+    // Dolphin Connect: also in the Sciter (x86) build, so its one-time code can be hidden during a session and the
+    // update can wait for one (it was Flutter-only upstream).
     pub video_conn_count: usize,
 }
 
@@ -64,7 +65,6 @@ lazy_static::lazy_static! {
         mouse_time: 0,
         #[cfg(not(feature = "flutter"))]
         id: "".to_owned(),
-        #[cfg(feature = "flutter")]
         video_conn_count: 0,
     }));
     static ref ASYNC_JOB_STATUS : Arc<Mutex<String>> = Default::default();
@@ -1348,7 +1348,6 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
     let mut key_confirmed = false;
     let mut rx = rx;
     let mut mouse_time = 0;
-    #[cfg(feature = "flutter")]
     let mut video_conn_count = 0;
     #[cfg(not(feature = "flutter"))]
     let mut id = "".to_owned();
@@ -1387,7 +1386,6 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                     *TEMPORARY_PASSWD.lock().unwrap() = value;
                                 }
                             }
-                            #[cfg(feature = "flutter")]
                             Ok(Some(ipc::Data::VideoConnCount(Some(n)))) => {
                                 video_conn_count = n;
                             }
@@ -1407,7 +1405,6 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                                     mouse_time,
                                     #[cfg(not(feature = "flutter"))]
                                     id: id.clone(),
-                                    #[cfg(feature = "flutter")]
                                     video_conn_count,
                                 };
                             }
@@ -1435,7 +1432,6 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
                         c.send(&ipc::Data::Options(None)).await.ok();
                         c.send(&ipc::Data::Config(("id".to_owned(), None))).await.ok();
                         c.send(&ipc::Data::Config(("temporary-password".to_owned(), None))).await.ok();
-                        #[cfg(feature = "flutter")]
                         c.send(&ipc::Data::VideoConnCount(None)).await.ok();
                         c.send(&ipc::Data::ControlPermissionsRemoteModify(None)).await.ok();
                         #[cfg(target_os = "windows")]
@@ -1459,7 +1455,6 @@ async fn check_connect_status_(reconnect: bool, rx: mpsc::UnboundedReceiver<ipc:
             mouse_time,
             #[cfg(not(feature = "flutter"))]
             id: id.clone(),
-            #[cfg(feature = "flutter")]
             video_conn_count,
         };
         sleep(1.).await;

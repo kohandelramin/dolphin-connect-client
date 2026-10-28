@@ -437,6 +437,7 @@ impl UI {
         v.push(x.status_num);
         v.push(x.key_confirmed);
         v.push(x.id);
+        v.push(x.video_conn_count as i32); // Dolphin Connect: authorised sessions now (index.tis hides the code)
         v
     }
 
