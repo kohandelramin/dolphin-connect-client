@@ -1,4 +1,5 @@
 import pathlib
+import re
 import tempfile
 import unittest
 
@@ -140,6 +141,62 @@ class ScanTest(unittest.TestCase):
             root = self._tree(tmp)
             (root / "src" / "lang" / "fa.rs").write_text('("Relay Server", "Relay سرور"),', encoding="utf-8")
             self.assertEqual(r.main(root, overlay={}), 1)
+
+
+THEME = (r.ROOT / "flutter" / "lib" / "dolphin" / "theme.dart").read_text(encoding="utf-8")
+
+
+def _lum(hex6):
+    chans = [int(hex6[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in chans]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _ratio(a, b):
+    hi, lo = sorted([_lum(a), _lum(b)], reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+class PaletteTest(unittest.TestCase):
+    """DR-5 / D20: theme.dart is the one token source; Sciter and the upstream constants follow it."""
+
+    def test_tokens_are_read_from_theme_dart(self):
+        tokens = r.dolphin_tokens(THEME)
+        self.assertEqual(tokens["azure"], "1462e0")
+        self.assertEqual(tokens["aquaText"], "0f766e")
+        self.assertEqual(tokens["aqua"], "0d9488")
+
+    def test_sciter_colours_match_theme_dart(self):
+        tokens = r.dolphin_tokens(THEME)
+        css = r.sciter_css(THEME)
+        for name, token in (("accent", "azure"), ("button", "azure"), ("menu-hover", "azureTint"), ("green-blue", "aquaText")):
+            self.assertIn(f"var({name}): #{tokens[token]};", css)
+        self.assertNotIn("#0d9488", css)
+
+    def test_the_x86_id_colour_reaches_aa_on_white(self):
+        value = r.dolphin_tokens(THEME)["aquaText"]
+        self.assertGreaterEqual(_ratio(value, "ffffff"), 4.5)
+
+    def test_every_sciter_text_pair_reaches_aa(self):
+        t = r.dolphin_tokens(THEME)
+        for fg, bg in (("azure", "azureSoft"), ("azure", "ground"), ("aquaText", "ground"), ("muted", "ground"), ("dangerText", "dangerSoft")):
+            self.assertGreaterEqual(_ratio(t[fg], t[bg]), 4.5, f"{fg} on {bg}")
+
+    def test_the_update_page_uses_only_theme_colours(self):
+        page = (r.ROOT / "src" / "ui" / "dolphin_update.html").read_text(encoding="utf-8")
+        allowed = set(r.dolphin_tokens(THEME).values()) | {"ffffff"}
+        for value in re.findall(r"#([0-9a-fA-F]{6})", page):
+            self.assertIn(value.lower(), allowed, f"#{value} in dolphin_update.html is not a theme.dart token")
+
+    def test_upstream_blue_does_not_drive_the_flutter_app(self):
+        azure = r.dolphin_tokens(THEME)["azure"].upper()
+        common = (r.ROOT / "flutter" / "lib" / "common.dart").read_text(encoding="utf-8")
+        self.assertIn(f"static const Color accent = Color(0xFF{azure});", common)
+        self.assertIn(f"static const Color button = Color(0xFF{azure});", common)
+        for rel in ("flutter/lib/common.dart", "flutter/lib/desktop/pages/server_page.dart", "flutter/lib/desktop/pages/desktop_setting_page.dart"):
+            text = (r.ROOT / rel).read_text(encoding="utf-8").lower()
+            self.assertNotIn("0071ff", text, rel)
+            self.assertNotIn("2c8cff", text, rel)
 
 
 if __name__ == "__main__":
