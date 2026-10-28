@@ -28,8 +28,8 @@ always builds all three. A `production` run with a release tag (`vX.Y.Z`, or `vX
 candidate, where `X.Y.Z` is `dolphin/version.txt`) publishes
 `DolphinConnect-<version>-x64.exe`, `DolphinConnect-<version>-x86.exe`, `DolphinConnect-Technician-<version>-x64.exe`,
 `SHA256SUMS` and `baked-settings.json` as a GitHub release (`<version>` is the tag without the `v`). vcpkg packages
-are kept between runs (`files` binary cache in `C:\vcpkg-binary-cache`, saved by `actions/cache`); dev runs use thin
-LTO, production full LTO.
+are kept between runs (`files` binary cache in `C:\vcpkg-binary-cache`, saved by `actions/cache`); dev runs build without LTO,
+production full LTO.
 
 **Versions (TB-4).** Our apps have their own SemVer number, `dolphin/version.txt` (first: `2.0.0`, owner decision
 D3). Releases are `X.Y.Z`, release candidates `X.Y.Z-rc.N`, test builds `X.Y.Z-dev.<run>` (never offered to
@@ -46,20 +46,30 @@ Local generation: `python dolphin/gen_profile.py <profile> <customer|technician>
 
 Tests (no Rust toolchain needed): `python -m unittest discover -s dolphin -p "test_*.py"` (needs Pillow).
 
+### Build times
+
+Dev profile, measured 2026-10-28. Before the CI speed-up (run 40498394513, 2026-10-27) `build-windows (customer)` took
+33 m 00 s, of which about 15 min was vcpkg rebuilding everything; with the vcpkg cache a warm run (40580914538)
+took 21 m 57 s, and a warm `builds=all` run (40613624426) 26 min.
+
+What changed (TB-1 follow-up): the Windows builds wait for the bridge only, not for the Dart analysis (which runs
+beside them; a release still needs it); the generated bridge is cached on a hash of its inputs; dev builds pack with
+brotli quality 5 (production keeps 11) and build without LTO (production keeps full LTO and one codegen unit). Caching
+the Flutter SDK was tried and dropped: restoring it took 98 s, installing takes 73 to 77 s.
+
+| Run | Apps | Cache | Whole run | Windows x64 job | Build step |
+|---|---|---|---|---|---|
+| 40623778613 | customer-x64 | cold (new Rust profile, bridge not cached) | 29 m 00 s | 25 m 51 s | 16 m 53 s |
+| 40626568964 | customer-x64 | warm (bridge hit, 11 s) | 12 m 29 s | 12 m 09 s | 6 m 19 s |
+| 40627982963 | all | warm (x64 jobs; x86 first run on this profile) | 13 m 44 s | 13 m 16 s (customer), 12 m 42 s (technician); x86 6 m 43 s | 7 m 14 s, 7 m 36 s; x86 3 m 17 s |
+
+In a warm run the bridge job takes about 11 s, "Portable exe and checksums" under 30 s (it was 122 to 227 s), and
+the Windows jobs start 30 s after the run does (they used to start after about 400 s). Run 40626568964 still had the
+Flutter SDK cache (Install flutter 98 s); run 40627982963 is the final configuration. A cold run is slower than before
+because it also saves the caches; it only happens when `vcpkg.json`, `res/vcpkg/**`, the vcpkg commit or the Rust profile
+changes.
+
 ## Upstream
 
 Based on commit `fada664df7a294d1d1a9ca3e7cd3637069122f17` (tag `1.5.0`). To move to a newer release,
 branch from the new tag, cherry-pick the `dolphin` commits, and rebuild.
-
-### Build times
-
-Dev profile, `builds=customer-x64`, same commit (`7dbd4ea`), measured 2026-10-27. Before this change a full run
-(run 40498394513) took 32 m 60 s for `build-windows (customer)`, of which about 15 min was vcpkg rebuilding everything.
-
-| Run | Cache | Whole run | build-windows (customer) | vcpkg step |
-|---|---|---|---|---|
-| 40571892473 | cold (vcpkg: "Restored 0 package(s)"; zips stored afterwards) | 59 m 51 s | 51 m 23 s (Build step 24 m) | 17 m 37 s |
-| 40580914538 | warm (vcpkg: "Restored 16 package(s) ... in 1.7 s") | 21 m 57 s | 17 m 51 s (Build step 9 m 22 s) | 25 s |
-
-The warm run also gains from the Rust cache and thin LTO. A cold run is slower than before because it now also
-saves the caches; it only happens when `vcpkg.json`, `res/vcpkg/**` or the vcpkg commit changes.
