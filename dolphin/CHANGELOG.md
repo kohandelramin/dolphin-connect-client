@@ -25,6 +25,7 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 - D5: when the portal can't be reached, «پذیرفتن» is blocked and the phone is shown; code mode still works.
 - One light Dolphin look on dark Windows, one blue (`#1462e0`), the Dolphin icon on the x86 window, and readable colours (WCAG AA).
 - The update waits for a live session to end, and stops a stalled download after 30 s.
+- Plain words: «کپی و چسباندن», a plain tray menu, the support phone in Persian digits, Persian window titles; one button style; the request window fits a small laptop; the request button says it needs a Dolphin username.
 
 **یادداشت فارسی:** از این نسخه برنامه پیش از باز شدن، نسخه‌ی تازه را خودش از پورتال دلفین دریافت و نصب می‌کند.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.
