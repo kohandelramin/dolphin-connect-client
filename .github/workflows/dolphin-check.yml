@@ -46,9 +46,12 @@ jobs:
         shell: bash
         run: |
           rustc --version
-          rustc --edition 2021 --test dolphin/version_resource.rs -o "$RUNNER_TEMP/version_resource" && "$RUNNER_TEMP/version_resource"
-          rustc --edition 2021 --test src/dolphin_update_core.rs -o "$RUNNER_TEMP/update_core" && "$RUNNER_TEMP/update_core"
-          rustc --edition 2021 --test libs/portable/src/dolphin_wait.rs -o "$RUNNER_TEMP/dolphin_wait" && "$RUNNER_TEMP/dolphin_wait"
+          rustc --edition 2021 --test dolphin/version_resource.rs -o "$RUNNER_TEMP/version_resource"
+          "$RUNNER_TEMP/version_resource"
+          rustc --edition 2021 --test src/dolphin_update_core.rs -o "$RUNNER_TEMP/update_core"
+          "$RUNNER_TEMP/update_core"
+          rustc --edition 2021 --test libs/portable/src/dolphin_wait.rs -o "$RUNNER_TEMP/dolphin_wait"
+          "$RUNNER_TEMP/dolphin_wait"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}
