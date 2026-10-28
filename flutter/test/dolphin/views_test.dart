@@ -48,7 +48,7 @@ void main() {
         siteLabel: 'support.dolphindev.ir')));
     expect(find.text('123 456 789'), findsOneWidget);
     expect(find.textContaining('آماده'), findsOneWidget);
-    expect(find.textContaining('021-12345678'), findsOneWidget);
+    expect(find.textContaining('۰۲۱-۱۲۳۴۵۶۷۸'), findsOneWidget); // Persian digits on customer screens (UX-16)
     await tester.tap(find.text('کپی شناسه'));
     expect(copied, isTrue);
   });
