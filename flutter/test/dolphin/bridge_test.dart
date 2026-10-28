@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/call_status.dart';
+import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/panel_bridge.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,5 +78,41 @@ void main() {
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
     await tester.pump(const Duration(seconds: 9));
     expect(find.text(kPanelNoAnswer), findsNothing);
+  });
+
+  test('the code is shown and handed over only for a PC linked to a code-mode organization', () {
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh'), 'Ab3dE6gh');
+    expect(dolphinCode(approveMode: 'click', showCode: 'Y', password: 'Ab3dE6gh'), '');
+    expect(dolphinCode(approveMode: 'password', showCode: 'N', password: 'Ab3dE6gh'), ''); // unlinked, or click
+    expect(dolphinCode(approveMode: 'password', showCode: '', password: 'Ab3dE6gh'), ''); // never heard from the portal
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: '-'), '');
+  });
+
+  test('the customer app hands its code only when the page asks, and only a real one', () {
+    expect(parsePanelMessage({'type': 'dolphin-code-request'})?.type, 'dolphin-code-request');
+    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', 'Ab3dE6gh'),
+        '{"type":"dolphin-code","code":"Ab3dE6gh"}');
+    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', ''), isNull);
+    expect(customerReply(const PanelMessage('dolphin-hello'), '123456789', 'Ab3dE6gh'), '{"type":"dolphin-id","id":"123456789"}');
+    expect(customerReply(const PanelMessage('dolphin-connect', '987654321', 'Ab3dE6gh'), '123456789', 'Ab3dE6gh'), isNull);
+  });
+
+  testWidgets('the customer window shows the code with copy in code mode only', (tester) async {
+    var copied = false;
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789',
+        state: DolphinServerState.ready,
+        onCopy: () {},
+        code: 'Ab3dE6gh',
+        onCopyCode: () => copied = true,
+        phone: '',
+        siteLabel: 'support.dolphindev.ir')));
+    expect(find.text('Ab3dE6gh'), findsOneWidget);
+    expect(find.textContaining('پشت تلفن نخوانید'), findsOneWidget);
+    await tester.tap(find.byTooltip('کپی رمز'));
+    expect(copied, isTrue);
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '', siteLabel: 'x')));
+    expect(find.text('رمز یک‌بارمصرف'), findsNothing);
   });
 }
