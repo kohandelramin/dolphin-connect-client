@@ -240,10 +240,11 @@ fn fetch_offer(portal: &str, build: &str) -> hbb_common::ResultType<Option<rules
     Ok(Some(offer))
 }
 
-/// Can the Sciter screen's «ادامه با همین نسخه» end this process now? Not when this process hosts the server (a
-/// portable run: nothing installed) and a session lives in it. The Flutter screens never exit, so they ignore this.
+/// Can the Sciter screen's «ادامه با همین نسخه» end this process now? Not while a session lives in this process (its
+/// own `AUTHED_CONNS`; the count over IPC belongs to the service, which keeps running). The Flutter screens never exit,
+/// so they ignore this.
 fn can_continue_now() -> bool {
-    rules::may_exit_for_continue(!crate::platform::is_installed(), live_sessions())
+    rules::may_exit_for_continue(crate::server::AUTHED_CONNS.lock().unwrap().len())
 }
 
 /// {"state","percent","text","error","waiting","can_continue"} for the screens; state is idle, downloading, ready, applying or failed.

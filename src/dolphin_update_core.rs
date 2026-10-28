@@ -193,10 +193,11 @@ pub fn install_may_go_on(continued: bool, connected: usize) -> bool {
     !continued && may_apply(connected)
 }
 
-/// «ادامه با همین نسخه» on Sciter ends this process after starting a new one. A process that hosts the server itself (a
-/// portable run) must not end while a session lives in it. An installed app's sessions live in the service.
-pub fn may_exit_for_continue(server_in_process: bool, live_sessions: usize) -> bool {
-    !server_in_process || live_sessions == 0
+/// «ادامه با همین نسخه» on Sciter ends this process after starting a new one. A process that hosts a session (its own
+/// authorised connections, whoever started the server: a portable run, or an installed UI whose service is down) must
+/// not end while one lives. A UI whose sessions live in the service has none of its own.
+pub fn may_exit_for_continue(own_live_sessions: usize) -> bool {
+    own_live_sessions == 0
 }
 
 /// «ادامه با همین نسخه» is offered while a session holds the install back, so a lost IPC link never strands the customer.
