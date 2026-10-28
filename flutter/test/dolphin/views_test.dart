@@ -138,7 +138,7 @@ void main() {
   });
 
   test('the portal decides who may connect', () {
-    TechVerdict v(String techId, {String peer = '287654321', int until = 2000, int now = 1000, int waited = 7000}) =>
+    TechVerdict v(String techId, {String peer = '287654321', int until = 2000, int now = 1000, int waited = 0}) =>
         verifyTechnician(peerId: peer, techId: techId, techName: 'رحمت', until: until, nowSeconds: now, waitedMs: waited);
     expect(v('287654321').state, TechCheck.verified);
     expect(v('287654321').name, 'رحمت');
