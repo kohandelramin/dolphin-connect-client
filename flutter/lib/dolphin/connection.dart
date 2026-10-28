@@ -62,8 +62,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       techName: opt(kDolphinTechNameOption),
       until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
       nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      // After the end there is nothing to wait for: decide on what the portal pushed.
       portalDown: opt(kDolphinPortalDownOption) == 'Y',
+      // After the end there is nothing to wait for: decide on what the portal pushed.
       waitedMs: decided ? kDolphinVerifyWaitMs : DateTime.now().difference(_shownAt).inMilliseconds,
     );
   }

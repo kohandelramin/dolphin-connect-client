@@ -40,7 +40,8 @@ TechVerdict verifyTechnician({
   if (techId != '-' && techId == peerId && nowSeconds < until) {
     return TechVerdict(TechCheck.verified, techName == '-' ? '' : techName);
   }
-  if (portalDown) return const TechVerdict(TechCheck.unverifiable);
+  // The wait comes first: a new prompt shows "checking" before the outage text (neither state accepts).
   if (waitedMs < kDolphinVerifyWaitMs) return const TechVerdict(TechCheck.checking);
+  if (portalDown) return const TechVerdict(TechCheck.unverifiable);
   return const TechVerdict(TechCheck.rejected);
 }

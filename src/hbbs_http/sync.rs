@@ -252,7 +252,7 @@ async fn start_hbbs_sync_async() {
                 // Written only when the state changes.
                 if let Some(v) = crate::dolphin_portal::portal_down_write(
                     &Config::get_option(crate::dolphin_portal::PORTAL_DOWN_OPTION),
-                    response.is_ok(),
+                    matches!(&response, Ok(s) if crate::dolphin_portal::portal_answered(s)),
                 ) {
                     Config::set_option(crate::dolphin_portal::PORTAL_DOWN_OPTION.to_owned(), v.to_owned());
                 }

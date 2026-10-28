@@ -15,6 +15,13 @@ pub fn portal_down_write(current: &str, reachable: bool) -> Option<&'static str>
     }
 }
 
+/// Did the portal itself answer the heartbeat? `post_request` returns `Ok` for every HTTP status, so a 502/503 page from
+/// the reverse proxy in front of a stopped or redeploying portal looks like an answer. The portal's heartbeat route
+/// always answers a JSON object (app/src/app/rd/api/heartbeat/route.ts), so only a body that starts with `{` counts.
+pub fn portal_answered(body: &str) -> bool {
+    body.trim_start().starts_with('{')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
