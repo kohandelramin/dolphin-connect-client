@@ -147,6 +147,11 @@ void main() {
 
   // Both screens: retry, then continue, then the manual download, then close (review minors).
   testWidgets('the buttons come in the same order as the Sciter screen', (tester) async {
+    // Wide enough that the four buttons share one row (the real window wraps them).
+    tester.view.physicalSize = const Size(1800, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'failed', error: 'e')));
     final xs = ['تلاش دوباره', 'ادامه با همین نسخه', 'دریافت دستی', 'بستن']
         .map((t) => tester.getCenter(find.text(t)).dx)
