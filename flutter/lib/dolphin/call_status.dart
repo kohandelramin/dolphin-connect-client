@@ -39,12 +39,17 @@ class DolphinCallWait extends ChangeNotifier {
   Timer? _timer;
   int _call = 0;
 
+  /// The ID the waiting call was sent for; a result naming another ID belongs to an earlier call.
+  String _id = '';
+
   /// Whether [token] (from [waiting]) is still the latest call.
   bool isCurrent(int token) => token == _call;
 
-  /// The panel's answer: applied only while a call is waiting. A late one (after the timeout) changes nothing.
-  bool answer(String message, {required bool ok}) {
+  /// The panel's answer: applied only while a call is waiting. A late one (after the timeout) changes nothing, and
+  /// neither does one whose [id] is set and differs from the waiting call's. An empty [id] (older portal) is accepted.
+  bool answer(String message, {required bool ok, String id = ''}) {
     if (!busy) return false;
+    if (id.isNotEmpty && id != _id) return false;
     show(message, ok: ok);
     return true;
   }
@@ -57,8 +62,9 @@ class DolphinCallWait extends ChangeNotifier {
     notifyListeners();
   }
 
-  int waiting() {
+  int waiting({String id = ''}) {
     final token = ++_call;
+    _id = id;
     show(kPanelChecking, ok: true);
     busy = true;
     _timer = Timer(wait, () => show(kPanelNoAnswer, ok: false));

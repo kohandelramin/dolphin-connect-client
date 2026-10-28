@@ -19,9 +19,9 @@ class PanelMessage {
   const PanelMessage(this.type, [this.id = '', this.code = ''])
       : ok = false,
         text = '';
-  const PanelMessage.callResult(this.ok, this.text)
+  /// [id] is the RustDesk ID of the call this answers; empty from a portal that does not send it yet.
+  const PanelMessage.callResult(this.ok, this.text, [this.id = ''])
       : type = 'dolphin-call-result',
-        id = '',
         code = '';
 }
 
@@ -50,8 +50,11 @@ PanelMessage? parsePanelMessage(dynamic raw) {
     final ok = data['ok'];
     final text = data['text'];
     if (ok is! bool || text is! String || text.trim().isEmpty) return null;
+    final callId = data['id'];
+    if (callId != null && (callId is! String || !panelIdPattern.hasMatch(callId))) return null;
     final t = text.trim();
-    return PanelMessage.callResult(ok, t.length > kCallResultMaxLength ? t.substring(0, kCallResultMaxLength) : t);
+    return PanelMessage.callResult(
+        ok, t.length > kCallResultMaxLength ? t.substring(0, kCallResultMaxLength) : t, (callId as String?) ?? '');
   }
   final id = data['id'];
   if (type == 'dolphin-connect' && id is String) {

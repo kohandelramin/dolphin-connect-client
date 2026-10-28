@@ -43,7 +43,7 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
       connect(context, m.id, password: m.code.isEmpty ? null : m.code);
     }
     if (m.type == 'dolphin-call-result') {
-      if (_call.answer(m.text, ok: m.ok) && m.ok) _manual.clear();
+      if (_call.answer(m.text, ok: m.ok, id: m.id) && m.ok) _manual.clear();
     }
     return null;
   }
@@ -57,7 +57,7 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
       return;
     }
     final id = _manual.text.replaceAll(' ', '');
-    final token = _call.waiting(); // busy before the send, so a second Enter cannot send a second call
+    final token = _call.waiting(id: id); // busy before the send, so a second Enter cannot send a second call
     final sent = await _panel.send(callRequest(id));
     if (!sent && mounted && _call.isCurrent(token)) _call.show(kPanelNotReady, ok: false);
   }
