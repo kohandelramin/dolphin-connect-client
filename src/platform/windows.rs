@@ -1583,6 +1583,10 @@ fn get_after_install(
 }
 
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
+    // Dolphin Connect (BL-SVC): an install always brings the service back. `get_create_service` skips it while
+    // `stop-service` is "Y", which an earlier «توقف سرویس» or uninstall leaves in the user's config, and the app then
+    // never reaches the server however often it is reinstalled. Customers still approve every session.
+    Config::set_option("stop-service".into(), "".into());
     // MSI and EXE installations use different registry layouts, so MSI-to-EXE upgrades are not supported.
     let (installed_subkey, _, _, _) = get_install_info();
     if get_windows_installer_state(&installed_subkey)? == Some(true) {

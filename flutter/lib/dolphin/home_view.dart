@@ -7,14 +7,23 @@ import 'theme.dart';
 /// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
 const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به شما داده است؛ حساب ندارید؟ با پشتیبانی تماس بگیرید.';
 
-enum DolphinServerState { ready, connecting, offline }
+enum DolphinServerState { ready, connecting, offline, stopped }
 
-/// The rendezvous status the client reports: 1 connected, 0 connecting, -1 not ready.
-DolphinServerState serverStateFromStatus(int statusNum) => statusNum > 0
-    ? DolphinServerState.ready
-    : statusNum == 0
-        ? DolphinServerState.connecting
-        : DolphinServerState.offline;
+/// The rendezvous status the client reports: 1 connected, 0 connecting, -1 not ready. A stopped service (the
+/// `stop-service` option) wins: the app then never signs in to the server and the status would stay "connecting"
+/// for ever (BL-SVC, 2026-10-29).
+DolphinServerState serverStateFromStatus(int statusNum, {bool serviceStopped = false}) => serviceStopped
+    ? DolphinServerState.stopped
+    : statusNum > 0
+        ? DolphinServerState.ready
+        : statusNum == 0
+            ? DolphinServerState.connecting
+            : DolphinServerState.offline;
+
+/// What the stopped state says and its button.
+const kServiceStoppedLabel = 'سرویس دلفین خاموش است';
+const kServiceStoppedHint = 'تا سرویس روشن نشود کارشناس نمی‌تواند وصل شود؛ هر اتصال باز هم به اجازه‌ی شما نیاز دارد.';
+const kStartServiceLabel = 'روشن کردن سرویس';
 
 /// The numbers the portal pushed, or the one compiled in until the first heartbeat brings them.
 String supportPhone(String pushed, String compiled) => pushed.trim().isNotEmpty ? pushed.trim() : compiled;
@@ -48,6 +57,9 @@ class DolphinHomeView extends StatelessWidget {
   /// UN-15: the last finished sessions on this PC, newest first (pushed by the portal).
   final List<RecentSession> recent;
 
+  /// Turns the service back on (Windows asks for admin rights); the button shows only in the stopped state.
+  final VoidCallback? onStartService;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -58,7 +70,8 @@ class DolphinHomeView extends StatelessWidget {
       this.onRequests,
       this.code = '',
       this.onCopyCode,
-      this.recent = const []});
+      this.recent = const [],
+      this.onStartService});
 
   @override
   Widget build(BuildContext context) =>
@@ -69,7 +82,10 @@ class DolphinHomeView extends StatelessWidget {
       DolphinServerState.ready => ('آماده؛ منتظر کارشناس', DolphinColors.aquaText, DolphinColors.aquaSoft),
       DolphinServerState.connecting => ('در حال اتصال به سرور دلفین…', DolphinColors.muted, DolphinColors.azureSoft),
       DolphinServerState.offline => ('به سرور دلفین وصل نیست', DolphinColors.dangerText, DolphinColors.dangerSoft),
+      DolphinServerState.stopped => (kServiceStoppedLabel, DolphinColors.dangerText, DolphinColors.dangerSoft),
     };
+    final down = state == DolphinServerState.offline || state == DolphinServerState.stopped;
+    final onStartService = this.onStartService;
     final onRequests = this.onRequests;
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -92,6 +108,19 @@ class DolphinHomeView extends StatelessWidget {
                         Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12.5)),
                       ]),
                     ),
+                    if (state == DolphinServerState.stopped && onStartService != null) ...[
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed: onStartService,
+                        icon: const Icon(Icons.power_settings_new, size: 18),
+                        label: const Text(kStartServiceLabel, style: TextStyle(fontWeight: FontWeight.w700)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: DolphinColors.azure,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     Container(
                       width: double.infinity,
@@ -114,7 +143,7 @@ class DolphinHomeView extends StatelessWidget {
                                     fontSize: 30,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 2,
-                                    color: state == DolphinServerState.offline
+                                    color: down
                                         ? DolphinColors.muted
                                         : DolphinColors.ink)),
                           ),
@@ -159,9 +188,11 @@ class DolphinHomeView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      state == DolphinServerState.offline
-                          ? 'اینترنت را بررسی کنید؛ برنامه خودش دوباره تلاش می‌کند.'
-                          : 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.',
+                      state == DolphinServerState.stopped
+                          ? kServiceStoppedHint
+                          : state == DolphinServerState.offline
+                              ? 'اینترنت را بررسی کنید؛ برنامه خودش دوباره تلاش می‌کند.'
+                              : 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
                     ),

@@ -36,7 +36,8 @@
     "allow-deep-link-password": "N",
     "hide-server-settings": "Y",
     "hide-security-settings": "Y",
-    "hide-help-cards": "Y"
+    "hide-help-cards": "Y",
+    "hide-stop-service": "Y"
   },
   "hard": {
     "disable-installation": "N",

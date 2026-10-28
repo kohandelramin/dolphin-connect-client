@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../common.dart';
+import '../consts.dart';
 import '../common/formatter/id_formatter.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
@@ -37,6 +38,8 @@ class _DolphinHomeState extends State<DolphinHome> {
   Timer? _options;
   // Authorised remote sessions, from the server (see connectedCount). Null until the first read: no code before that.
   int? _connected;
+  // BL-SVC: the service was stopped (tray «توقف سرویس» before 2.0.0-rc.5, or an uninstall); the home then says so.
+  bool _stopped = false;
 
   @override
   void initState() {
@@ -49,6 +52,7 @@ class _DolphinHomeState extends State<DolphinHome> {
     // the unsynced 0 (the code would flash during a session). The first read is the 2 s tick; until then it is unknown
     // and the code stays hidden (codeHiddenFor(null)).
     _options = Timer.periodic(const Duration(seconds: 2), (_) => _readConnected());
+    _readStopped();
   }
 
   @override
@@ -59,7 +63,18 @@ class _DolphinHomeState extends State<DolphinHome> {
 
   Future<void> _readConnected() async {
     final n = connectedCount(await bind.mainGetConnectStatus());
-    if (mounted) setState(() => _connected = n);
+    final stopped = await mainGetBoolOption(kOptionStopService);
+    if (mounted) {
+      setState(() {
+        _connected = n;
+        _stopped = stopped;
+      });
+    }
+  }
+
+  Future<void> _readStopped() async {
+    final stopped = await mainGetBoolOption(kOptionStopService);
+    if (mounted) setState(() => _stopped = stopped);
   }
 
   Future<void> _fitWindow() async {
@@ -101,7 +116,10 @@ class _DolphinHomeState extends State<DolphinHome> {
             Clipboard.setData(ClipboardData(text: code));
             showToast('کپی شد');
           },
-          state: serverStateFromStatus(model.connectStatus),
+          state: serverStateFromStatus(model.connectStatus, serviceStopped: _stopped),
+          // Upstream's own action: clears `stop-service`, which on an installed app recreates and starts the Windows
+          // service (UAC prompt); the 2 s read then shows the new state.
+          onStartService: () => start_service(true),
           phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
           siteLabel: DolphinBrand.siteLabel,
           onCopy: () {

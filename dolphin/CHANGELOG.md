@@ -35,6 +35,9 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 - rc.3: the end screen says what to do after a restart: open Dolphin Connect again and call back (UN-13).
 - rc.4: recording is a fixed setting in the app, not a default a PC could change; the accept prompt allows a PC
   clock up to 10 minutes fast, since the portal re-sends who may connect every 5 minutes and cuts expired sessions (TB-9).
+- Next build (rc.5): the tray menu no longer offers «توقف سرویس», which deleted the Windows service and left the
+  app on «در حال اتصال به سرور دلفین…» for ever, even after a reinstall. A PC where it was clicked now shows «سرویس
+  دلفین خاموش است» with «روشن کردن سرویس», and any install brings the service back (TB-22).
 
 **یادداشت فارسی:** از این نسخه برنامه پیش از باز شدن، نسخه‌ی تازه را خودش از پورتال دلفین دریافت و نصب می‌کند.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.

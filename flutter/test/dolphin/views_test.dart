@@ -18,6 +18,34 @@ void main() {
     expect(serverStateFromStatus(1), DolphinServerState.ready);
     expect(serverStateFromStatus(0), DolphinServerState.connecting);
     expect(serverStateFromStatus(-1), DolphinServerState.offline);
+    // BL-SVC: a stopped service wins over whatever the status says.
+    expect(serverStateFromStatus(0, serviceStopped: true), DolphinServerState.stopped);
+    expect(serverStateFromStatus(1, serviceStopped: true), DolphinServerState.stopped);
+  });
+
+  testWidgets('home says when the service is off and offers to turn it on', (tester) async {
+    var started = false;
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789',
+        state: DolphinServerState.stopped,
+        onCopy: () {},
+        onStartService: () => started = true,
+        phone: '',
+        siteLabel: 'support.dolphindev.ir')));
+    expect(find.text(kServiceStoppedLabel), findsOneWidget);
+    expect(find.text(kServiceStoppedHint), findsOneWidget);
+    expect(find.textContaining('در حال اتصال'), findsNothing);
+    await tester.tap(find.text(kStartServiceLabel));
+    expect(started, isTrue);
+    // No button in any other state.
+    await tester.pumpWidget(_app(DolphinHomeView(
+        id: '123456789',
+        state: DolphinServerState.connecting,
+        onCopy: () {},
+        onStartService: () {},
+        phone: '',
+        siteLabel: 'x')));
+    expect(find.text(kStartServiceLabel), findsNothing);
   });
 
   test('IDs are grouped in threes for reading aloud', () {
