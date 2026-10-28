@@ -55,6 +55,46 @@ class RustTextTest(unittest.TestCase):
             self.assertEqual((root / "src" / "auth_2fa.rs").read_text(encoding="utf-8"), "fn x<'a>() {}")
 
 
+class FaOverlayTest(unittest.TestCase):
+    def test_overlay_replaces_values_by_key(self):
+        text = '        ("Relay Server", "Relay سرور"),\n        ("Install", "نصب"),'
+        out, problems = r.apply_fa_overlay(text, {"Relay Server": "سرور Relay"})
+        self.assertEqual(problems, [])
+        self.assertIn('("Relay Server", "سرور Relay")', out)
+        self.assertIn('("Install", "نصب")', out)
+
+    def test_overlay_fails_on_a_missing_or_repeated_key(self):
+        _, missing = r.apply_fa_overlay('("Install", "نصب"),', {"Relay Server": "سرور Relay"})
+        self.assertEqual(len(missing), 1)
+        _, twice = r.apply_fa_overlay('("A", "x"),\n("A", "y"),', {"A": "z"})
+        self.assertEqual(len(twice), 1)
+
+    def test_overlay_escapes_quotes(self):
+        out, _ = r.apply_fa_overlay('("k", "v"),', {"k": 'گفت "بله"'})
+        self.assertIn('("k", "گفت \\"بله\\"")', out)
+
+    def test_a_value_that_starts_latin_and_ends_persian_fails(self):
+        self.assertEqual(len(r.bidi_problems('("Relay Server", "Relay سرور"),')), 1)
+        self.assertEqual(len(r.bidi_problems('("Installing ...", "...در حال نصب"),')), 1)
+        self.assertEqual(r.bidi_problems('("Relay Server", "سرور Relay"),'), [])
+        self.assertEqual(r.bidi_problems('("{} sessions", "{} جلسه"),'), [])
+        self.assertEqual(r.bidi_problems('("TCP", "TCP"),'), [])
+
+    def test_overlay_values_are_clean_and_carry_our_name(self):
+        for key, value in r.FA_OVERLAY.items():
+            self.assertEqual(r.bidi_problems(f'("{key}", "{value}"),'), [], key)
+            self.assertNotIn("RustDesk", value, key)
+
+    def test_the_real_persian_file_is_clean_after_overlay_and_rename(self):
+        text, problems = r.apply_fa_overlay((r.ROOT / "src" / "lang" / "fa.rs").read_text(encoding="utf-8"))
+        self.assertEqual(problems, [])
+        self.assertEqual(r.bidi_problems(r.rewrite_lang(text, "fa")), [])
+
+    def test_a_portal_cut_says_so_in_plain_persian(self):
+        self.assertIn("پورتال دلفین", r.FA_OVERLAY["Closed manually by web console"])
+        self.assertNotIn("کنسول", r.FA_OVERLAY["Closed manually by web console"])
+
+
 class ScanTest(unittest.TestCase):
     def _tree(self, tmp):
         root = pathlib.Path(tmp)
@@ -78,10 +118,16 @@ class ScanTest(unittest.TestCase):
             (root / "src" / "ui" / "index.html").write_text("<title>RustDesk</title>", encoding="utf-8")
             (root / "src" / "ui" / "common.css").write_text("html { var(accent): #0071ff; }", encoding="utf-8")
             (root / "src" / "lang" / "fa.rs").write_text('("About RustDesk", "درباره‌ی RustDesk"),', encoding="utf-8")
-            self.assertEqual(r.main(root), 0)
+            self.assertEqual(r.main(root, overlay={}), 0)
             self.assertIn("#1462e0", (root / "src" / "ui" / "common.css").read_text(encoding="utf-8"))
             self.assertIn("دلفین کانکت", (root / "src" / "lang" / "fa.rs").read_text(encoding="utf-8"))
             self.assertIn("Dolphin Connect", (root / "src" / "ui" / "index.html").read_text(encoding="utf-8"))
+
+    def test_main_fails_on_reversed_persian(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._tree(tmp)
+            (root / "src" / "lang" / "fa.rs").write_text('("Relay Server", "Relay سرور"),', encoding="utf-8")
+            self.assertEqual(r.main(root, overlay={}), 1)
 
 
 if __name__ == "__main__":
