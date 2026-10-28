@@ -36,8 +36,8 @@ class BuildWorkflowTest(unittest.TestCase):
 
     def test_the_fast_check_runs_on_every_push_to_dolphin_and_is_reusable(self):
         self.assertRegex(CHECK, r"\non:\n  push:\n    branches: \[dolphin\]\n  workflow_call:\n")
-        for job in ("test:", "generate-bridge:", "analyze-and-test:"):
-            self.assertIn(f"\n  {job}\n", CHECK)
+        for name in ("test:", "generate-bridge:", "analyze-and-test:"):
+            self.assertIn(f"\n  {name}\n", CHECK)
 
     def test_the_build_runs_the_fast_check_first(self):
         self.assertIn("uses: ./.github/workflows/dolphin-check.yml", BUILD)
@@ -58,7 +58,14 @@ class BuildWorkflowTest(unittest.TestCase):
         names = [n.strip() for n in needs.split(",")]
         for name in ("guard", "check", "analyze-and-test", "build-windows", "build-windows-x86"):
             self.assertIn(name, names)
-        self.assertIn("inputs.profile == 'production'", job(BUILD, "release"))
+        release = job(BUILD, "release")
+        # the gate is exactly this line; a status function or continue-on-error would let a release follow a failed check
+        self.assertIn("\n    if: inputs.profile == 'production' && inputs.release-tag != ''\n", release)
+        for text in ("always()", "!cancelled()", "failure()", "success() ||", "continue-on-error"):
+            self.assertNotIn(text, release)
+        # check, bridge and analyze-and-test run on a production run too, so none of them may be skipped by an if:
+        for name in ("check", "bridge", "analyze-and-test"):
+            self.assertNotIn("if:", job(BUILD, name))
 
     def test_a_push_still_runs_the_whole_check_and_the_analysis_is_shared(self):
         self.assertIn("uses: ./.github/workflows/dolphin-analyze.yml", CHECK)
@@ -68,6 +75,11 @@ class BuildWorkflowTest(unittest.TestCase):
         self.assertRegex(CHECK, r"fast-only:\n        type: boolean\n        default: false")
         for name in ("generate-bridge", "analyze-and-test"):
             self.assertIn("if: ${{ !inputs.fast-only }}", job(CHECK, name))
+
+    def test_the_tests_and_the_std_only_rust_never_skip_on_fast_only(self):
+        # fast-only skips the bridge and the Dart analysis; the Python tests and the std-only Rust run on every caller
+        for name in ("test", "rust-unit"):
+            self.assertNotIn("fast-only", job(CHECK, name))
 
     def test_generated_bridge_is_cached_on_a_key_of_its_inputs(self):
         step = BRIDGE.split("name: Generated bridge cache (Dolphin)", 1)[1].split("- name: Install prerequisites", 1)[0]
@@ -99,6 +111,16 @@ class BuildWorkflowTest(unittest.TestCase):
         step = BUILD.split("name: Install flutter", 1)[1].split("- name: Replace engine", 1)[0]
         self.assertNotIn("cache:", step)
 
+    def test_std_only_rust_files_are_tested_in_ci(self):
+        std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs")
+        for path in std_only:
+            self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
+        # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
+        tested = re.findall(r"rustc --edition 2021 --test (\S+)", job(CHECK, "rust-unit"))
+        self.assertEqual(sorted(tested), sorted(std_only))
+
+    def test_every_exe_has_its_version_resource_checked(self):
+        self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
 
 
 if __name__ == "__main__":

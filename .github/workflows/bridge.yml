@@ -55,7 +55,7 @@ jobs:
             ./flutter/lib/generated_bridge.freezed.dart
             ./flutter/macos/Runner/bridge_generated.h
             ./flutter/ios/Runner/bridge_generated.h
-          key: bridge-gen-v1-${{ matrix.job.os }}-${{ matrix.job.flutter-version }}-${{ env.FLUTTER_RUST_BRIDGE_VERSION }}-${{ env.CARGO_EXPAND_VERSION }}-${{ env.RUST_VERSION }}-${{ hashFiles('src/**', 'libs/**', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'flutter/pubspec.yaml', 'flutter/pubspec.lock', '.github/patches/**', '.github/workflows/bridge.yml') }}
+          key: bridge-gen-v1-${{ matrix.job.os }}-${{ matrix.job.flutter-version }}-${{ env.FLUTTER_RUST_BRIDGE_VERSION }}-${{ env.CARGO_EXPAND_VERSION }}-${{ env.RUST_VERSION }}-${{ hashFiles('src/**', 'libs/**', 'Cargo.toml', 'Cargo.lock', 'build.rs', 'flutter/pubspec.yaml', 'flutter/pubspec.lock', 'flutter/analysis_options.yaml', '.github/patches/**', '.github/workflows/bridge.yml') }}
 
       - name: Install prerequisites
         if: steps.gen.outputs.cache-hit != 'true'
