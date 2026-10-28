@@ -88,6 +88,55 @@ void main() {
     expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: '-'), '');
   });
 
+  test('only the portal page is answered', () {
+    const portal = 'https://support.dolphindev.ir';
+    expect(isPortalPage(portal, portal), isTrue);
+    expect(isPortalPage('$portal/', portal), isTrue);
+    expect(isPortalPage('$portal/staff/computers', portal), isTrue);
+    expect(isPortalPage('$portal?a=1', portal), isTrue);
+    expect(isPortalPage('$portal#x', portal), isTrue);
+    expect(isPortalPage('', portal), isFalse);
+    expect(isPortalPage('about:blank', portal), isFalse);
+    expect(isPortalPage('$portal.evil.example', portal), isFalse);
+    expect(isPortalPage('$portal.evil.example/', portal), isFalse);
+    expect(isPortalPage('https://support.dolphindev.ir@evil.example/', portal), isFalse);
+    expect(isPortalPage('http://support.dolphindev.ir/', portal), isFalse);
+    expect(isPortalPage('https://evil.example/', portal), isFalse);
+    expect(isPortalPage('https://evil.example/https://support.dolphindev.ir/', portal), isFalse);
+  });
+
+  test('no code is shown or handed over while a technician is connected', () {
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh', inSession: true), '');
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Zz9yX8wv', inSession: false), 'Zz9yX8wv');
+    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', ''), isNull);
+  });
+
+  testWidgets('a late answer after the timeout changes nothing', (tester) async {
+    final wait = DolphinCallWait(const Duration(seconds: 8));
+    addTearDown(wait.dispose);
+    wait.waiting();
+    await tester.pump(const Duration(seconds: 9));
+    expect(wait.text, kPanelNoAnswer);
+    expect(wait.answer('تماس باز شد', ok: true), isFalse);
+    expect(wait.text, kPanelNoAnswer);
+    expect(wait.ok, isFalse);
+    wait.waiting();
+    expect(wait.answer('تماس باز شد', ok: true), isTrue);
+    expect(wait.text, 'تماس باز شد');
+  });
+
+  test('a failed send is undone only for its own call', () {
+    final wait = DolphinCallWait(const Duration(seconds: 8));
+    addTearDown(wait.dispose);
+    final first = wait.waiting();
+    expect(wait.busy, isTrue);
+    expect(wait.isCurrent(first), isTrue);
+    wait.show('x', ok: true);
+    final second = wait.waiting();
+    expect(wait.isCurrent(first), isFalse);
+    expect(wait.isCurrent(second), isTrue);
+  });
+
   test('the customer app hands its code only when the page asks, and only a real one', () {
     expect(parsePanelMessage({'type': 'dolphin-code-request'})?.type, 'dolphin-code-request');
     expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', 'Ab3dE6gh'),

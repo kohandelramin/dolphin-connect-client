@@ -95,6 +95,18 @@ class FaOverlayTest(unittest.TestCase):
         self.assertNotIn("کنسول", r.FA_OVERLAY["Closed manually by web console"])
 
 
+class OverlayLiteralTest(unittest.TestCase):
+    def test_overlay_has_no_repeated_key(self):
+        import ast
+        tree = ast.parse((pathlib.Path(__file__).parent / "rebrand.py").read_text(encoding="utf-8"))
+        node = next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                    and any(getattr(t, "id", "") == "FA_OVERLAY" for t in n.targets))
+        keys = [k.value for k in node.keys]
+        dupes = sorted({k for k in keys if keys.count(k) > 1})
+        self.assertEqual(dupes, [])
+        self.assertEqual(len(keys), len(r.FA_OVERLAY))
+
+
 class ScanTest(unittest.TestCase):
     def _tree(self, tmp):
         root = pathlib.Path(tmp)
