@@ -394,6 +394,22 @@ mod tests {
     }
 
     #[test]
+    fn continuing_stops_the_install_and_waiting_offers_continue() {
+        assert!(install_may_go_on(false, 0));
+        assert!(!install_may_go_on(false, 1));
+        assert!(!install_may_go_on(true, 0)); // chose to continue: never swap afterwards
+        assert!(!install_may_go_on(true, 3));
+        assert!(continue_offered_while_waiting(true));
+        assert!(!continue_offered_while_waiting(false));
+    }
+
+    #[test]
+    fn the_installer_fallback_has_a_persian_reason() {
+        let t = error_text("installer");
+        assert!(t.contains("نصب") && t != error_text("unknown"));
+    }
+
+    #[test]
     fn one_text_for_installing_and_one_for_waiting() {
         assert_eq!(APPLYING_TEXT, "در حال نصب…");
         assert_eq!(WAITING_TEXT, "پس از پایان جلسه نصب می‌شود.");

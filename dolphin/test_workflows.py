@@ -123,5 +123,23 @@ class BuildWorkflowTest(unittest.TestCase):
         self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
 
 
+class CheckWiringTest(unittest.TestCase):
+    def test_a_rustc_compile_error_fails_the_job(self):
+        # `rustc ... && run` does not trip errexit when rustc fails (run 40639363014 was green with 20 errors).
+        step = job(CHECK, "rust-unit")
+        self.assertIsNone(re.search(r"rustc[^\n]*&&", step))
+        self.assertEqual(len(re.findall(r"^\s*rustc ", step, re.M)), 3)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 3)
+
+    def test_the_code_stays_hidden_until_the_session_count_is_known(self):
+        home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
+        init = home.split("void initState()", 1)[1].split("void dispose()", 1)[0]
+        self.assertNotRegex(init, r"(?m)^\s*_readConnected\(\);", "an early read is the unsynced 0")
+        self.assertIn("Timer.periodic", init)
+        tis = (ROOT / "src" / "ui" / "index.tis").read_text(encoding="utf-8")
+        self.assertIn('var password_cache = ["","","","",true];', tis)
+        self.assertIn("password_ticks < 3", tis)
+
+
 if __name__ == "__main__":
     unittest.main()

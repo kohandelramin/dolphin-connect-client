@@ -133,13 +133,28 @@ void main() {
   });
 
   // I3: a session is live, so the install waits for it; nothing on screen can cut the session.
-  testWidgets('waiting for a session to end says so and offers no button', (tester) async {
-    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'ready', waiting: true)));
+  testWidgets('waiting for a session to end offers only «ادامه با همین نسخه», which calls back', (tester) async {
+    var continued = 0;
+    await tester.pumpWidget(
+        _view(_update, const DolphinUpdateProgress(state: 'ready', waiting: true), onContinue: () => continued++));
     expect(find.text('پس از پایان جلسه نصب می‌شود.'), findsOneWidget);
     expect(find.text('در حال نصب…'), findsNothing);
     expect(find.byType(FilledButton), findsNothing);
-    expect(find.byType(OutlinedButton), findsNothing);
     expect(find.byType(TextButton), findsNothing);
+    expect(find.text('تلاش دوباره'), findsNothing);
+    expect(find.byType(OutlinedButton), findsOneWidget);
+    await tester.tap(find.text('ادامه با همین نسخه'));
+    expect(continued, 1);
+  });
+
+  testWidgets('installing (not waiting) has no continue button', (tester) async {
+    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'ready')));
+    expect(find.text('ادامه با همین نسخه'), findsNothing);
+    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'applying', waiting: true)));
+    expect(find.text('ادامه با همین نسخه'), findsNothing);
+  });
+
+  test('progress parses waiting', () {
     expect(DolphinUpdateProgress.fromJson('{"state":"ready","waiting":true}').waiting, isTrue);
     expect(DolphinUpdateProgress.fromJson('{"state":"ready"}').waiting, isFalse);
     expect(DolphinUpdateProgress.fromJson('{"state":"ready","waiting":"yes"}').waiting, isFalse);

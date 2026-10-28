@@ -172,4 +172,44 @@ void main() {
     await tester.tap(find.text('پایان'));
     expect(ended, isTrue);
   });
+
+  // D5 (WF-11): click mode needs the portal's word on who the technician is; code mode does not.
+  test('Accept needs the portal check in click mode only', () {
+    const unreachable = TechVerdict(TechCheck.unverifiable);
+    expect(acceptAllowed(unreachable, 'click'), isFalse);
+    expect(acceptAllowed(unreachable, ''), isFalse); // mode not read yet: behave as click
+    expect(acceptAllowed(const TechVerdict(TechCheck.verified, 'x'), 'click'), isTrue);
+    expect(acceptAllowed(unreachable, 'password'), isTrue); // code mode: the code itself came through the portal
+    expect(acceptAllowed(const TechVerdict(TechCheck.verified), 'password'), isTrue);
+    for (final mode in ['click', 'password']) {
+      expect(acceptAllowed(const TechVerdict(TechCheck.checking), mode), isFalse);
+      expect(acceptAllowed(const TechVerdict(TechCheck.rejected), mode), isFalse);
+    }
+  });
+
+  testWidgets('click mode, portal unreachable: no Accept, the message and the phone, Deny works', (tester) async {
+    var denied = false;
+    await tester.pumpWidget(_app(DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.unverifiable),
+        peerName: 'x',
+        approveMode: 'click',
+        phone: '021-44200250',
+        onAccept: (k, c, f) {},
+        onDeny: () => denied = true)));
+    expect(find.textContaining('پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.'), findsOneWidget);
+    expect(find.textContaining('۰۲۱-۴۴۲۰۰۲۵۰'), findsOneWidget);
+    expect(find.text('پذیرفتن'), findsNothing);
+    await tester.tap(find.text('رد'));
+    expect(denied, isTrue);
+  });
+
+  testWidgets('code mode, portal unreachable: Accept stays', (tester) async {
+    await tester.pumpWidget(_app(DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.unverifiable),
+        peerName: 'x',
+        approveMode: 'password',
+        onAccept: (k, c, f) {},
+        onDeny: () {})));
+    expect(find.text('پذیرفتن'), findsOneWidget);
+  });
 }
