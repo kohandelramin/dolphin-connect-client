@@ -16,11 +16,14 @@ void main() {
     final call = DolphinCallWait(const Duration(seconds: 8));
     await tester.pumpWidget(
         darkApp(DolphinTechnicianHeader(myId: '287654321', manual: manual, call: call, onConnect: () {})));
-    final id = find.text('287 654 321');
+    // SelectableText draws through an EditableText, which find.text does not match.
+    final id = find.descendant(of: find.byType(SelectableText), matching: find.byType(EditableText));
     expect(id, findsOneWidget);
-    expect(textColorOf(tester, id), DolphinColors.ink);
+    final idText = tester.widget<EditableText>(id);
+    expect(idText.controller.text, '287 654 321');
+    expect(idText.style.color, DolphinColors.ink);
     expect(backgroundOf(tester, id), Colors.white);
-    expect(textContrast(tester, id), greaterThanOrEqualTo(4.5));
+    expect(contrast(idText.style.color!, backgroundOf(tester, id)), greaterThanOrEqualTo(4.5));
     expectAllTextReadable(tester);
     final field = tester.widget<EditableText>(find.byType(EditableText).first);
     expect(contrast(field.style.color!, Colors.white), greaterThanOrEqualTo(4.5));
