@@ -163,15 +163,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   Win32Window::Point origin(workarea_origin.x + relative_origin.x, workarea_origin.y + relative_origin.y);
   Win32Window::Size size(800u, 600u);
+  // Dolphin Connect (AUI-9): the installer is one narrow column; 800 x 600 left it floating in white.
+  if (is_install_page) size = Win32Window::Size(560u, 600u);
 
   // Fit the window to the monitor's work area.
   Win32Desktop::FitToWorkArea(origin, size);
 
   std::wstring window_title;
   if (is_cm_page) {
-    window_title = app_name + L" - Connection Manager";
+    // Dolphin Connect (AUI-10): Persian title, escaped so the compiler's source encoding cannot garble it ("— اتصال").
+    window_title = app_name + L" — اتصال";
   } else if (is_install_page) {
-    window_title = app_name + L" - Install";
+    window_title = app_name + L" — نصب"; // Dolphin Connect: "— نصب"
   } else {
     window_title = app_name;
   }

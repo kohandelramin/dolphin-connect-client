@@ -52,7 +52,31 @@ class DolphinLight extends StatelessWidget {
   final bool paint;
   const DolphinLight({super.key, required this.child, this.paint = true});
 
-  static final ThemeData data = dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false));
+  static final ThemeData data = _withButtons(dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false)));
+
+  /// One button system for every Dolphin view (DR-6, AUI-6): 44 px tall, the control radius, bold labels. Filled is the
+  /// one main action, outlined the others, text buttons for quiet links. Views set only colours, never sizes or radii.
+  static ThemeData _withButtons(ThemeData t) {
+    const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(DolphinRadii.control)));
+    const size = Size(64, 44);
+    const padding = EdgeInsets.symmetric(horizontal: 16);
+    const label = TextStyle(fontFamily: kDolphinFont, fontWeight: FontWeight.w700, fontSize: 14);
+    return t.copyWith(
+      filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+              minimumSize: size, padding: padding, shape: shape, textStyle: label, backgroundColor: DolphinColors.azure)),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+              minimumSize: size, padding: padding, shape: shape, textStyle: label, elevation: 0,
+              backgroundColor: DolphinColors.azure, foregroundColor: Colors.white)),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+              minimumSize: size, padding: padding, shape: shape, textStyle: label, foregroundColor: DolphinColors.ink,
+              side: const BorderSide(color: DolphinColors.lineStrong))),
+      textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(minimumSize: size, padding: padding, shape: shape, textStyle: label)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Theme(

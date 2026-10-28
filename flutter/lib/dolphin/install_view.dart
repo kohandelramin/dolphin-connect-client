@@ -91,7 +91,7 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
               ] else ...[
                 SizedBox(
                   width: double.infinity,
-                  height: 46,
+                  height: 44,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                         backgroundColor: DolphinColors.azure,
