@@ -6,8 +6,6 @@ import 'theme.dart';
 
 /// Our installer replaces upstream's form (UX-2). Upstream installs in a thread and then exits this process, and the
 /// installed app opens itself (src/ui_interface.rs install_me; Plan 13 F7), so "done" is the Dolphin Connect window.
-const kDolphinInstallView = true;
-
 class DolphinInstallView extends StatefulWidget {
   final VoidCallback onInstall;
 
@@ -26,11 +24,12 @@ class DolphinInstallView extends StatefulWidget {
 
 class _DolphinInstallViewState extends State<DolphinInstallView> {
   bool _installing = false;
-  bool _stuck = false;
+  bool _slow = false;
   bool _ran = false;
   Timer? _timer;
 
-  /// After this long with the install not done, the customer may press «نصب» again (UAC "No" leaves no signal).
+  /// After this long with the install not done, a hint shows. Never a second «نصب»: a refused or closed Windows prompt
+  /// already ends this process (install_me), so a window still open means the first install is pending.
   static const stuckAfter = Duration(seconds: 60);
 
   @override
@@ -42,11 +41,10 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
   void _install() {
     setState(() {
       _installing = true;
-      _stuck = false;
     });
     _timer?.cancel();
     _timer = Timer(stuckAfter, () {
-      if (mounted) setState(() => _stuck = true);
+      if (mounted) setState(() => _slow = true);
     });
     widget.onInstall();
   }
@@ -80,22 +78,12 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
                 const SizedBox(height: 12),
                 const Text('در حال نصب… اگر ویندوز اجازه خواست، «Yes» (یا «بله») را بزنید.',
                     textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
-                if (_stuck) ...[
+                if (_slow) ...[
                   const SizedBox(height: 8),
-                  const Text('اگر پنجره‌ی اجازه‌ی ویندوز را بستید یا «نه» زدید، دوباره «نصب» را بزنید.',
-                      textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                        backgroundColor: DolphinColors.azure,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control))),
-                    onPressed: _install,
-                    child: const Text('نصب', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ),
+                  const Text(
+                      'اگر پنجره‌ی اجازه‌ی ویندوز باز است، آن را از نوار وظیفه باز کنید و «بله» را بزنید. اگر آن را بستید، این پنجره بسته می‌شود؛ برنامه‌ی نصب را دوباره باز کنید.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: DolphinColors.muted)),
                 ],
               ] else ...[
                 SizedBox(
