@@ -100,7 +100,13 @@ pub fn start(args: &mut [String]) {
             .to_owned();
         args[1] = id;
     }
-    if args.is_empty() {
+    // Dolphin Connect (TB-20): a newer version is installed before the app opens (D10); no answer in 4 s → open (D12).
+    let dolphin_update = args.is_empty() && crate::dolphin_update::check_blocks_start();
+    if dolphin_update {
+        frame.event_handler(UI {});
+        frame.sciter_handler(UIHostHandler {});
+        page = "dolphin_update.html";
+    } else if args.is_empty() {
         std::thread::spawn(move || check_zombie());
         crate::common::check_software_update();
         frame.event_handler(UI {});
@@ -166,6 +172,8 @@ pub fn start(args: &mut [String]) {
     {
         let html = if page == "index.html" {
             inline::get_index()
+        } else if page == "dolphin_update.html" {
+            inline::get_dolphin_update()
         } else if page == "cm.html" {
             inline::get_cm()
         } else if page == "install.html" {
@@ -531,6 +539,29 @@ impl UI {
         crate::dolphin::DOLPHIN_VERSION.to_owned()
     }
 
+    // Dolphin Connect (TB-20): the x86 update page (src/ui/dolphin_update.html).
+    fn dolphin_update_info(&self) -> String {
+        crate::dolphin_update::last()
+    }
+
+    fn dolphin_update_start(&self) {
+        crate::dolphin_update::start_download();
+    }
+
+    fn dolphin_update_progress(&self) -> String {
+        crate::dolphin_update::progress()
+    }
+
+    fn dolphin_update_apply(&self) {
+        // Off the UI thread: the UAC prompt of an installed app blocks until it is answered.
+        std::thread::spawn(crate::dolphin_update::apply_or_fail);
+    }
+
+    // D19: «ادامه با همین نسخه» starts the app again for this run only (see continue_in_new_process).
+    fn dolphin_update_continue(&self) {
+        crate::dolphin_update::continue_in_new_process();
+    }
+
     fn get_fingerprint(&self) -> String {
         get_fingerprint()
     }
@@ -791,6 +822,11 @@ impl sciter::EventHandler for UI {
         fn get_software_update_url();
         fn get_new_version();
         fn get_version();
+        fn dolphin_update_info();
+        fn dolphin_update_start();
+        fn dolphin_update_progress();
+        fn dolphin_update_apply();
+        fn dolphin_update_continue();
         fn get_fingerprint();
         fn update_me(String);
         fn show_run_without_install();

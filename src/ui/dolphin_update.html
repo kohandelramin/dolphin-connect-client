@@ -1,0 +1,96 @@
+<html dir="rtl">
+    <head>
+        <style>
+            @import url(common.css);
+            body { margin: 0; background: #f6f9ff; color: #0b1829; font-family: Vazirmatn, Tahoma, sans-serif; direction: rtl; }
+            div.card { margin: 1.5em; padding: 1.25em; background: white; border: 1px solid #e2e9f3; border-radius: 18px; }
+            div.title { font-size: 1.4em; font-weight: bold; margin-bottom: 0.5em; }
+            div.line { line-height: 1.8; margin: 0.4em 0; }
+            div.muted { color: #52637a; }
+            div.error { color: #be123c; background: #fff0f3; padding: 0.6em; border-radius: 12px; }
+            progress { width: *; height: 10px; }
+            div.buttons { margin-top: 1em; }
+            .hidden { display: none; }
+        </style>
+        <script type="text/tiscript">
+            include "common.tis";
+
+            var info = JSON.parse(view.dolphin_update_info());
+            var applying = false;
+
+            function show(el, on) {
+                if (on) el.attributes.removeClass("hidden"); else el.attributes.addClass("hidden");
+            }
+
+            function render(p) {
+                var error = p.state == "failed" ? p.error : "";
+                var busy = p.state == "ready" || p.state == "applying";
+                $(#bar).value = busy ? 100 : p.percent;
+                $(#status).text = p.state == "ready" ? "در حال جایگزینی و باز کردن دوباره…" : (p.state == "applying" ? "در حال نصب…" : p.text);
+                $(#error).text = error;
+                show($(#bar), error == "");
+                show($(#status), error == "");
+                show($(#error), error != "");
+                show($(#phone), error != "");
+                show($(#buttons), error != "");
+                // D19: the way out of a failure; never while downloading or installing, never for "manual".
+                show($(#continue), error != "");
+                show($(#retry), error != "");
+            }
+
+            function poll() {
+                var p = JSON.parse(view.dolphin_update_progress());
+                render(p);
+                if (p.state == "ready" && !applying) {
+                    applying = true;
+                    view.dolphin_update_apply();
+                }
+                if (p.state == "failed") {
+                    applying = false;
+                    return false;
+                }
+                return true;
+            }
+
+            function start() {
+                render({ state: "idle", percent: 0, text: "", error: "" });
+                view.dolphin_update_start();
+                self.timer(300ms, poll);
+            }
+
+            function self.ready() {
+                centerize(scaleIt(480), scaleIt(380));
+                $(#lead).text = info.lead;
+                $(#phone).text = info.phone;
+                if (info.state == "blocked") {
+                    render({ state: "failed", percent: 0, text: "", error: info.error });
+                } else if (info.state == "manual") {
+                    show($(#bar), false);
+                    show($(#retry), false);
+                    show($(#continue), false);
+                    show($(#buttons), true);
+                } else {
+                    start();
+                }
+                self.on("click", "button#retry", function() { start(); return true; });
+                self.on("click", "button#continue", function() { view.dolphin_update_continue(); return true; });
+                self.on("click", "button#manual", function() { view.open_url(info.downloadPage); return true; });
+            }
+        </script>
+    </head>
+    <body>
+        <div class="card">
+            <div class="title">نسخه‌ی تازه‌ی دلفین کانکت</div>
+            <div id="lead" class="line muted"></div>
+            <progress id="bar" max="100" value="0"></progress>
+            <div id="status" class="line muted"></div>
+            <div id="error" class="line error hidden"></div>
+            <div id="phone" class="line hidden"></div>
+            <div id="buttons" class="buttons hidden">
+                <button id="retry" class="button">تلاش دوباره</button>
+                <button id="continue" class="button outline">ادامه با همین نسخه</button>
+                <button id="manual" class="button outline">دریافت دستی</button>
+            </div>
+        </div>
+    </body>
+</html>

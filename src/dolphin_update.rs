@@ -29,6 +29,8 @@ const SUPPORT_PHONE_OPTION: &str = "dolphin-support-phone";
 /// Set by our packer (libs/portable/src/dolphin_wait.rs).
 const PACKER_ENV: &str = "DOLPHIN_PACKER";
 const WAIT_PID_ENV: &str = "DOLPHIN_WAIT_PID";
+/// D19, Sciter: set on the relaunch that «ادامه با همین نسخه» starts; that run skips the update check.
+const CONTINUE_ENV: &str = "DOLPHIN_UPDATE_CONTINUE";
 
 #[derive(Clone)]
 struct Progress {
@@ -105,8 +107,36 @@ pub fn continue_current() {
     log::info!("dolphin update: continuing with {}", crate::dolphin::DOLPHIN_VERSION);
 }
 
+/// D19, Sciter (x86): the update page cannot turn its own window into the main one, so it starts the same app again
+/// with no arguments and `DOLPHIN_UPDATE_CONTINUE=1` (read by `check_blocks_start`) and exits. A portable run starts
+/// the customer's packer again (the unpacked copy may be removed when this process ends); an installed run starts
+/// its own exe. The packer waits for this process before it unpacks, as after an update.
+#[cfg_attr(feature = "flutter", allow(dead_code))]
+pub fn continue_in_new_process() {
+    continue_current();
+    let target = packer_path().filter(|p| p.is_file()).or_else(|| std::env::current_exe().ok());
+    let Some(target) = target else {
+        log::error!("dolphin update: continue: no exe to start");
+        return;
+    };
+    match std::process::Command::new(&target)
+        .env(CONTINUE_ENV, "1")
+        .env(WAIT_PID_ENV, std::process::id().to_string())
+        .spawn()
+    {
+        Ok(_) => std::process::exit(0),
+        Err(e) => log::error!("dolphin update: continue: start {:?}: {}", target, e),
+    }
+}
+
 #[cfg_attr(feature = "flutter", allow(dead_code))]
 pub fn check_blocks_start() -> bool {
+    // The relaunch of «ادامه با همین نسخه»: open the app without asking the portal again.
+    if std::env::var(CONTINUE_ENV).map_or(false, |v| v == "1") {
+        std::env::remove_var(CONTINUE_ENV); // children (--cm, --connect) do not inherit it
+        continue_current();
+        return false;
+    }
     check();
     blocks_start()
 }

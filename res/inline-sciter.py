@@ -33,6 +33,9 @@ cm = open('src/ui/cm.html').read() \
     .replace('@import url(cm.css);', open('src/ui/cm.css').read()) \
     .replace('include "cm.tis";', open('src/ui/cm.tis').read())
 
+# Dolphin Connect (TB-20): the update page. Persian text, so read it as UTF-8 (Windows' default is cp1252).
+dolphin_update = open('src/ui/dolphin_update.html', encoding='UTF8').read()
+
 
 def compress(s):
     s = s.replace("\r\n", "\n")
@@ -49,6 +52,7 @@ with open('src/ui/inline.rs', 'wt') as fh:
     fh.write('const _CHATBOX: ' + compress(strip(chatbox)) + ';\n')
     fh.write('const _INSTALL: ' + compress(strip(install)) + ';\n')
     fh.write('const _CONNECTION_MANAGER: ' + compress(strip(cm)) + ';\n')
+    fh.write('const _DOLPHIN_UPDATE: ' + compress(strip(dolphin_update)) + ';\n')
     fh.write('''
 fn get(data: &[u8]) -> String {
     String::from_utf8_lossy(data).to_string()
@@ -78,5 +82,9 @@ pub fn get_chatbox() -> String {
 #[inline]
 pub fn get_cm() -> String {
     replace(&_CONNECTION_MANAGER[..])
+}
+#[inline]
+pub fn get_dolphin_update() -> String {
+    replace(&_DOLPHIN_UPDATE[..])
 }
 ''')
