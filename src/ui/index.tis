@@ -988,7 +988,8 @@ class PasswordEyeArea : Reactor.Component {
     render() {
         var method = handler.get_option('verification-method');
         var mode= handler.get_option('approve-mode');
-        var hide_one_time = mode == 'click' ||  method == 'use-permanent-password';
+        // Dolphin Connect: no one-time code on screen while a technician is connected (same rule as the x64 app).
+        var hide_one_time = mode == 'click' ||  method == 'use-permanent-password' || password_cache[4];
         var value = hide_one_time ? "-" : password_cache[0];
         return
             <div .eye-area style="width: *">
@@ -1225,7 +1226,7 @@ class PasswordArea: Reactor.Component {
     }
 }
 
-var password_cache = ["","","",""];
+var password_cache = ["","","","",false];
 function updatePasswordArea() {
     self.timer(1s, function() {
         var temporary_password = handler.temporary_password();
@@ -1247,6 +1248,12 @@ function updatePasswordArea() {
         }
         if (password_cache[3] != approve_mode) {
             password_cache[3] = approve_mode;
+            update = true;
+        }
+        // Dolphin Connect: authorised sessions now (4th item of get_connect_status); hides the code while connected.
+        var in_session = handler.get_connect_status()[3] > 0;
+        if (password_cache[4] != in_session) {
+            password_cache[4] = in_session;
             update = true;
         }
         if (update && passwordArea) passwordArea.update();
