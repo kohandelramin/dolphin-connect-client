@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{mpsc, Mutex, Once},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -50,13 +50,30 @@ fn staging_dir() -> PathBuf {
     Config::path("update")
 }
 
+/// False when the config folder is unknown (an empty path would stage in the current folder; review M4).
+fn staging_usable() -> bool {
+    !staging_dir().as_os_str().is_empty()
+}
+
+/// A response is accepted only when it ended on https at the compiled-in portal's host, so a redirect to
+/// another host is an error (review M1).
+fn from_portal(response: &reqwest::blocking::Response) -> bool {
+    let url = response.url();
+    let Ok(portal) = url::Url::parse(crate::dolphin::PORTAL_URL) else {
+        return false;
+    };
+    url.scheme() == "https" && url.host_str().is_some() && url.host_str() == portal.host_str()
+}
+
 fn phone() -> String {
     rules::pick_phone(&Config::get_option(SUPPORT_PHONE_OPTION), crate::dolphin::SUPPORT_PHONE)
 }
 
 /// Asks the portal (at most 4 s) and remembers the answer for the screens.
 pub fn check() -> String {
-    finish_previous_update();
+    // Only the first check of the process cleans up: a later one must not delete a running download (review M3).
+    static CLEANUP: Once = Once::new();
+    CLEANUP.call_once(finish_previous_update);
     let answer = answer();
     *LAST.lock().unwrap() = answer.clone();
     answer.to_string()
@@ -85,11 +102,24 @@ fn answer() -> Value {
         return open;
     }
     let build = rules::build_name(config::is_outgoing_only(), cfg!(target_arch = "x86"));
-    let offer = match fetch_offer(portal, build) {
-        Ok(Some(offer)) => offer,
-        Ok(None) => return open,
-        Err(e) => {
+    // The strict client probes the portal first (up to ~30 s per probe) before our 4 s GET timeout applies, so the
+    // whole check runs on a thread and is given up on after CHECK_TIMEOUT (review I1, D12). A late answer reaches a
+    // dropped receiver and changes nothing.
+    let (tx, rx) = mpsc::channel();
+    let build_owned = build.to_owned();
+    std::thread::spawn(move || {
+        let result = fetch_offer(portal, &build_owned).map_err(|e| e.to_string());
+        tx.send(result).ok();
+    });
+    let offer = match rx.recv_timeout(CHECK_TIMEOUT) {
+        Ok(Ok(Some(offer))) => offer,
+        Ok(Ok(None)) => return open,
+        Ok(Err(e)) => {
             log::info!("Dolphin update check: {} (opening normally)", e);
+            return open;
+        }
+        Err(_) => {
+            log::info!("Dolphin update check: no answer within {:?} (opening normally)", CHECK_TIMEOUT);
             return open;
         }
     };
@@ -123,6 +153,9 @@ fn fetch_offer(portal: &str, build: &str) -> hbb_common::ResultType<Option<rules
     let url = format!("{portal}/api/client/latest?build={build}");
     let client = crate::hbbs_http::create_http_client_with_url_strict(&url)?;
     let response = client.get(&url).timeout(CHECK_TIMEOUT).send()?;
+    if !from_portal(&response) {
+        hbb_common::bail!("answer came from another place");
+    }
     if response.status().as_u16() == 404 {
         return Ok(None); // nothing pinned yet
     }
@@ -171,7 +204,7 @@ pub fn start_download() {
     }
     {
         let mut p = PROGRESS.lock().unwrap();
-        if p.state == "downloading" || p.state == "ready" {
+        if p.state == "downloading" || p.state == "ready" || p.state == "applying" {
             return;
         }
         *p = Progress { state: "downloading", received: 0, total: offer.size, reason: "" };
@@ -195,6 +228,9 @@ fn download(offer: &rules::Offer) -> Result<(), &'static str> {
     if config::is_outgoing_only() {
         return Err("manual");
     }
+    if !staging_usable() {
+        return Err("write");
+    }
     let target = staged_file(offer).ok_or("write")?;
     std::fs::create_dir_all(staging_dir()).map_err(|_| "write")?;
     let part = rules::sibling(&target, ".part");
@@ -204,7 +240,7 @@ fn download(offer: &rules::Offer) -> Result<(), &'static str> {
     let url = format!("{}{}", crate::dolphin::PORTAL_URL, path);
     let client = crate::hbbs_http::create_http_client_with_url_strict(&url).map_err(|_| "network")?;
     let mut response = client.get(&url).timeout(DOWNLOAD_TIMEOUT).send().map_err(|_| "network")?;
-    if !response.status().is_success() {
+    if !from_portal(&response) || !response.status().is_success() {
         return Err("network");
     }
     if let Err(reason) = write_verified(&mut response, &part, offer) {
@@ -238,28 +274,74 @@ fn write_verified(body: &mut impl Read, part: &Path, offer: &rules::Offer) -> Re
 
 /// Swaps the verified file in and starts it. Returns only on failure, which the screens then show.
 pub fn apply_or_fail() {
-    let reason = apply();
+    let Some(reason) = apply() else {
+        return; // another apply is running, or nothing is ready: do nothing
+    };
     log::error!("Dolphin update swap failed: {}", reason);
     set_failed(reason);
 }
 
-fn apply() -> &'static str {
+fn apply() -> Option<&'static str> {
+    // Only one apply, and only after a finished download (review M2).
+    {
+        let mut p = PROGRESS.lock().unwrap();
+        if p.state != "ready" {
+            return None;
+        }
+        p.state = "applying";
+    }
     let Some(offer) = OFFER.lock().unwrap().clone() else {
-        return "write";
+        return Some("write");
     };
     let Some(staged) = staged_file(&offer).filter(|p| p.is_file()) else {
-        return "write";
+        return Some("write");
     };
+    // Installed path (Windows): keep the staged file open, shared for reading only, from the hash until the process
+    // exits, so nobody can write to or replace it while the UAC prompt is up (review I3).
+    #[cfg(windows)]
+    let held = if crate::platform::is_cur_exe_the_installed() {
+        match open_held(&staged) {
+            Ok(f) => Some(f),
+            Err(_) => return Some("write"),
+        }
+    } else {
+        None
+    };
+    #[cfg(windows)]
+    let hashed = match &held {
+        Some(f) => hash_reader(f),
+        None => hash_file(&staged),
+    };
+    #[cfg(not(windows))]
+    let hashed = hash_file(&staged);
     // Check the staged file again right before it is used; nothing is swapped unless it still matches.
-    if hash_file(&staged).map_or(true, |(n, h)| rules::verify(&offer, n, &h).is_err()) {
-        return "hash";
+    if hashed.map_or(true, |(n, h)| rules::verify(&offer, n, &h).is_err()) {
+        return Some("hash");
     }
     LocalConfig::set_option(ATTEMPT_OPTION.to_owned(), rules::attempt_value(&offer.version, now()));
-    swap(&staged, &offer)
+    let reason = swap(&staged, &offer);
+    #[cfg(windows)]
+    drop(held); // reached only when the swap failed; on success the process exits with the handle still open
+    Some(reason)
+}
+
+/// Opens for reading with FILE_SHARE_READ only: no other handle may write to, truncate, rename or delete the file
+/// while we hold it. Running an exe needs read and execute access to it, which this sharing allows, and the
+/// packer's payload is `include_bytes!` inside its own mapped image, so it never reopens the file by path.
+/// UNVERIFIED until a PC test (acceptance row 46): that the elevated run still starts a file we hold open this way.
+/// If it does not, FILE_SHARE_READ | FILE_SHARE_DELETE (3) is the next choice, but it allows renaming.
+#[cfg(windows)]
+fn open_held(path: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    std::fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ).open(path)
 }
 
 fn hash_file(path: &Path) -> std::io::Result<(u64, String)> {
-    let mut file = std::fs::File::open(path)?;
+    hash_reader(std::fs::File::open(path)?)
+}
+
+fn hash_reader(mut file: impl Read) -> std::io::Result<(u64, String)> {
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 64 * 1024];
     let mut total = 0u64;
