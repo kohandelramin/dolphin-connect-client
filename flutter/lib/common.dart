@@ -46,6 +46,7 @@ import 'package:flutter_hbb/native/win32.dart'
 import 'package:flutter_hbb/native/common.dart'
     if (dart.library.html) 'package:flutter_hbb/web/common.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
+import 'package:flutter_hbb/dolphin/theme.dart'; // Dolphin Connect: message-box colours (D20)
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -1316,10 +1317,10 @@ Color? _msgboxColor(String type) {
     return Color(0xFFAD448E);
   }
   if (type.contains("success")) {
-    return Color(0xFF32bea6);
+    return DolphinColors.msgSuccess; // Dolphin Connect: AA with white (D20)
   }
   if (type.contains("error") || type == "re-input-password") {
-    return Color(0xFFE04F5F);
+    return DolphinColors.msgError; // Dolphin Connect: AA with white (D20)
   }
   return Color(0xFF1462E0); // Dolphin Connect: theme.dart azure (D20)
 }
