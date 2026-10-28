@@ -120,11 +120,6 @@ jobs:
           channel: "stable"
           flutter-version: ${{ env.FLUTTER_VERSION }}
           architecture: x64
-          # The SDK folder is cached. The next two steps change it (custom engine, patch) and the cache is saved after
-          # them, so both steps run every time and are safe on a restored, already changed SDK. The key carries the
-          # hash of the patch so a new patch gets a fresh SDK.
-          cache: true
-          cache-key: flutter-:os:-:channel:-:version:-:arch:-${{ hashFiles('.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff') }}
 
       - name: Replace engine with rustdesk custom flutter engine
         run: |
@@ -139,12 +134,7 @@ jobs:
         run: |
           cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
           cd $(dirname $(dirname $(which flutter)))
-          # A restored SDK cache already has the patch.
-          if git apply --reverse --check flutter_3.24.4_dropdown_menu_enableFilter.diff 2>/dev/null; then
-            echo "patch already applied"
-          else
-            git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
-          fi
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1

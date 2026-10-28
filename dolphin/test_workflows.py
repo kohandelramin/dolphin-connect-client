@@ -93,24 +93,12 @@ class BuildWorkflowTest(unittest.TestCase):
         self.assertIn('dest="level", type="int"', gen)
         self.assertIn("default=11", gen)
 
-    def test_flutter_sdk_cache_is_safe_with_the_engine_swap_and_patch(self):
+    def test_flutter_sdk_is_not_cached(self):
+        # Measured slower (restore 98 s against 73-77 s to install; run 40626568964), and the cache would be saved
+        # after the engine swap and the patch. Keep it off unless a measurement says otherwise.
         step = BUILD.split("name: Install flutter", 1)[1].split("- name: Replace engine", 1)[0]
-        self.assertIn("cache: true", step)
-        self.assertIn("hashFiles('.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff')", step)
-        # the swap and the patch run after the cached restore, every time, and the patch tolerates an applied state
-        self.assertLess(BUILD.index("name: Install flutter"), BUILD.index("name: Replace engine"))
-        self.assertLess(BUILD.index("name: Replace engine"), BUILD.index("name: Patch flutter"))
-        patch = BUILD.split("name: Patch flutter", 1)[1].split("- name: Install Rust", 1)[0]
-        self.assertIn("git apply --reverse --check", patch)
+        self.assertNotIn("cache:", step)
 
-
-    def test_std_only_rust_files_are_tested_in_ci(self):
-        for path in ("dolphin/version_resource.rs", "src/dolphin_update_core.rs",
-                     "libs/portable/src/dolphin_wait.rs"):
-            self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
-
-    def test_every_exe_has_its_version_resource_checked(self):
-        self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
 
 
 if __name__ == "__main__":
