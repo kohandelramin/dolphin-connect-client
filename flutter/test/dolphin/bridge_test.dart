@@ -81,11 +81,11 @@ void main() {
   });
 
   test('the code is shown and handed over only for a PC linked to a code-mode organization', () {
-    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh'), 'Ab3dE6gh');
-    expect(dolphinCode(approveMode: 'click', showCode: 'Y', password: 'Ab3dE6gh'), '');
-    expect(dolphinCode(approveMode: 'password', showCode: 'N', password: 'Ab3dE6gh'), ''); // unlinked, or click
-    expect(dolphinCode(approveMode: 'password', showCode: '', password: 'Ab3dE6gh'), ''); // never heard from the portal
-    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: '-'), '');
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh', inSession: false), 'Ab3dE6gh');
+    expect(dolphinCode(approveMode: 'click', showCode: 'Y', password: 'Ab3dE6gh', inSession: false), '');
+    expect(dolphinCode(approveMode: 'password', showCode: 'N', password: 'Ab3dE6gh', inSession: false), ''); // unlinked, or click
+    expect(dolphinCode(approveMode: 'password', showCode: '', password: 'Ab3dE6gh', inSession: false), ''); // never heard from the portal
+    expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: '-', inSession: false), '');
   });
 
   test('only the portal page is answered', () {
@@ -103,6 +103,17 @@ void main() {
     expect(isPortalPage('http://support.dolphindev.ir/', portal), isFalse);
     expect(isPortalPage('https://evil.example/', portal), isFalse);
     expect(isPortalPage('https://evil.example/https://support.dolphindev.ir/', portal), isFalse);
+  });
+
+  test('the server's connection count is the session signal', () {
+    expect(connectedCount('{"status_num":1,"video_conn_count":2,"id":"1"}'), 2);
+    expect(connectedCount('{"video_conn_count":0}'), 0);
+    expect(connectedCount('{"status_num":1}'), 0); // missing field
+    expect(connectedCount('{"video_conn_count":"2"}'), 0); // wrong type
+    expect(connectedCount('{"video_conn_count":-1}'), 0);
+    expect(connectedCount('not json'), 0);
+    expect(connectedCount(''), 0);
+    expect(connectedCount('[1,2]'), 0);
   });
 
   test('no code is shown or handed over while a technician is connected', () {

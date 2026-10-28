@@ -194,6 +194,14 @@ class VersionTest(unittest.TestCase):
         self.assertIn("static const String version = '2.0.0-rc.1';", g.render_brand_dart(SETTINGS, PROFILE, "2.0.0-rc.1"))
         self.assertEqual(g.portal_url({**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}), "http://127.0.0.1:3010")
 
+    def test_portal_url_matches_what_webview2_reports(self):
+        # The bridge compares by prefix with the WebView's normalised Source: lower-case host, no default port.
+        for api in ("https://Support.DolphinDev.ir/rd", "https://support.dolphindev.ir:443/rd", "HTTPS://SUPPORT.dolphindev.ir:443/rd"):
+            self.assertEqual(g.portal_url({**PROFILE, "api-server": api}), "https://support.dolphindev.ir", api)
+        self.assertEqual(g.portal_url({**PROFILE, "api-server": "https://support.dolphindev.ir:8443/rd"}), "https://support.dolphindev.ir:8443")
+        self.assertEqual(g.portal_url({**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}), "http://127.0.0.1:3010")
+        self.assertEqual(g.portal_url({**PROFILE, "api-server": "http://localhost:80/rd"}), "http://localhost")
+
     def test_main_refuses_a_version_that_is_not_ours(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
