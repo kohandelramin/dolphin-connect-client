@@ -9,6 +9,9 @@ import 'contrast.dart';
 // AUI-2: the technician's own ID was white on a white header on a dark Windows.
 void main() {
   testWidgets('the technician header on a dark Windows: ID and field text are dark on white', (tester) async {
+    tester.view.physicalSize = const Size(2400, 600); // test font glyphs are wide
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final manual = TextEditingController(text: '123 456 789');
     final call = DolphinCallWait(const Duration(seconds: 8));
     await tester.pumpWidget(

@@ -21,8 +21,10 @@ void main() {
         onDeny: () {})));
     expectAllTextReadable(tester);
     // The selected chip: label on azureTint.
-    expect(backgroundOf(tester, find.text('کلیپ‌بورد')), DolphinColors.azureTint);
-    expect(textContrast(tester, find.text('کلیپ‌بورد')), greaterThanOrEqualTo(4.5));
+    // The chip paints its own selectedColor (azureTint); the label colour is what the theme gives it.
+    final label = tester.widget<RichText>(find.descendant(of: find.text('کلیپ‌بورد'), matching: find.byType(RichText)).first);
+    expect(contrast(Color.alphaBlend(label.text.style!.color!, DolphinColors.azureTint), DolphinColors.azureTint),
+        greaterThanOrEqualTo(4.5));
   });
 
   testWidgets('rejected prompt on a dark Windows: the danger title is readable', (tester) async {

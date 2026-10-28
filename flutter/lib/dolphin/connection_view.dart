@@ -87,7 +87,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
             const SizedBox(height: 10),
             Text(title,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.danger : null)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.dangerText : null)),
             Text(note, textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
             const SizedBox(height: 12),
             if (canAccept)
