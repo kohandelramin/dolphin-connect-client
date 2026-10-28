@@ -35,11 +35,13 @@
                 show($(#error), error != "");
                 show($(#phone), error != "");
                 // While a session holds the install back only «ادامه با همین نسخه» shows (it never cuts the session).
-                var waiting = p.waiting == true && p.state == "ready";
+                // Not on a portable run that hosts the session (can_continue false): leaving would cut it.
+                var canContinue = p.can_continue != false;
+                var waiting = p.waiting == true && p.state == "ready" && canContinue;
                 show($(#buttons), error != "" || waiting);
                 // D19: the way out of a failure; never while downloading or installing, never for "manual".
                 show($(#retry), error != "");
-                show($(#continue), error != "" || waiting);
+                show($(#continue), (error != "" && canContinue) || waiting);
                 show($(#manual), error != "");
                 show($(#close), error != "");
             }

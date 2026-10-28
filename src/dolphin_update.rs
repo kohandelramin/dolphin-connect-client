@@ -127,6 +127,9 @@ pub fn continue_current() {
 /// its own exe. The packer waits for this process before it unpacks, as after an update.
 #[cfg_attr(feature = "flutter", allow(dead_code))]
 pub fn continue_in_new_process() {
+    if !can_continue_now() {
+        return; // the screens hide the button then; this is the second lock
+    }
     continue_current();
     let target = packer_path().filter(|p| p.is_file()).or_else(|| std::env::current_exe().ok());
     let Some(target) = target else {
@@ -237,7 +240,13 @@ fn fetch_offer(portal: &str, build: &str) -> hbb_common::ResultType<Option<rules
     Ok(Some(offer))
 }
 
-/// {"state","percent","text","error","waiting"} for the screens; state is idle, downloading, ready, applying or failed.
+/// Can the Sciter screen's «ادامه با همین نسخه» end this process now? Not when this process hosts the server (a
+/// portable run: nothing installed) and a session lives in it. The Flutter screens never exit, so they ignore this.
+fn can_continue_now() -> bool {
+    rules::may_exit_for_continue(!crate::platform::is_installed(), live_sessions())
+}
+
+/// {"state","percent","text","error","waiting","can_continue"} for the screens; state is idle, downloading, ready, applying or failed.
 pub fn progress() -> String {
     let p = PROGRESS.lock().unwrap().clone();
     let error = if p.state == "failed" { rules::error_text(p.reason) } else { "" };
@@ -254,6 +263,8 @@ pub fn progress() -> String {
         "text": text,
         "error": error,
         "waiting": waiting,
+        // x86 portable with a live session: no «ادامه با همین نسخه», it would end the process that hosts it.
+        "can_continue": can_continue_now(),
     })
     .to_string()
 }

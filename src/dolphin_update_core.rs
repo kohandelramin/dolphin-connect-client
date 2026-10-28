@@ -193,6 +193,12 @@ pub fn install_may_go_on(continued: bool, connected: usize) -> bool {
     !continued && may_apply(connected)
 }
 
+/// «ادامه با همین نسخه» on Sciter ends this process after starting a new one. A process that hosts the server itself (a
+/// portable run) must not end while a session lives in it. An installed app's sessions live in the service.
+pub fn may_exit_for_continue(server_in_process: bool, live_sessions: usize) -> bool {
+    !server_in_process || live_sessions == 0
+}
+
 /// «ادامه با همین نسخه» is offered while a session holds the install back, so a lost IPC link never strands the customer.
 pub fn continue_offered_while_waiting(waiting: bool) -> bool {
     waiting
@@ -273,7 +279,7 @@ pub fn error_text(reason: &str) -> &'static str {
         "write" => "نسخه‌ی تازه را نتوانستیم کنار برنامه ذخیره کنیم. برنامه‌ی شما تغییری نکرد.",
         "elevation" => "برای نصب نسخه‌ی تازه اجازه‌ی مدیر ویندوز لازم است. دوباره تلاش کنید و در پنجره‌ی ویندوز «بله» را بزنید.",
         // The elevated installer never ended this process (unpack or AV failure, UAC closed).
-        "installer" => "نصب نسخه‌ی تازه کامل نشد. برنامه‌ی شما تغییری نکرد. دوباره تلاش کنید یا با همین نسخه ادامه دهید.",
+        "installer" => "به‌روزرسانی کامل نشد. دوباره تلاش کنید یا با همین نسخه ادامه دهید.",
         "blocked" => "به‌روزرسانی خودکار چند دقیقه پیش انجام نشد.",
         _ => "به‌روزرسانی خودکار انجام نشد.",
     }
