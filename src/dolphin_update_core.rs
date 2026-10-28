@@ -333,6 +333,47 @@ mod tests {
     }
 
     #[test]
+    fn a_download_that_stops_is_stalled_after_the_limit() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        let limit = Duration::from_secs(30);
+        assert!(!stalled(start, start, limit));
+        assert!(!stalled(start, start + Duration::from_secs(29), limit));
+        assert!(stalled(start, start + Duration::from_secs(30), limit));
+        assert!(stalled(start, start + Duration::from_secs(300), limit));
+        // A clock that went backwards is never a stall.
+        assert!(!stalled(start + Duration::from_secs(5), start, limit));
+        assert!(STALL_LIMIT <= Duration::from_secs(30));
+        assert!(FIRST_BYTE_LIMIT >= STALL_LIMIT);
+    }
+
+    #[test]
+    fn the_update_waits_while_anyone_is_connected() {
+        assert!(may_apply(0));
+        assert!(!may_apply(1));
+        assert!(!may_apply(7));
+    }
+
+    #[test]
+    fn one_text_for_installing_and_one_for_waiting() {
+        assert_eq!(APPLYING_TEXT, "در حال نصب…");
+        assert_eq!(WAITING_TEXT, "پس از پایان جلسه نصب می‌شود.");
+        assert_eq!(install_text(false), APPLYING_TEXT);
+        assert_eq!(install_text(true), WAITING_TEXT);
+    }
+
+    #[test]
+    fn the_manual_action_opens_the_panel_for_staff_and_the_download_page_for_customers() {
+        assert_eq!(download_page("https://support.dolphindev.ir", true), "https://support.dolphindev.ir/staff/me");
+        assert_eq!(download_page("https://support.dolphindev.ir", false), "https://support.dolphindev.ir/download");
+    }
+
+    #[test]
+    fn the_installed_exit_fallback_is_two_minutes() {
+        assert_eq!(INSTALLED_EXIT_FALLBACK, std::time::Duration::from_secs(120));
+    }
+
+    #[test]
     fn hex_is_lowercase_and_two_digits_per_byte() {
         assert_eq!(hex(&[0x00, 0x0f, 0xa3, 0xff]), "000fa3ff");
     }

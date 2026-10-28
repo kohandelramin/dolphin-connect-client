@@ -87,7 +87,7 @@ void main() {
     await tester.pumpWidget(_view(manual, DolphinUpdateProgress.idle, page: () => opened = true));
     expect(find.text('تلاش دوباره'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
-    await tester.tap(find.text('باز کردن صفحه‌ی دریافت'));
+    await tester.tap(find.text('دریافت دستی'));
     expect(opened, isTrue);
   });
 
@@ -123,8 +123,38 @@ void main() {
   testWidgets('applying is a bar and a message, never a failure', (tester) async {
     await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'applying')));
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('در حال جایگزینی و باز کردن دوباره…'), findsOneWidget);
+    expect(find.text('در حال نصب…'), findsOneWidget);
     expect(find.text('تلاش دوباره'), findsNothing);
+  });
+
+  testWidgets('ready says the same as applying (one text in both screens)', (tester) async {
+    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'ready')));
+    expect(find.text('در حال نصب…'), findsOneWidget);
+  });
+
+  // I3: a session is live, so the install waits for it; nothing on screen can cut the session.
+  testWidgets('waiting for a session to end says so and offers no button', (tester) async {
+    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'ready', waiting: true)));
+    expect(find.text('پس از پایان جلسه نصب می‌شود.'), findsOneWidget);
+    expect(find.text('در حال نصب…'), findsNothing);
+    expect(find.byType(FilledButton), findsNothing);
+    expect(find.byType(OutlinedButton), findsNothing);
+    expect(find.byType(TextButton), findsNothing);
+    expect(DolphinUpdateProgress.fromJson('{"state":"ready","waiting":true}').waiting, isTrue);
+    expect(DolphinUpdateProgress.fromJson('{"state":"ready"}').waiting, isFalse);
+    expect(DolphinUpdateProgress.fromJson('{"state":"ready","waiting":"yes"}').waiting, isFalse);
+  });
+
+  // Both screens: retry, then continue, then the manual download, then close (review minors).
+  testWidgets('the buttons come in the same order as the Sciter screen', (tester) async {
+    await tester.pumpWidget(_view(_update, const DolphinUpdateProgress(state: 'failed', error: 'e')));
+    final xs = ['تلاش دوباره', 'ادامه با همین نسخه', 'دریافت دستی', 'بستن']
+        .map((t) => tester.getCenter(find.text(t)).dx)
+        .toList();
+    // RTL: the first button is the right-most one.
+    for (var i = 1; i < xs.length; i++) {
+      expect(xs[i] < xs[i - 1], isTrue, reason: 'button $i should be left of button ${i - 1}: $xs');
+    }
   });
 
   testWidgets('without an onContinue handler there is no button', (tester) async {

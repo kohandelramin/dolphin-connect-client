@@ -143,6 +143,14 @@ void main() {
     expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', ''), isNull);
   });
 
+  // Final review: until the first read the count is unknown, and unknown hides the code (a session accepted during the
+  // update screen is live when home opens).
+  test('an unknown session count hides the code', () {
+    expect(codeHiddenFor(null), isTrue);
+    expect(codeHiddenFor(0), isFalse);
+    expect(codeHiddenFor(1), isTrue);
+  });
+
   testWidgets('a late answer after the timeout changes nothing', (tester) async {
     final wait = DolphinCallWait(const Duration(seconds: 8));
     addTearDown(wait.dispose);

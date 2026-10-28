@@ -36,6 +36,17 @@ class ProfileTest(unittest.TestCase):
         self.assertTrue(g.validate_profile({**PROFILE, "api-server": "https://support.dolphindev.ir/rd/"}, "production"))
         self.assertTrue(g.validate_profile({**PROFILE, "relay-server": "remote.dolphindev.ir"}, "production"))
 
+    def test_refuses_a_bad_port_in_the_api_server(self):
+        for api in ("https://support.dolphindev.ir:99999/rd", "https://support.dolphindev.ir:abc/rd"):
+            errors = g.validate_profile({**PROFILE, "api-server": api}, "production")
+            self.assertTrue(any("api-server" in e for e in errors), api)
+
+    def test_accepts_an_ipv6_api_server_and_writes_it_in_brackets(self):
+        profile = {**PROFILE, "api-server": "http://[::1]:3010/rd"}
+        self.assertEqual(g.validate_profile(profile, "dev"), [])
+        self.assertEqual(g.portal_url(profile), "http://[::1]:3010")
+        self.assertTrue(g.validate_profile({**PROFILE, "api-server": "http://[2001:db8::1]:3010/rd"}, "dev"))  # public
+
     def test_refuses_unknown_or_missing_keys(self):
         self.assertTrue(g.validate_profile({**PROFILE, "extra": "x"}, "production"))
         missing = dict(PROFILE)
