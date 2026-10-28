@@ -173,26 +173,36 @@ void main() {
     expect(ended, isTrue);
   });
 
-  // D5 (WF-11): click mode needs the portal's word on who the technician is; code mode does not.
-  test('Accept needs the portal check in click mode only', () {
-    const unreachable = TechVerdict(TechCheck.unverifiable);
-    expect(acceptAllowed(unreachable, 'click'), isFalse);
-    expect(acceptAllowed(unreachable, ''), isFalse); // mode not read yet: behave as click
-    expect(acceptAllowed(const TechVerdict(TechCheck.verified, 'x'), 'click'), isTrue);
-    expect(acceptAllowed(unreachable, 'password'), isTrue); // code mode: the code itself came through the portal
-    expect(acceptAllowed(const TechVerdict(TechCheck.verified), 'password'), isTrue);
-    for (final mode in ['click', 'password']) {
-      expect(acceptAllowed(const TechVerdict(TechCheck.checking), mode), isFalse);
-      expect(acceptAllowed(const TechVerdict(TechCheck.rejected), mode), isFalse);
-    }
+  // D5 (WF-11): Accept needs the portal's word on who the technician is, in every approve mode. Code mode stays
+  // usable because a valid code is authorised in Rust before any prompt; this prompt only serves a peer without one.
+  test('Accept only for a verified technician', () {
+    expect(acceptAllowed(const TechVerdict(TechCheck.verified, 'x')), isTrue);
+    expect(acceptAllowed(const TechVerdict(TechCheck.verified)), isTrue);
+    expect(acceptAllowed(const TechVerdict(TechCheck.unverifiable)), isFalse);
+    expect(acceptAllowed(const TechVerdict(TechCheck.checking)), isFalse);
+    expect(acceptAllowed(const TechVerdict(TechCheck.rejected)), isFalse);
   });
 
-  testWidgets('click mode, portal unreachable: no Accept, the message and the phone, Deny works', (tester) async {
+  test('portal down: a stale answer is unverifiable, a valid unexpired one still verifies', () {
+    TechVerdict v(String techId, {bool down = true, String peer = '287654321', int until = 2000, int now = 1000, int waited = 0}) =>
+        verifyTechnician(
+            peerId: peer, techId: techId, techName: 'رحمت', until: until, nowSeconds: now, waitedMs: waited, portalDown: down);
+    expect(v('-').state, TechCheck.unverifiable); // stale "nobody" while the portal is unreachable
+    expect(v('-', waited: 7000).state, TechCheck.unverifiable); // never «این اتصال از کارشناس دلفین نیست»
+    expect(v('111111111', waited: 7000).state, TechCheck.unverifiable);
+    expect(v('287654321', now: 3000, waited: 7000).state, TechCheck.unverifiable); // expired
+    expect(v('287654321').state, TechCheck.verified); // the portal vouched, not expired
+    expect(v('').state, TechCheck.unverifiable);
+    // The portal is reachable again (option cleared): the old rules apply.
+    expect(v('-', down: false).state, TechCheck.checking);
+    expect(v('-', down: false, waited: 7000).state, TechCheck.rejected);
+  });
+
+  testWidgets('unverifiable (the default code mode too): no Accept, the message and the phone, Deny works', (tester) async {
     var denied = false;
     await tester.pumpWidget(_app(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.unverifiable),
         peerName: 'x',
-        approveMode: 'click',
         phone: '021-44200250',
         onAccept: (k, c, f) {},
         onDeny: () => denied = true)));
@@ -203,13 +213,28 @@ void main() {
     expect(denied, isTrue);
   });
 
-  testWidgets('code mode, portal unreachable: Accept stays', (tester) async {
+  testWidgets('portal down with a stale "-" tech ID shows the D5 message and phone, not the rejection', (tester) async {
+    final verdict = verifyTechnician(
+        peerId: '287654321', techId: '-', techName: '-', until: 0, nowSeconds: 1000, waitedMs: 9000, portalDown: true);
     await tester.pumpWidget(_app(DolphinAcceptView(
-        verdict: const TechVerdict(TechCheck.unverifiable),
+        verdict: verdict, peerName: 'x', phone: '021-44200250', onAccept: (k, c, f) {}, onDeny: () {})));
+    expect(find.textContaining('پورتال دلفین در دسترس نیست'), findsOneWidget);
+    expect(find.textContaining('۰۲۱-۴۴۲۰۰۲۵۰'), findsOneWidget);
+    expect(find.textContaining('این اتصال از کارشناس دلفین نیست'), findsNothing);
+    expect(find.text('پذیرفتن'), findsNothing);
+  });
+
+  testWidgets('a verified technician can be accepted, and Deny is there too', (tester) async {
+    var accepted = false;
+    var denied = false;
+    await tester.pumpWidget(_app(DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.verified, 'رحمت'),
         peerName: 'x',
-        approveMode: 'password',
-        onAccept: (k, c, f) {},
-        onDeny: () {})));
-    expect(find.text('پذیرفتن'), findsOneWidget);
+        onAccept: (k, c, f) => accepted = true,
+        onDeny: () => denied = true)));
+    await tester.tap(find.text('پذیرفتن'));
+    expect(accepted, isTrue);
+    await tester.tap(find.text('رد'));
+    expect(denied, isTrue);
   });
 }

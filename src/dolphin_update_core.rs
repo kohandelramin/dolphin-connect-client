@@ -419,7 +419,18 @@ mod tests {
     #[test]
     fn the_installer_fallback_has_a_persian_reason() {
         let t = error_text("installer");
-        assert!(t.contains("نصب") && t != error_text("unknown"));
+        assert!(t.starts_with("به‌روزرسانی کامل نشد.") && t != error_text("unknown"));
+        // The elevated update may still run or half-apply: never promise the app is unchanged.
+        assert!(!t.contains("تغییری نکرد"));
+    }
+
+    #[test]
+    fn continuing_never_ends_a_process_that_hosts_a_live_session() {
+        assert!(!may_exit_for_continue(true, 1)); // x86 portable: the server is this process
+        assert!(!may_exit_for_continue(true, 3));
+        assert!(may_exit_for_continue(true, 0));
+        assert!(may_exit_for_continue(false, 1)); // installed: the session lives in the service
+        assert!(may_exit_for_continue(false, 0));
     }
 
     #[test]

@@ -52,6 +52,8 @@ jobs:
           "$RUNNER_TEMP/update_core"
           rustc --edition 2021 --test libs/portable/src/dolphin_wait.rs -o "$RUNNER_TEMP/dolphin_wait"
           "$RUNNER_TEMP/dolphin_wait"
+          rustc --edition 2021 --test src/dolphin_portal.rs -o "$RUNNER_TEMP/dolphin_portal"
+          "$RUNNER_TEMP/dolphin_portal"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

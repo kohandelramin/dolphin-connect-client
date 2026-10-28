@@ -112,7 +112,8 @@ class BuildWorkflowTest(unittest.TestCase):
         self.assertNotIn("cache:", step)
 
     def test_std_only_rust_files_are_tested_in_ci(self):
-        std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs")
+        std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs",
+                    "src/dolphin_portal.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -128,8 +129,13 @@ class CheckWiringTest(unittest.TestCase):
         # `rustc ... && run` does not trip errexit when rustc fails (run 40639363014 was green with 20 errors).
         step = job(CHECK, "rust-unit")
         self.assertIsNone(re.search(r"rustc[^\n]*&&", step))
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 3)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 3)
+        # Nor may the compile be forgiven (`|| true`) or followed by another command on its line (`; run`).
+        self.assertIsNone(re.search(r"rustc[^\n]*\|\|", step))
+        self.assertIsNone(re.search(r"rustc[^\n]*;", step))
+        for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
+            self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 4)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 4)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")

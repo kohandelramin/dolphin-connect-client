@@ -27,19 +27,17 @@ void main() {
     expect(ran, isTrue);
   });
 
-  testWidgets('after 60 s of installing the button comes back with a hint; the timer ends with the view', (tester) async {
+  testWidgets('after 60 s of installing only a hint shows, never a second install; the timer ends with the view', (tester) async {
     var installs = 0;
     await tester.pumpWidget(_app(DolphinInstallView(onInstall: () => installs++)));
     await tester.tap(find.text('نصب'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 59));
-    expect(find.text('نصب'), findsNothing);
+    expect(find.textContaining('نوار وظیفه'), findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.textContaining('«نه» زدید'), findsOneWidget);
-    await tester.tap(find.text('نصب'));
-    await tester.pump();
-    expect(installs, 2);
-    expect(find.text('نصب'), findsNothing); // progress again, hint gone
+    expect(find.textContaining('نوار وظیفه'), findsOneWidget);
+    expect(find.text('نصب'), findsNothing); // no button: a second press would start a second install
+    expect(installs, 1);
     // Leaving the view cancels the timer: no pending timer is left (the test would fail).
     await tester.pumpWidget(const SizedBox());
   });
