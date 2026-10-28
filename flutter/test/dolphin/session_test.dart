@@ -106,8 +106,25 @@ void main() {
     await tester.pumpWidget(_app(DolphinEndedView(reason: null, onClose: () => closed++)));
     await tester.tap(find.text('بستن'));
     expect(closed, 1);
-    await tester.pumpWidget(_app(const SizedBox()));
+    // Still mounted: only the cancel in the button's path can stop the timer now.
     await tester.pump(const Duration(minutes: 2));
     expect(closed, 1);
+  });
+
+  test('the end reason, once fixed, never changes', () {
+    expect(latchReason(null, null), isNull);
+    expect(latchReason(null, DolphinEndReason.technician), DolphinEndReason.technician);
+    // A late portal push or an expired authorization computes "portal" after the screen said "technician".
+    expect(latchReason(DolphinEndReason.technician, DolphinEndReason.portal), DolphinEndReason.technician);
+    expect(latchReason(DolphinEndReason.you, DolphinEndReason.portal), DolphinEndReason.you);
+    expect(latchReason(DolphinEndReason.portal, null), DolphinEndReason.portal);
+  });
+
+  testWidgets('the technician strip shows nothing until the peer info is set', (tester) async {
+    await tester.pumpWidget(_app(const DolphinPermissionStrip(permissions: {}, ready: false)));
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.text('انتقال فایل'), findsNothing);
+    await tester.pumpWidget(_app(const DolphinPermissionStrip(permissions: {}, ready: true)));
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
   });
 }
