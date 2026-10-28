@@ -23,6 +23,7 @@ pub use self::rendezvous_mediator::*;
 pub mod common;
 mod dolphin;
 mod dolphin_update_core;
+mod dolphin_update;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

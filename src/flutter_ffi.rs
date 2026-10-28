@@ -2677,6 +2677,13 @@ pub fn main_get_printer_names() -> SyncReturn<String> {
 }
 
 pub fn main_get_common(key: String) -> String {
+    // Dolphin Connect (TB-20): the update screen (src/dolphin_update.rs).
+    if key == "dolphin-update-check" {
+        return crate::dolphin_update::check();
+    }
+    if key == "dolphin-update-progress" {
+        return crate::dolphin_update::progress();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {
@@ -2774,6 +2781,15 @@ pub fn main_get_common_sync(key: String) -> SyncReturn<String> {
 }
 
 pub fn main_set_common(_key: String, _value: String) {
+    // Dolphin Connect (TB-20): the update screen starts the download and the swap.
+    if _key == "dolphin-update-start" {
+        crate::dolphin_update::start_download();
+        return;
+    }
+    if _key == "dolphin-update-apply" {
+        crate::dolphin_update::apply_or_fail();
+        return;
+    }
     #[cfg(target_os = "windows")]
     if _key == "install-printer" && crate::platform::is_win_10_or_greater() {
         std::thread::spawn(move || {

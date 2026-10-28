@@ -14,6 +14,9 @@ AGPL-3.0, with the changes below. The full source of every build we ship is this
 | Customer builds incoming-only, technician build outgoing-only, installation allowed | `dolphin/settings.json` (`variants`, `hard`) | Customers can only be connected to; technicians can only connect (ADR-0010 in the portal repo) |
 | Customer screens (main window, accept prompt, session view), Dolphin theme, embedded Vazirmatn, About with the licence line | `flutter/lib/dolphin/`, `flutter/assets/fonts/`; hooks marked `// Dolphin Connect` in `flutter/lib/main.dart`, `desktop/pages/desktop_home_page.dart`, `desktop/pages/server_page.dart`, `desktop/pages/desktop_setting_page.dart`, plus the `Vazirmatn` family in `pubspec.yaml` | Own brand (portal design 2026-10-26-own-brand-client) |
 | Build workflow; upstream workflows removed | `.github/workflows/dolphin-build.yml` | Three Windows builds: customer x64 (Flutter), customer x86 (Sciter), technician x64 |
+| Own version (2.0.0 on), FileVersion `X.Y.Z.<run>`, reported to the portal | `dolphin/version.txt`, `dolphin/build_plan.py`, `dolphin/version_resource.rs`, `build.rs`, `libs/portable/build.rs`, `src/hbbs_http/sync.rs` (`dolphin_version`), `flutter/lib/dolphin/about.dart`, `src/ui.rs` (`get_version`) | The portal and the customer can tell builds apart (TB-4) |
+| Update before the app opens: ask the portal, download from it, check size and SHA-256, swap, restart | `src/dolphin_update_core.rs` (rules, texts), `src/dolphin_update.rs`, hooks in `src/flutter_ffi.rs` (`main_get_common`, `main_set_common`) | Owner decisions D10–D12 (TB-20). Upstream's own updater stays off |
+| The packer passes its path to the app (`DOLPHIN_PACKER`) and waits for the old app (`DOLPHIN_WAIT_PID`) | `libs/portable/src/dolphin_wait.rs`, `libs/portable/src/main.rs` | A portable app can replace the file the customer started |
 
 Everything else is upstream RustDesk. Copyright notices of the RustDesk authors are kept.
 
