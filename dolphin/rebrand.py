@@ -28,15 +28,31 @@ RUST_TEXT = {
         ('const ISSUER: &str = "RustDesk";', 'const ISSUER: &str = "Dolphin Connect";'),
     ],
 }
-SCITER_CSS = """
-/* Dolphin Connect brand (dolphin/rebrand.py) */
-html {
-    var(accent): #1462e0;
-    var(button): #1462e0;
-    var(menu-hover): #dbe7fb;
-    var(green-blue): #0d9488;
-}
-body { font-family: Vazirmatn, Tahoma, sans-serif; }
+THEME_DART = ROOT / "flutter" / "lib" / "dolphin" / "theme.dart"
+TOKEN = re.compile(r"static const (\w+) = Color\(0xFF([0-9A-Fa-f]{6})\)")
+
+
+def dolphin_tokens(theme_text):
+    """The palette in flutter/lib/dolphin/theme.dart (the one token source, D20): name -> lower-case hex."""
+    tokens = {name: value.lower() for name, value in TOKEN.findall(theme_text)}
+    for needed in ("azure", "azureTint", "aquaText"):
+        if needed not in tokens:
+            raise ValueError(f"theme.dart: token {needed} not found")
+    return tokens
+
+
+def sciter_css(theme_text):
+    """The x86 (Sciter) colours, generated from theme.dart so the two apps cannot drift (AUI-14)."""
+    t = dolphin_tokens(theme_text)
+    return f"""
+/* Dolphin Connect brand (dolphin/rebrand.py, from flutter/lib/dolphin/theme.dart) */
+html {{
+    var(accent): #{t["azure"]};
+    var(button): #{t["azure"]};
+    var(menu-hover): #{t["azureTint"]};
+    var(green-blue): #{t["aquaText"]};
+}}
+body {{ font-family: Vazirmatn, Tahoma, sans-serif; }}
 """
 # Upstream Persian written for a renderer that is not bidi-aware (UX-12), and upstream wording our users should not
 # see (UX-6). Applied to src/lang/fa.rs by key, before the name rewrite; a key that is missing or not unique fails the
@@ -206,6 +222,11 @@ def rewrite_rust(root=ROOT):
     return problems
 
 
+def _theme_text(root):
+    path = root / "flutter" / "lib" / "dolphin" / "theme.dart"
+    return (path if path.exists() else THEME_DART).read_text(encoding="utf-8")
+
+
 def main(root=ROOT, overlay=None):
     rust_problems = rewrite_rust(root)
     if rust_problems:
@@ -225,7 +246,7 @@ def main(root=ROOT, overlay=None):
         path.write_text(rewrite_literals(text) if kind == "code" else rewrite_markup(text), encoding="utf-8")
     css = root / "src" / "ui" / "common.css"
     if css.exists():
-        css.write_text(css.read_text(encoding="utf-8") + SCITER_CSS, encoding="utf-8")
+        css.write_text(css.read_text(encoding="utf-8") + sciter_css(_theme_text(root)), encoding="utf-8")
     problems = scan(root)
     if fa.exists():
         problems += bidi_problems(fa.read_text(encoding="utf-8"))

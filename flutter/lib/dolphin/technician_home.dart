@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../common.dart';
 import '../models/platform_model.dart';
@@ -7,6 +6,7 @@ import 'call_status.dart';
 import 'home_view.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
+import 'technician_header.dart';
 import 'theme.dart';
 
 /// How long the field waits for the panel's answer before saying it got none.
@@ -70,78 +70,17 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final fieldBorder = OutlineInputBorder(
-        borderRadius: BorderRadius.circular(DolphinRadii.field),
-        borderSide: const BorderSide(color: DolphinColors.lineStrong));
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     return ListenableBuilder(
       listenable: _call,
       builder: (context, _) => Directionality(
       textDirection: TextDirection.rtl,
       child: Column(
         children: [
-          Container(
-            decoration: const BoxDecoration(
-                color: Colors.white, border: Border(bottom: BorderSide(color: DolphinColors.line))),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              children: [
-                const Text('دلفین کانکت',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: DolphinColors.azureStrong)),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
-                  child: const Text('کارشناس',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DolphinColors.azureStrong)),
-                ),
-                const SizedBox(width: 16),
-                const Text('شناسه‌ی شما', style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
-                const SizedBox(width: 6),
-                Directionality(
-                  textDirection: TextDirection.ltr,
-                  child: SelectableText(_myId.isEmpty ? '…' : groupId(_myId),
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                ),
-                IconButton(
-                  tooltip: 'کپی شناسه',
-                  icon: const Icon(Icons.copy, size: 16, color: DolphinColors.muted),
-                  onPressed: _myId.isEmpty
-                      ? null
-                      : () {
-                          Clipboard.setData(ClipboardData(text: _myId));
-                          showToast('کپی شد');
-                        },
-                ),
-                const Spacer(),
-                SizedBox(
-                  width: 180,
-                  child: TextField(
-                    controller: _manual,
-                    enabled: !_call.busy,
-                    textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'شناسه‌ی مشتری',
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: fieldBorder,
-                      enabledBorder: fieldBorder,
-                    ),
-                    onSubmitted: (_) => _connectManual(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                      backgroundColor: DolphinColors.azure,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control))),
-                  onPressed: _call.busy ? null : _connectManual,
-                  child: const Text('اتصال'),
-                ),
-              ],
-            ),
-          ),
+          DolphinTechnicianHeader(myId: _myId, manual: _manual, call: _call, onConnect: _connectManual),
           if (_call.text != null) DolphinCallStatus(text: _call.text!, ok: _call.ok),
           Expanded(child: DolphinPortalView(path: '/staff/computers', onMessage: _onMessage, link: _panel)),
         ],

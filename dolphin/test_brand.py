@@ -89,23 +89,17 @@ def _png_b64(color, size=128):
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-UI_RS = (
-    "pub fn get_icon() -> String {
-"
-    "    #[cfg(target_os = \"macos\")]
+UI_RS = """pub fn get_icon() -> String {
+    #[cfg(target_os = "macos")]
     {
-"
-    '        "data:image/png;base64,' + "{MAC}" + '".into()
+        "data:image/png;base64,{MAC}".into()
     }
-'
-    "    #[cfg(not(target_os = \"macos\"))]
+    #[cfg(not(target_os = "macos"))]
     {
-"
-    '        "data:image/png;base64,' + "{OTHER}" + '".into()
+        "data:image/png;base64,{OTHER}".into()
     }
 }
-'
-)
+"""
 
 
 class WindowIconTest(unittest.TestCase):

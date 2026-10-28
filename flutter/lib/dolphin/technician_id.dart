@@ -33,7 +33,10 @@ class DolphinTechnicianIdView extends StatelessWidget {
   const DolphinTechnicianIdView({super.key, required this.id, required this.onCopy});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build), paint: false); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(

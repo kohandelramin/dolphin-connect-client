@@ -52,7 +52,10 @@ class DolphinHomeView extends StatelessWidget {
       this.onCopyCode});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     final (label, fg, bg) = switch (state) {
       DolphinServerState.ready => ('آماده؛ منتظر کارشناس', DolphinColors.aquaText, DolphinColors.aquaSoft),
       DolphinServerState.connecting => ('در حال اتصال به سرور دلفین…', DolphinColors.muted, DolphinColors.azureSoft),
@@ -112,7 +115,7 @@ class DolphinHomeView extends StatelessWidget {
                             icon: const Icon(Icons.copy, size: 16),
                             label: const Text('کپی شناسه'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: DolphinColors.azureStrong,
+                              foregroundColor: DolphinColors.azure,
                               side: const BorderSide(color: DolphinColors.lineStrong),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(DolphinRadii.control)),
@@ -164,7 +167,7 @@ class DolphinHomeView extends StatelessWidget {
                           label: const Text('درخواست‌ها و پیام‌ها',
                               style: TextStyle(fontWeight: FontWeight.w700)),
                           style: TextButton.styleFrom(
-                            foregroundColor: DolphinColors.azureStrong,
+                            foregroundColor: DolphinColors.azure,
                             backgroundColor: DolphinColors.azureSoft,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(DolphinRadii.control)),

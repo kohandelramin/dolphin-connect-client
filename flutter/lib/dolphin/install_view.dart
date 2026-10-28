@@ -50,7 +50,10 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     final run = widget.onRunWithoutInstall;
     return Directionality(
       textDirection: TextDirection.rtl,

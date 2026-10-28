@@ -15,7 +15,10 @@ class DolphinCustomerRequests extends StatelessWidget {
   const DolphinCustomerRequests({super.key, required this.id, required this.code, required this.onBack});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Column(

@@ -74,6 +74,26 @@ def svg_with_png(mark):
             f'<image width="256" height="256" href="data:image/png;base64,{data}"/></svg>\n')
 
 
+UI_ICON = re.compile(r'"data:image/png;base64,[A-Za-z0-9+/=]+"')
+UI_ICON_SIZE = (128, 128)  # upstream's get_icon() PNGs are 128x128 (the macOS one on a padded canvas)
+
+
+def brand_ui_icons(text, mark):
+    """src/ui.rs get_icon(): Sciter's window icon and remote header (AUI-11). Both base64 PNGs become the mark."""
+    start = text.find("pub fn get_icon()")
+    if start < 0:
+        raise ValueError("ui.rs: get_icon() not found")
+    end = text.find("\n}\n", start)
+    body = text[start:end]
+    buf = io.BytesIO()
+    _square(mark, UI_ICON_SIZE).save(buf, format="PNG", optimize=True)
+    literal = '"data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode("ascii") + '"'
+    new_body, count = UI_ICON.subn(lambda m: literal, body)
+    if count != 2:
+        raise ValueError(f"ui.rs get_icon(): expected two icon literals, found {count}")
+    return text[:start] + new_body + text[end:]
+
+
 def main(root=ROOT):
     mark = Image.open(MARK).convert("RGBA")
     for rel in ICO_TARGETS:
@@ -86,6 +106,9 @@ def main(root=ROOT):
     rc.write_text(brand_rc(rc.read_text(encoding="utf-8")), encoding="utf-8")
     cargo = root / "Cargo.toml"
     cargo.write_text(brand_winres(cargo.read_text(encoding="utf-8")), encoding="utf-8")
+    ui = root / "src" / "ui.rs"
+    if ui.exists():  # absent only in the unit tests' toy trees; the real tree always has it
+        ui.write_text(brand_ui_icons(ui.read_text(encoding="utf-8"), mark), encoding="utf-8")
     print(f"branded {len(ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)} images, Runner.rc and Cargo.toml winres")
     return 0
 

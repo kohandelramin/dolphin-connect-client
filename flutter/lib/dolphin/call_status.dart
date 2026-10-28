@@ -20,7 +20,7 @@ class DolphinCallStatus extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           child: Text(text,
               style: TextStyle(
-                  fontSize: 12.5, height: 1.6, color: ok ? DolphinColors.azureStrong : DolphinColors.dangerText)),
+                  fontSize: 12.5, height: 1.6, color: ok ? DolphinColors.azure : DolphinColors.dangerText)),
         ),
       );
 }

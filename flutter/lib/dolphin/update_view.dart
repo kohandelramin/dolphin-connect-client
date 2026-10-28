@@ -105,7 +105,10 @@ class DolphinUpdateView extends StatelessWidget {
       this.onContinue});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     final error = progress.state == 'failed'
         ? progress.error
         : (check.state == 'blocked' && progress.state == 'idle' ? check.error : '');

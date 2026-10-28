@@ -19,7 +19,10 @@ class DolphinPermissionStrip extends StatelessWidget {
   const DolphinPermissionStrip({super.key, required this.permissions, this.ready = true});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build), paint: false); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     if (!ready) return const SizedBox.shrink();
     final states = permissionStates(permissions);
     return IgnorePointer(

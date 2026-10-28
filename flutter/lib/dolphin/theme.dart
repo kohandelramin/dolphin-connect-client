@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Dolphin's palette: the portal's tokens (app/src/app/globals.css), the website's system in a lighter blue.
 class DolphinColors {
-  static const azure = Color(0xFF1F6FF0); // primary; white text on it is 4.57:1
-  static const azureStrong = Color(0xFF1462E0);
+  static const azure = Color(0xFF1462E0); // the one primary blue (D20): fills and text; white on it 5.45:1, on azureSoft 4.97:1
   static const azureSoft = Color(0xFFEEF5FF);
   static const azureTint = Color(0xFFD9E8FF);
-  static const aqua = Color(0xFF0D9488);
-  static const aquaText = Color(0xFF0F766E);
+  static const aqua = Color(0xFF0D9488); // fills and icons only (3.74:1 on white)
+  static const aquaText = Color(0xFF0F766E); // small aqua text (5.47:1 on white, 4.91:1 on aquaSoft)
   static const aquaSoft = Color(0xFFE6F6F4);
   static const ink = Color(0xFF0B1829);
   static const danger = Color(0xFFE11D48);
@@ -39,4 +38,25 @@ ThemeData dolphinTheme(ThemeData base) {
     textTheme: base.textTheme.apply(fontFamily: kDolphinFont),
     primaryTextTheme: base.primaryTextTheme.apply(fontFamily: kDolphinFont),
   );
+}
+
+/// The one theme of all our screens, whatever Windows' theme is (DR-1, owner 2026-10-28): light, as the portal.
+/// Upstream's app follows the system theme, and in dark mode its text, scaffold and chip colours leaked into our
+/// views (white on white, 1.24:1 chips). Every Dolphin view wraps itself in this, so no view depends on the app theme.
+/// [paint] fills the view with the ground colour; false for overlays (permission strip, call status) that sit over
+/// something else and only need the light text defaults.
+class DolphinLight extends StatelessWidget {
+  final Widget child;
+  final bool paint;
+  const DolphinLight({super.key, required this.child, this.paint = true});
+
+  static final ThemeData data = dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false));
+
+  @override
+  Widget build(BuildContext context) => Theme(
+        data: data,
+        child: paint
+            ? Material(color: DolphinColors.ground, child: child)
+            : Material(type: MaterialType.transparency, child: child),
+      );
 }

@@ -49,7 +49,10 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     final onAcceptElevate = widget.onAcceptElevate;
     final state = widget.verdict.state;
     final canAccept = acceptAllowed(widget.verdict);
@@ -169,7 +172,10 @@ class DolphinSessionView extends StatelessWidget {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
@@ -268,7 +274,10 @@ class _DolphinEndedViewState extends State<DolphinEndedView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     final r = widget.reason;
     return Directionality(
       textDirection: TextDirection.rtl,

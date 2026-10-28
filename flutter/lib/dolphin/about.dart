@@ -11,7 +11,10 @@ class DolphinAbout extends StatelessWidget {
   const DolphinAbout({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+
+  Widget _build(BuildContext context) {
     const link = TextStyle(color: DolphinColors.azure, decoration: TextDecoration.underline);
     return Directionality(
       textDirection: TextDirection.rtl,
