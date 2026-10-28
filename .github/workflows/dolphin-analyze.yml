@@ -37,5 +37,5 @@ jobs:
         working-directory: flutter
         run: |
           flutter pub get
-          flutter analyze --no-fatal-infos --no-fatal-warnings lib/dolphin lib/main.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/server_page.dart lib/desktop/pages/remote_page.dart lib/desktop/pages/desktop_setting_page.dart test/dolphin
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/dolphin lib/main.dart lib/desktop/pages/desktop_home_page.dart lib/desktop/pages/server_page.dart lib/desktop/pages/remote_page.dart lib/desktop/pages/desktop_setting_page.dart lib/desktop/pages/install_page.dart test/dolphin
           flutter test test/dolphin

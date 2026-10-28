@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../dolphin/install_view.dart'; // Dolphin Connect: one-button installer (UX-2)
 
 class InstallPage extends StatefulWidget {
   const InstallPage({Key? key}) : super(key: key);
@@ -128,6 +129,16 @@ class _InstallPageBodyState extends State<_InstallPageBody>
 
   @override
   Widget build(BuildContext context) {
+    // Dolphin Connect: one «نصب» button instead of upstream's form (UX-2). install() keeps upstream's defaults: start-menu
+    // and desktop shortcuts on, printer as installOptions says (off), default path. «Run without install» shows under
+    // upstream's condition.
+    if (kDolphinInstallView) {
+      return DolphinInstallView(
+          onInstall: install,
+          onRunWithoutInstall: bind.installShowRunWithoutInstall()
+              ? null
+              : () => bind.installRunWithoutInstall());
+    }
     final double em = 13;
     final isDarkTheme = MyTheme.currentThemeMode() == ThemeMode.dark;
     return Scaffold(
