@@ -70,6 +70,12 @@ body {{ font-family: Vazirmatn, Tahoma, sans-serif; }}
 # see (UX-6). Applied to src/lang/fa.rs by key, before the name rewrite; a key that is missing or not unique fails the
 # build, so an upstream change cannot silently bring the old text back.
 FA_OVERLAY = {
+    # Tray menu (UX-19): plain words instead of "service".
+    "Start service": "باز کردن دسترسی از راه دور",
+    "Stop service": "بستن دسترسی از راه دور",
+    "Service is running": "دلفین کانکت آماده است",
+    "Service is not running": "دسترسی از راه دور بسته است",
+    "Open": "باز کردن دلفین کانکت",
     "connecting_status": "در حال برقراری ارتباط با سرور…",
     "TCP tunneling": "تونل TCP",
     "ID/Relay Server": "سرور ID/Relay",

@@ -6,7 +6,7 @@ import 'theme.dart';
 /// when the customer switches something; Plan 13 F6). A permission never mentioned counts as allowed, as upstream does.
 List<(String, bool)> permissionStates(Map<String, bool> p) => [
       ('موس و صفحه‌کلید', p['keyboard'] != false),
-      ('کلیپ‌بورد', p['clipboard'] != false),
+      ('کپی و چسباندن', p['clipboard'] != false),
       ('انتقال فایل', p['file'] != false),
     ];
 

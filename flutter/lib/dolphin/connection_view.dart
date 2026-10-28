@@ -97,7 +97,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
                 alignment: WrapAlignment.center,
                 children: [
                   _toggle('موس و صفحه‌کلید', keyboard, (v) => keyboard = v),
-                  _toggle('کلیپ‌بورد', clipboard, (v) => clipboard = v),
+                  _toggle('کپی و چسباندن', clipboard, (v) => clipboard = v),
                   _toggle('انتقال فایل', file, (v) => file = v),
                 ]),
             const SizedBox(height: 14),
@@ -193,7 +193,7 @@ class DolphinSessionView extends StatelessWidget {
             const SizedBox(height: 10),
             Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
               _chip('موس و صفحه‌کلید', 'keyboard', keyboard),
-              _chip('کلیپ‌بورد', 'clipboard', clipboard),
+              _chip('کپی و چسباندن', 'clipboard', clipboard),
               _chip('انتقال فایل', 'file', file),
             ]),
             const SizedBox(height: 6),

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'digits.dart';
 import 'theme.dart';
+
+/// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
+const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به شما داده است؛ حساب ندارید؟ با پشتیبانی تماس بگیرید.';
 
 enum DolphinServerState { ready, connecting, offline }
 
@@ -143,7 +147,7 @@ class DolphinHomeView extends StatelessWidget {
                             ]),
                             const Text('رمز را فقط در «درخواست‌ها و پیام‌ها» یا پورتال ثبت کنید؛ پشت تلفن نخوانید.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
+                                style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
                           ],
                         ],
                       ),
@@ -174,6 +178,13 @@ class DolphinHomeView extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // UX-8: most customers have no portal account; say so before they meet a sign-in page.
+                      const SizedBox(height: 6),
+                      const Text(
+                        kRequestsWhoFor,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
+                      ),
                     ],
                   ],
                 ),
@@ -189,13 +200,13 @@ class DolphinHomeView extends StatelessWidget {
                 children: [
                   Flexible(
                     child: Text(
-                        phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین · $phone',
+                        phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین: ${faDigits(phone)}',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: DolphinColors.muted, fontSize: 11.5)),
+                        style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                   ),
                   Text(siteLabel,
                       textDirection: TextDirection.ltr,
-                      style: const TextStyle(color: DolphinColors.muted, fontSize: 11.5)),
+                      style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                 ],
               ),
             ),

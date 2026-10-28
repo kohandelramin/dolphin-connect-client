@@ -23,7 +23,7 @@ void main() {
         onEnd: () {})));
     expect(find.text('۰۴:۱۲'), findsOneWidget);
     await tester.tap(find.text('موس و صفحه‌کلید'));
-    await tester.tap(find.text('کلیپ‌بورد'));
+    await tester.tap(find.text('کپی و چسباندن'));
     await tester.tap(find.text('انتقال فایل'));
     expect(got, {'keyboard': false, 'clipboard': false, 'file': true});
   });
@@ -51,7 +51,7 @@ void main() {
 
   test('the technician sees what the customer allows; unknown counts as allowed', () {
     expect(permissionStates({'keyboard': true, 'clipboard': false}),
-        [('موس و صفحه‌کلید', true), ('کلیپ‌بورد', false), ('انتقال فایل', true)]);
+        [('موس و صفحه‌کلید', true), ('کپی و چسباندن', false), ('انتقال فایل', true)]);
   });
 
   testWidgets('the strip in the technician window marks what is off', (tester) async {

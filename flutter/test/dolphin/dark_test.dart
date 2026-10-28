@@ -22,7 +22,7 @@ void main() {
     expectAllTextReadable(tester);
     // The selected chip: label on azureTint.
     // The chip paints its own selectedColor (azureTint); the label colour is what the theme gives it.
-    final label = tester.widget<RichText>(find.descendant(of: find.text('کلیپ‌بورد'), matching: find.byType(RichText)).first);
+    final label = tester.widget<RichText>(find.descendant(of: find.text('کپی و چسباندن'), matching: find.byType(RichText)).first);
     expect(contrast(Color.alphaBlend(label.text.style!.color!, DolphinColors.azureTint), DolphinColors.azureTint),
         greaterThanOrEqualTo(4.5));
   });
