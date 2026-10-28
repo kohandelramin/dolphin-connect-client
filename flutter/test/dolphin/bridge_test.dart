@@ -105,7 +105,7 @@ void main() {
     expect(isPortalPage('https://evil.example/https://support.dolphindev.ir/', portal), isFalse);
   });
 
-  test('the server's connection count is the session signal', () {
+  test('the connection count from the server is the session signal', () {
     expect(connectedCount('{"status_num":1,"video_conn_count":2,"id":"1"}'), 2);
     expect(connectedCount('{"video_conn_count":0}'), 0);
     expect(connectedCount('{"status_num":1}'), 0); // missing field
