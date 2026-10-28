@@ -29,6 +29,27 @@ void main() {
     expect(parsePanelMessage({'type': 'dolphin-call-result', 'ok': true, 'text': 'ا' * 500})?.text.length, kCallResultMaxLength);
   });
 
+  test('the panel answer may carry the id of the call it answers', () {
+    expect(parsePanelMessage({'type': 'dolphin-call-result', 'ok': true, 'text': 'x', 'id': '123456789'})?.id, '123456789');
+    expect(parsePanelMessage({'type': 'dolphin-call-result', 'ok': true, 'text': 'x'})?.id, '');
+    expect(parsePanelMessage({'type': 'dolphin-call-result', 'ok': true, 'text': 'x', 'id': '<b>'}), isNull);
+    expect(parsePanelMessage({'type': 'dolphin-call-result', 'ok': true, 'text': 'x', 'id': 5}), isNull);
+  });
+
+  test('a result for another call is ignored; one without an id is accepted', () {
+    final w = DolphinCallWait(const Duration(seconds: 30));
+    addTearDown(w.dispose);
+    w.waiting(id: '222222222');
+    expect(w.answer('late, for A', ok: true, id: '111111111'), isFalse);
+    expect(w.busy, isTrue);
+    expect(w.text, kPanelChecking);
+    expect(w.answer('for B', ok: true, id: '222222222'), isTrue);
+    expect(w.text, 'for B');
+    w.waiting(id: '333333333');
+    expect(w.answer('older portal', ok: false), isTrue);
+    expect(w.text, 'older portal');
+  });
+
   test('connect carries the one-time code only when it looks like one', () {
     expect(parsePanelMessage({'type': 'dolphin-connect', 'id': '123456789', 'code': 'Ab3dE6gh'})?.code, 'Ab3dE6gh');
     expect(parsePanelMessage({'type': 'dolphin-connect', 'id': '123456789'})?.code, '');
