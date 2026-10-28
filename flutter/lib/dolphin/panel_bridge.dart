@@ -81,8 +81,10 @@ bool isPortalPage(String url, String portalUrl) =>
     url.startsWith('$portalUrl?') ||
     url.startsWith('$portalUrl#');
 
-/// The app's answer to the page's hello: its own ID (app/src/lib/app-bridge.ts parseAppMessage).
-String idReply(String id) => jsonEncode({'type': 'dolphin-id', 'id': id});
+/// The app's answer to the page's hello: its own ID (app/src/lib/app-bridge.ts parseAppMessage). The technician app
+/// says it is one: the panel saves only that ID as a technician's, never a customer app's (WF-7).
+String idReply(String id, {bool technician = false}) =>
+    jsonEncode({'type': 'dolphin-id', 'id': id, if (technician) 'app': 'technician'});
 
 /// The technician app's own field asks the panel to open a call for this ID (WF-2). The panel runs «اتصال».
 String callRequest(String id) => jsonEncode({'type': 'dolphin-call', 'id': id});

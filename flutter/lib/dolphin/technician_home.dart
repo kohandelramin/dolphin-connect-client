@@ -35,7 +35,7 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
 
   Future<String?> _onMessage(PanelMessage m) async {
     if (m.type == 'dolphin-hello') {
-      return idReply(_myId.isNotEmpty ? _myId : await bind.mainGetMyId());
+      return idReply(_myId.isNotEmpty ? _myId : await bind.mainGetMyId(), technician: true);
     }
     if (m.type == 'dolphin-connect' && mounted) {
       // In code mode the panel sends the customer's one-time code with the ID (WF-3).
