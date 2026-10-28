@@ -26,6 +26,13 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 - One light Dolphin look on dark Windows, one blue (`#1462e0`), the Dolphin icon on the x86 window, and readable colours (WCAG AA).
 - The update waits for a live session to end, and stops a stalled download after 30 s.
 - Plain words: «کپی و چسباندن», a plain tray menu, the support phone in Persian digits, Persian window titles; one button style; the request window fits a small laptop; the request button says it needs a Dolphin username.
+- New in rc.3: the owner's app icon in every size (the mark alone and sharpened at 32 px and below), and Windows
+  refreshes its icon cache after an install or update, so the taskbar no longer shows the old mark; the Programs list
+  shows Dolphin's version.
+- rc.3: the technician app tags its own ID for the panel, so a customer app's ID is never saved as a technician's (WF-7).
+- rc.3: the customer window lists the last sessions on this PC, naming only registered technicians (UN-15).
+- rc.3: the technician app shows a Windows notice with a sound for a new waiting request (UN-16).
+- rc.3: the end screen says what to do after a restart: open Dolphin Connect again and call back (UN-13).
 
 **یادداشت فارسی:** از این نسخه برنامه پیش از باز شدن، نسخه‌ی تازه را خودش از پورتال دلفین دریافت و نصب می‌کند.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.
