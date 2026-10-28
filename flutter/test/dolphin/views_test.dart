@@ -163,10 +163,12 @@ void main() {
     await tester.pumpWidget(_app(DolphinSessionView(
         technician: 'علی رضایی',
         elapsed: const Duration(minutes: 4, seconds: 12),
-        fileEnabled: false,
-        onFile: (_) {},
+        keyboard: true,
+        clipboard: true,
+        file: false,
+        onToggle: (_, __) {},
         onEnd: () => ended = true)));
-    expect(find.text('04:12'), findsOneWidget);
+    expect(find.text('۰۴:۱۲'), findsOneWidget);
     await tester.tap(find.text('پایان'));
     expect(ended, isTrue);
   });
