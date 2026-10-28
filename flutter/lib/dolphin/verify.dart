@@ -34,6 +34,7 @@ TechVerdict verifyTechnician({
   required int until,
   required int nowSeconds,
   required int waitedMs,
+  bool portalDown = false,
 }) {
   if (techId.isEmpty) return const TechVerdict(TechCheck.unverifiable);
   if (techId != '-' && techId == peerId && nowSeconds < until) {
