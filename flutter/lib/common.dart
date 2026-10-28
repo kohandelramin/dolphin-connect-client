@@ -1317,10 +1317,10 @@ Color? _msgboxColor(String type) {
     return Color(0xFFAD448E);
   }
   if (type.contains("success")) {
-    return DolphinColors.msgSuccess; // Dolphin Connect: AA with white (D20)
+    return DolphinColors.msgSuccess; // Dolphin Connect: icon colour, 3:1+ on the dialog (D20)
   }
   if (type.contains("error") || type == "re-input-password") {
-    return DolphinColors.msgError; // Dolphin Connect: AA with white (D20)
+    return DolphinColors.msgError; // Dolphin Connect: icon colour, 3:1+ on the dialog (D20)
   }
   return Color(0xFF1462E0); // Dolphin Connect: theme.dart azure (D20)
 }

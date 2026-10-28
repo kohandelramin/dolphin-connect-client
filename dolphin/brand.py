@@ -58,7 +58,8 @@ def _square(mark, size):
 
 
 def write_png(mark, path):
-    size = Image.open(path).size
+    with Image.open(path) as existing:
+        size = existing.size
     _square(mark, size).save(path, format="PNG")
 
 

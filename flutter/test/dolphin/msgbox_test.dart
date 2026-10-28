@@ -7,8 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'contrast.dart';
 
 void main() {
-  test('message box success and error colours carry white text at AA (D20)', () {
-    // Upstream #32bea6 is 2.3:1 and #E04F5F 3.9:1 with white.
+  test('message box icon colours are visible on the white dialog (D20)', () {
+    // In Flutter _msgboxColor paints only the icon (non-text, 3:1 needed). Upstream #32bea6 is 2.3:1 on white.
+    // These also meet 4.5:1, which the x86 caption (white text on the colour) needs.
     expect(contrast(Colors.white, DolphinColors.msgSuccess), greaterThanOrEqualTo(4.5));
     expect(contrast(Colors.white, DolphinColors.msgError), greaterThanOrEqualTo(4.5));
   });

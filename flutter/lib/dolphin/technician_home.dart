@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../common.dart';
 import '../models/platform_model.dart';
 import 'call_status.dart';
-import 'home_view.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
 import 'technician_header.dart';

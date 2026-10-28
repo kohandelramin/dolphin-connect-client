@@ -9,8 +9,8 @@ class DolphinColors {
   static const aquaText = Color(0xFF0F766E); // small aqua text (5.47:1 on white, 4.91:1 on aquaSoft)
   static const aquaSoft = Color(0xFFE6F6F4);
   static const ink = Color(0xFF0B1829);
-  static const msgSuccess = aquaText; // message-box success icon/fill: white on it 5.47:1 (upstream #32bea6 was 2.3:1)
-  static const msgError = Color(0xFFD03C4E); // message-box error: white on it 4.73:1 (upstream #E04F5F was 3.9:1)
+  static const msgSuccess = aquaText; // message-box success icon on a white dialog 5.47:1 (upstream #32bea6 was 2.3:1); x86 also uses it as caption fill under white text
+  static const msgError = Color(0xFFD03C4E); // message-box error icon on a white dialog 4.73:1 (upstream #E04F5F was 3.9:1); x86 also uses it as caption fill under white text
   static const danger = Color(0xFFE11D48);
   static const dangerText = Color(0xFFBE123C);
   static const dangerSoft = Color(0xFFFFF0F3);

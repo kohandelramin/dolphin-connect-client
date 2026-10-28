@@ -2,6 +2,7 @@ import base64
 import hashlib
 import io
 import pathlib
+import re
 import tempfile
 import unittest
 
@@ -46,8 +47,10 @@ class IconTest(unittest.TestCase):
             mark = Image.new("RGBA", (351, 350), (20, 98, 224, 255))
             brand.write_png(mark, root / "res" / "128x128.png")
             brand.write_ico(mark, root / "res" / "icon.ico")
-            self.assertEqual(Image.open(root / "res" / "128x128.png").size, (128, 128))
-            sizes = Image.open(root / "res" / "icon.ico").info["sizes"]
+            with Image.open(root / "res" / "128x128.png") as png:
+                self.assertEqual(png.size, (128, 128))
+            with Image.open(root / "res" / "icon.ico") as ico:
+                sizes = ico.info["sizes"]
             self.assertIn((256, 256), sizes)
             self.assertIn((16, 16), sizes)
 
@@ -137,16 +140,10 @@ class WindowIconTest(unittest.TestCase):
         expected = brand._square(mark, (128, 128)).tobytes()
         after = self._decoded(out)
         self.assertEqual([i.convert("RGBA").tobytes() for i in after], [expected, expected])
-        for old in before:
-            self.assertNotIn(base64.b64encode(_png_bytes(old)).decode("ascii")[:200], out)
+        for original in re.findall(r"data:image/png;base64,([A-Za-z0-9+/=]+)", real):
+            self.assertNotIn(original[:200], out)
         # No RustDesk icon base64 remains: every embedded PNG in get_icon() is the mark.
         self.assertEqual(len(after), 2)
-
-
-def _png_bytes(img):
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
 
 
 if __name__ == "__main__":
