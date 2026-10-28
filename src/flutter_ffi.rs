@@ -2786,6 +2786,10 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::dolphin_update::start_download();
         return;
     }
+    if _key == "dolphin-update-continue" {
+        crate::dolphin_update::continue_current();
+        return;
+    }
     if _key == "dolphin-update-apply" {
         crate::dolphin_update::apply_or_fail();
         return;

@@ -30,6 +30,7 @@ import 'mobile/pages/server_page.dart';
 import 'mobile/widgets/deploy_dialog.dart';
 import 'models/platform_model.dart';
 import 'dolphin/theme.dart'; // Dolphin Connect: brand theme
+import 'dolphin/update.dart'; // Dolphin Connect: update before the app opens
 
 /// Basic window and launch properties.
 int? kWindowId;
@@ -134,6 +135,15 @@ Future<void> initEnv(String appType) async {
 void runMainApp(bool startService) async {
   // register uni links
   await initEnv(kAppTypeMain);
+  // Dolphin Connect (TB-20): a newer version is installed before the app opens (D10); no answer in 4 s → open (D12).
+  // After a failed update the customer may continue with this version for this run (D19): the screen then calls
+  // _openMainApp itself.
+  if (await runDolphinUpdateIfNeeded(() => _openMainApp(startService))) return;
+  await _openMainApp(startService);
+}
+
+// Dolphin Connect: the rest of runMainApp, unchanged, so the update screen can open it after "continue" (D19).
+Future<void> _openMainApp(bool startService) async {
   checkUpdate();
   // trigger connection status updater
   await bind.mainCheckConnectStatus();

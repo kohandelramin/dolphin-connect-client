@@ -14,7 +14,10 @@ use sha2::{Digest, Sha256};
 use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::{mpsc, Mutex, Once},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Mutex, Once,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -40,6 +43,10 @@ lazy_static::lazy_static! {
     static ref OFFER: Mutex<Option<rules::Offer>> = Mutex::new(None);
     static ref PROGRESS: Mutex<Progress> = Mutex::new(Progress { state: "idle", received: 0, total: 0, reason: "" });
 }
+
+/// D19: the customer chose to continue with the current version after a failed update. For this process only,
+/// never stored: the next start checks again.
+static CONTINUE: AtomicBool = AtomicBool::new(false);
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
@@ -79,16 +86,26 @@ pub fn check() -> String {
     answer.to_string()
 }
 
-/// The last `check` answer (the x86 page reads it after its window opens).
+/// The last `check` answer (the x86 page reads it after its window opens). Only the Sciter (x86) screen uses it.
+#[cfg_attr(feature = "flutter", allow(dead_code))]
 pub fn last() -> String {
     LAST.lock().unwrap().to_string()
 }
 
-/// True when the app must show the update screen instead of opening.
+/// True when the app must show the update screen instead of opening. False for the rest of the process once the
+/// customer chose to continue (D19). Only the Sciter (x86) start-up asks; the Flutter screen decides from `check`.
+#[cfg_attr(feature = "flutter", allow(dead_code))]
 pub fn blocks_start() -> bool {
-    LAST.lock().unwrap()["state"] != "current"
+    !CONTINUE.load(Ordering::SeqCst) && LAST.lock().unwrap()["state"] != "current"
 }
 
+/// D19: «ادامه با همین نسخه». Opens the app at its current version for this run only; nothing is stored.
+pub fn continue_current() {
+    CONTINUE.store(true, Ordering::SeqCst);
+    log::info!("dolphin update: continuing with {}", crate::dolphin::DOLPHIN_VERSION);
+}
+
+#[cfg_attr(feature = "flutter", allow(dead_code))]
 pub fn check_blocks_start() -> bool {
     check();
     blocks_start()
@@ -175,7 +192,7 @@ fn fetch_offer(portal: &str, build: &str) -> hbb_common::ResultType<Option<rules
     Ok(Some(offer))
 }
 
-/// {"state","percent","text","error"} for the screens; state is idle, downloading, ready or failed.
+/// {"state","percent","text","error"} for the screens; state is idle, downloading, ready, applying or failed.
 pub fn progress() -> String {
     let p = PROGRESS.lock().unwrap().clone();
     let error = if p.state == "failed" { rules::error_text(p.reason) } else { "" };
@@ -213,6 +230,9 @@ pub fn start_download() {
         Ok(()) => PROGRESS.lock().unwrap().state = "ready",
         Err(reason) => {
             log::error!("Dolphin update download failed: {}", reason);
+            // D19: a failed try counts like a swapped one, so a broken pin is not downloaded again at every start
+            // within the attempt window (Task 8's rule).
+            LocalConfig::set_option(ATTEMPT_OPTION.to_owned(), rules::attempt_value(&offer.version, now()));
             set_failed(reason);
         }
     });
