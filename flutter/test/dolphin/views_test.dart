@@ -138,7 +138,7 @@ void main() {
   });
 
   test('the portal decides who may connect', () {
-    TechVerdict v(String techId, {String peer = '287654321', int until = 2000, int now = 1000, int waited = 0}) =>
+    TechVerdict v(String techId, {String peer = '287654321', int until = 2000, int now = 1000, int waited = 7000}) =>
         verifyTechnician(peerId: peer, techId: techId, techName: 'رحمت', until: until, nowSeconds: now, waitedMs: waited);
     expect(v('287654321').state, TechCheck.verified);
     expect(v('287654321').name, 'رحمت');
@@ -184,7 +184,7 @@ void main() {
   });
 
   test('portal down: a stale answer is unverifiable, a valid unexpired one still verifies', () {
-    TechVerdict v(String techId, {bool down = true, String peer = '287654321', int until = 2000, int now = 1000, int waited = 0}) =>
+    TechVerdict v(String techId, {bool down = true, String peer = '287654321', int until = 2000, int now = 1000, int waited = 7000}) =>
         verifyTechnician(
             peerId: peer, techId: techId, techName: 'رحمت', until: until, nowSeconds: now, waitedMs: waited, portalDown: down);
     expect(v('-').state, TechCheck.unverifiable); // stale "nobody" while the portal is unreachable
@@ -194,7 +194,7 @@ void main() {
     expect(v('287654321').state, TechCheck.verified); // the portal vouched, not expired
     expect(v('').state, TechCheck.unverifiable);
     // The portal is reachable again (option cleared): the old rules apply.
-    expect(v('-', down: false).state, TechCheck.checking);
+    expect(v('-', down: false, waited: 0).state, TechCheck.checking);
     expect(v('-', down: false, waited: 7000).state, TechCheck.rejected);
   });
 
