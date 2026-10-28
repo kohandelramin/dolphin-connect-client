@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import '../models/server_model.dart';
 import 'brand.dart';
 import 'customer_requests.dart';
 import 'home_view.dart';
+import 'panel_bridge.dart';
 
 /// Pushed by the portal with every heartbeat (app/src/lib/engine/policy.ts SUPPORT_PHONE_OPTION),
 /// so admins change the numbers without a new release.
@@ -31,6 +34,7 @@ class DolphinHome extends StatefulWidget {
 
 class _DolphinHomeState extends State<DolphinHome> {
   bool _requests = false;
+  Timer? _options;
 
   @override
   void initState() {
@@ -38,6 +42,16 @@ class _DolphinHomeState extends State<DolphinHome> {
     // Upstream sizes the incoming-only window from its own home page, which this build does not show.
     imcomingOnlyHomeSize = kDolphinHomeSize;
     WidgetsBinding.instance.addPostFrameCallback((_) => _fitWindow());
+    // Options the portal pushes (support phone, whether to show the code) change without the server model noticing.
+    _options = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _options?.cancel();
+    super.dispose();
   }
 
   Future<void> _fitWindow() async {
@@ -63,9 +77,18 @@ class _DolphinHomeState extends State<DolphinHome> {
       child: Consumer<ServerModel>(builder: (context, model, _) {
         // serverId is declared as a TextEditingController but built as the ID controller (server_model.dart).
         final id = trimID(model.serverId.text);
-        if (_requests) return DolphinCustomerRequests(id: id, onBack: () => _show(false));
+        final code = dolphinCode(
+            approveMode: model.approveMode,
+            showCode: bind.mainGetOptionSync(key: kDolphinShowCodeOption),
+            password: model.serverPasswd.text);
+        if (_requests) return DolphinCustomerRequests(id: id, code: code, onBack: () => _show(false));
         return DolphinHomeView(
           id: id,
+          code: code,
+          onCopyCode: () {
+            Clipboard.setData(ClipboardData(text: code));
+            showToast('کپی شد');
+          },
           state: serverStateFromStatus(model.connectStatus),
           phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
           siteLabel: DolphinBrand.siteLabel,

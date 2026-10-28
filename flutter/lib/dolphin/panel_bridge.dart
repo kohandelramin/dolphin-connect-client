@@ -45,6 +45,7 @@ PanelMessage? parsePanelMessage(dynamic raw) {
   if (data is! Map) return null;
   final type = data['type'];
   if (type == 'dolphin-hello') return const PanelMessage('dolphin-hello');
+  if (type == 'dolphin-code-request') return const PanelMessage('dolphin-code-request');
   if (type == 'dolphin-call-result') {
     final ok = data['ok'];
     final text = data['text'];
@@ -86,6 +87,21 @@ const kPanelNotReady = 'پنل هنوز باز نشده است؛ چند لحظه
 const kPanelChecking = 'در حال بررسی در پنل…';
 const kPanelNoAnswer = 'پنل جواب نداد؛ اگر وارد پنل نشده‌اید، اول وارد شوید.';
 
-/// The customer's app only answers hello; it never connects out, whatever the page asks.
-String? customerReply(PanelMessage m, String myId) =>
-    m.type == 'dolphin-hello' && panelIdPattern.hasMatch(myId) ? idReply(myId) : null;
+/// Pushed by the portal (app/src/lib/engine/policy.ts SHOW_CODE_OPTION): "Y" for a PC linked to a code-mode organization.
+const kDolphinShowCodeOption = 'dolphin-show-code';
+
+/// The one-time code to show and hand over, or '' when this PC is not in code mode. `approve-mode` alone cannot tell:
+/// an unlinked PC also gets "password" (Plan 13 F2), so the portal says it outright.
+String dolphinCode({required String approveMode, required String showCode, required String password}) =>
+    approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
+
+/// The customer app's answer to the request form's code request (app/src/lib/app-bridge.ts parseAppMessage).
+String codeReply(String code) => jsonEncode({'type': 'dolphin-code', 'code': code});
+
+/// The customer's app answers hello with its ID and, in code mode, a code request with its one-time code. The form
+/// asks only when the customer presses «ثبت» (SECURITY.md). It never connects out, whatever the page asks.
+String? customerReply(PanelMessage m, String myId, [String myCode = '']) {
+  if (m.type == 'dolphin-hello') return panelIdPattern.hasMatch(myId) ? idReply(myId) : null;
+  if (m.type == 'dolphin-code-request') return panelCodePattern.hasMatch(myCode) ? codeReply(myCode) : null;
+  return null;
+}

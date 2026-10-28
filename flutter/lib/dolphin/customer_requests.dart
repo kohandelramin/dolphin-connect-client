@@ -9,9 +9,10 @@ import 'theme.dart';
 /// with their portal username and password; the page gets this PC's ID from the app and nothing else.
 class DolphinCustomerRequests extends StatelessWidget {
   final String id;
+  final String code;
   final VoidCallback onBack;
 
-  const DolphinCustomerRequests({super.key, required this.id, required this.onBack});
+  const DolphinCustomerRequests({super.key, required this.id, required this.code, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,7 @@ class DolphinCustomerRequests extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: DolphinPortalView(path: '/portal', onMessage: (m) async => customerReply(m, id)),
+            child: DolphinPortalView(path: '/portal', onMessage: (m) async => customerReply(m, id, code)),
           ),
         ],
       ),

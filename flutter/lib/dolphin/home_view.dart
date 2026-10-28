@@ -36,6 +36,10 @@ class DolphinHomeView extends StatelessWidget {
   /// Opens the request section (the customer portal inside the app); hidden when null.
   final VoidCallback? onRequests;
 
+  /// The one-time code in code mode (WF-3); '' hides it.
+  final String code;
+  final VoidCallback? onCopyCode;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -43,7 +47,9 @@ class DolphinHomeView extends StatelessWidget {
       required this.onCopy,
       required this.phone,
       required this.siteLabel,
-      this.onRequests});
+      this.onRequests,
+      this.code = '',
+      this.onCopyCode});
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +118,30 @@ class DolphinHomeView extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(DolphinRadii.control)),
                             ),
                           ),
+                          if (code.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Divider(height: 1, color: DolphinColors.line),
+                            const SizedBox(height: 8),
+                            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              const Text('رمز یک‌بارمصرف',
+                                  style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                              const SizedBox(width: 8),
+                              Directionality(
+                                textDirection: TextDirection.ltr,
+                                child: SelectableText(code,
+                                    style: const TextStyle(
+                                        fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                              ),
+                              IconButton(
+                                tooltip: 'کپی رمز',
+                                icon: const Icon(Icons.copy, size: 16, color: DolphinColors.muted),
+                                onPressed: onCopyCode,
+                              ),
+                            ]),
+                            const Text('رمز را فقط در «درخواست‌ها و پیام‌ها» یا پورتال ثبت کنید؛ پشت تلفن نخوانید.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
+                          ],
                         ],
                       ),
                     ),
