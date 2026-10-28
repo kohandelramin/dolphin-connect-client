@@ -8,6 +8,19 @@ import 'brand.dart';
 import 'panel_bridge.dart';
 import 'theme.dart';
 
+/// Lets the screen around a portal page send it a message (the technician app's own field, WF-2).
+class DolphinPortalLink {
+  Future<void> Function(String message)? _send;
+
+  /// Sends [message] to the page; false while the page is not loaded (or WebView2 is missing).
+  Future<bool> send(String message) async {
+    final send = _send;
+    if (send == null) return false;
+    await send(message);
+    return true;
+  }
+}
+
 /// A portal page inside the app (WebView2): the staff panel in the technician app, the customer
 /// portal in the customer app. It stays on the portal and hands the page's messages to [onMessage];
 /// a non-null answer is posted back to the page.
@@ -15,7 +28,9 @@ class DolphinPortalView extends StatefulWidget {
   final String path;
   final Future<String?> Function(PanelMessage message) onMessage;
 
-  const DolphinPortalView({super.key, required this.path, required this.onMessage});
+  final DolphinPortalLink? link;
+
+  const DolphinPortalView({super.key, required this.path, required this.onMessage, this.link});
 
   @override
   State<DolphinPortalView> createState() => _DolphinPortalViewState();
@@ -48,6 +63,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       }));
       _subs.add(_web.webMessage.listen(_onMessage));
       await _web.loadUrl(_home);
+      widget.link?._send = _web.postWebMessage;
       if (mounted) setState(() => _ready = true);
     } catch (_) {
       if (mounted) setState(() => _noWebView = true);
@@ -66,6 +82,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
     for (final s in _subs) {
       s.cancel();
     }
+    widget.link?._send = null;
     _web.dispose();
     super.dispose();
   }

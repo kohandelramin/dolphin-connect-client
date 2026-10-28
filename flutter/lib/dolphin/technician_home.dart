@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 
 import '../common.dart';
 import '../models/platform_model.dart';
+import 'call_status.dart';
 import 'home_view.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
 import 'theme.dart';
+
+/// How long the field waits for the panel's answer before saying it got none.
+const kDolphinCallWait = Duration(seconds: 8);
 
 /// The technician build's main window: own ID, a manual connect field, and the staff panel.
 class DolphinTechnicianHome extends StatefulWidget {
@@ -18,7 +22,9 @@ class DolphinTechnicianHome extends StatefulWidget {
 
 class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
   final _manual = TextEditingController();
+  final _panel = DolphinPortalLink();
   String _myId = '';
+  final _call = DolphinCallWait(kDolphinCallWait);
 
   @override
   void initState() {
@@ -32,17 +38,36 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     if (m.type == 'dolphin-hello') {
       return idReply(_myId.isNotEmpty ? _myId : await bind.mainGetMyId());
     }
-    if (m.type == 'dolphin-connect' && mounted) connect(context, m.id);
+    if (m.type == 'dolphin-connect' && mounted) {
+      // In code mode the panel sends the customer's one-time code with the ID (WF-3).
+      connect(context, m.id, password: m.code.isEmpty ? null : m.code);
+    }
+    if (m.type == 'dolphin-call-result') {
+      _call.show(m.text, ok: m.ok);
+      if (m.ok) _manual.clear();
+    }
     return null;
   }
 
-  void _connectManual() {
-    final id = _manual.text.replaceAll(' ', '');
-    if (panelIdPattern.hasMatch(id)) connect(context, id);
+  /// The field never connects by itself: it asks the panel, which runs «اتصال» with all its checks (WF-2).
+  Future<void> _connectManual() async {
+    if (_call.busy) return;
+    final problem = manualIdProblem(_manual.text);
+    if (problem != null) {
+      _call.show(problem, ok: false);
+      return;
+    }
+    final sent = await _panel.send(callRequest(_manual.text.replaceAll(' ', '')));
+    if (!sent) {
+      _call.show(kPanelNotReady, ok: false);
+      return;
+    }
+    _call.waiting();
   }
 
   @override
   void dispose() {
+    _call.dispose();
     _manual.dispose();
     super.dispose();
   }
@@ -52,7 +77,9 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     final fieldBorder = OutlineInputBorder(
         borderRadius: BorderRadius.circular(DolphinRadii.field),
         borderSide: const BorderSide(color: DolphinColors.lineStrong));
-    return Directionality(
+    return ListenableBuilder(
+      listenable: _call,
+      builder: (context, _) => Directionality(
       textDirection: TextDirection.rtl,
       child: Column(
         children: [
@@ -95,6 +122,7 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
                   width: 180,
                   child: TextField(
                     controller: _manual,
+                    enabled: !_call.busy,
                     textDirection: TextDirection.ltr,
                     decoration: InputDecoration(
                       isDense: true,
@@ -111,15 +139,16 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
                   style: FilledButton.styleFrom(
                       backgroundColor: DolphinColors.azure,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control))),
-                  onPressed: _connectManual,
+                  onPressed: _call.busy ? null : _connectManual,
                   child: const Text('اتصال'),
                 ),
               ],
             ),
           ),
-          Expanded(child: DolphinPortalView(path: '/staff/computers', onMessage: _onMessage)),
+          if (_call.text != null) DolphinCallStatus(text: _call.text!, ok: _call.ok),
+          Expanded(child: DolphinPortalView(path: '/staff/computers', onMessage: _onMessage, link: _panel)),
         ],
       ),
-    );
+    ));
   }
 }
