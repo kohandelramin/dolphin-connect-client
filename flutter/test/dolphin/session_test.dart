@@ -60,4 +60,54 @@ void main() {
     expect(find.byIcon(Icons.block), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
   });
+
+  test('why the session ended', () {
+    expect(endReason(byCustomer: true, verdictNow: TechCheck.verified, sinceEndMs: 0), DolphinEndReason.you);
+    // The portal no longer vouches for this peer: it cut the connection.
+    expect(endReason(byCustomer: false, verdictNow: TechCheck.rejected, sinceEndMs: 0), DolphinEndReason.portal);
+    // Still vouched for: wait for the heartbeat that may bring the portal's word, then it was the technician.
+    expect(endReason(byCustomer: false, verdictNow: TechCheck.verified, sinceEndMs: 1000), isNull);
+    expect(endReason(byCustomer: false, verdictNow: TechCheck.verified, sinceEndMs: kDolphinEndSettleMs),
+        DolphinEndReason.technician);
+    expect(endReason(byCustomer: false, verdictNow: TechCheck.unverifiable, sinceEndMs: kDolphinEndSettleMs),
+        DolphinEndReason.technician);
+  });
+
+  testWidgets('the ended screen names who ended it', (tester) async {
+    for (final (reason, text) in [
+      (DolphinEndReason.you, 'شما پایان دادید.'),
+      (DolphinEndReason.technician, 'اتصال کارشناس بسته شد.'),
+      (DolphinEndReason.portal, 'پورتال دلفین این اتصال را قطع کرد.'),
+    ]) {
+      await tester.pumpWidget(_app(DolphinEndedView(reason: reason, onClose: () {})));
+      expect(find.text('جلسه پایان یافت.'), findsOneWidget);
+      expect(find.text(text), findsOneWidget);
+    }
+    var closed = false;
+    await tester.pumpWidget(_app(DolphinEndedView(reason: null, onClose: () => closed = true)));
+    expect(find.text('جلسه پایان یافت.'), findsOneWidget);
+    await tester.tap(find.text('بستن'));
+    expect(closed, isTrue);
+  });
+
+  testWidgets('the ended screen closes itself after a minute, once', (tester) async {
+    var closed = 0;
+    await tester.pumpWidget(_app(DolphinEndedView(reason: DolphinEndReason.you, onClose: () => closed++)));
+    await tester.pump(const Duration(milliseconds: kDolphinEndedAutoCloseMs - 1000));
+    expect(closed, 0);
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(closed, 1);
+    await tester.pump(const Duration(minutes: 2));
+    expect(closed, 1);
+  });
+
+  testWidgets('closing by the button first cancels the automatic close', (tester) async {
+    var closed = 0;
+    await tester.pumpWidget(_app(DolphinEndedView(reason: null, onClose: () => closed++)));
+    await tester.tap(find.text('بستن'));
+    expect(closed, 1);
+    await tester.pumpWidget(_app(const SizedBox()));
+    await tester.pump(const Duration(minutes: 2));
+    expect(closed, 1);
+  });
 }
