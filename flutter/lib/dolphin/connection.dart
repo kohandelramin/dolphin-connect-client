@@ -63,6 +63,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
       nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       // After the end there is nothing to wait for: decide on what the portal pushed.
+      portalDown: opt(kDolphinPortalDownOption) == 'Y',
       waitedMs: decided ? kDolphinVerifyWaitMs : DateTime.now().difference(_shownAt).inMilliseconds,
     );
   }
@@ -125,14 +126,16 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         verdict: verdict,
         peerName: peerName,
         showElevate: showElevate,
-        approveMode: model.approveMode,
         phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
         onAccept: (keyboard, clipboard, file) {
+          // The button can be up to 500 ms stale: ask again at the moment of the press.
+          if (!acceptAllowed(_verdict())) return;
           _sessionStart = DateTime.now();
           _permissions(keyboard, clipboard, file);
           model.sendLoginResponse(c, true);
         },
         onAcceptElevate: (keyboard, clipboard, file) {
+          if (!acceptAllowed(_verdict())) return;
           _sessionStart = DateTime.now();
           _permissions(keyboard, clipboard, file);
           model.sendLoginResponse(c, true);

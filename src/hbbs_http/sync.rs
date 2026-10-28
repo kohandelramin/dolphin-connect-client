@@ -248,6 +248,14 @@ async fn start_hbbs_sync_async() {
                 if let Err(err) = &response {
                     hbb_common::throttled_log!(API_LOG_INTERVAL, warn, "Heartbeat failed: {err:?}");
                 }
+                // Dolphin Connect (D5): tell the accept prompt (another process) whether the portal answers now.
+                // Written only when the state changes.
+                if let Some(v) = crate::dolphin_portal::portal_down_write(
+                    &Config::get_option(crate::dolphin_portal::PORTAL_DOWN_OPTION),
+                    response.is_ok(),
+                ) {
+                    Config::set_option(crate::dolphin_portal::PORTAL_DOWN_OPTION.to_owned(), v.to_owned());
+                }
                 if let Ok(s) = response {
                     if let Ok(mut rsp) = serde_json::from_str::<HashMap::<&str, Value>>(&s) {
                         if rsp.remove("sysinfo").is_some() {

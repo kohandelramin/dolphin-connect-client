@@ -1,6 +1,20 @@
 //! Dolphin Connect (D5, WF-11): whether the portal can be reached right now, as the heartbeat saw it. Standard
 //! library only, so CI tests it alone (`rustc --edition 2021 --test src/dolphin_portal.rs`).
 
+/// The local option the customer app's accept prompt reads (it runs in another process, `--cm`, and reads options
+/// over IPC like `dolphin-tech-id`). "Y" while the heartbeat is failing; empty otherwise.
+pub const PORTAL_DOWN_OPTION: &str = "dolphin-portal-down";
+
+/// What to write after a heartbeat, given the option's current value: `Some(v)` only when the state changes (no config
+/// write every 3 s). One failure sets "Y"; one success clears it.
+pub fn portal_down_write(current: &str, reachable: bool) -> Option<&'static str> {
+    match (current == "Y", reachable) {
+        (false, false) => Some("Y"),
+        (true, true) => Some(""),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

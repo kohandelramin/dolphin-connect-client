@@ -18,8 +18,7 @@ class DolphinAcceptView extends StatefulWidget {
   final bool showElevate;
   final DolphinAccept? onAcceptElevate;
 
-  /// `approve-mode` (click or password) and the support phone, for the D5 block (see [acceptAllowed]).
-  final String approveMode;
+  /// The support phone, for the D5 block (see [acceptAllowed]).
   final String phone;
 
   const DolphinAcceptView(
@@ -30,7 +29,6 @@ class DolphinAcceptView extends StatefulWidget {
       required this.onDeny,
       this.showElevate = false,
       this.onAcceptElevate,
-      this.approveMode = 'click',
       this.phone = ''});
 
   @override
@@ -54,7 +52,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
   Widget build(BuildContext context) {
     final onAcceptElevate = widget.onAcceptElevate;
     final state = widget.verdict.state;
-    final canAccept = acceptAllowed(widget.verdict, widget.approveMode);
+    final canAccept = acceptAllowed(widget.verdict);
     final (String title, String note, Color color, IconData icon) = switch (state) {
       TechCheck.verified => (
           '${widget.verdict.name.isEmpty ? widget.peerName : widget.verdict.name} از دلفین',
@@ -63,17 +61,11 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
           Icons.verified_user,
         ),
       TechCheck.checking => ('در حال بررسی هویت کارشناس…', 'چند لحظه صبر کنید', DolphinColors.muted, Icons.hourglass_top),
-      TechCheck.unverifiable when !canAccept => (
+      TechCheck.unverifiable => (
           'پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.',
           widget.phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین: ${faDigits(widget.phone)}',
           DolphinColors.danger,
           Icons.cloud_off,
-        ),
-      TechCheck.unverifiable => (
-          widget.peerName,
-          'هویت کارشناس قابل بررسی نیست؛ فقط اگر همین حالا پشت تلفن با کارشناس دلفین هستید بپذیرید',
-          const Color(0xFFB45309),
-          Icons.help_outline,
         ),
       TechCheck.rejected => (
           'این اتصال از کارشناس دلفین نیست',
@@ -95,7 +87,8 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.danger : null)),
             Text(note, textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
             const SizedBox(height: 12),
-            if (canAccept) Wrap(
+            if (canAccept)
+              Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 alignment: WrapAlignment.center,

@@ -7,20 +7,20 @@ class TechVerdict {
   const TechVerdict(this.state, [this.name = '']);
 }
 
-/// Owner decision D5 (WF-11): in click mode the customer's Accept needs the portal's word on who the technician is, so a
-/// PC that cannot reach the portal ([TechCheck.unverifiable]) may not accept: it shows the message and the phone.
-/// Code mode is unchanged: the code itself comes through the portal, so a code login does not depend on this check.
-/// A mode not read yet ('') behaves as click. Deny and closing never depend on this.
-bool acceptAllowed(TechVerdict verdict, String approveMode) => switch (verdict.state) {
-      TechCheck.verified => true,
-      TechCheck.unverifiable => approveMode == 'password',
-      TechCheck.checking || TechCheck.rejected => false,
-    };
+/// Owner decision D5 (WF-11): the customer's Accept needs the portal's word on who the technician is, so only
+/// [TechCheck.verified] may accept, in every approve mode. A PC that cannot reach the portal shows the message and the
+/// phone instead. Code mode stays usable: a valid one-time code is authorised in Rust before any prompt
+/// (src/server/connection.rs), so a code login never reaches this check; the prompt serves only a peer with no code or
+/// a wrong one. Deny and closing never depend on this.
+bool acceptAllowed(TechVerdict verdict) => verdict.state == TechCheck.verified;
 
 /// Client options the portal pushes with the heartbeat (app/src/lib/engine/policy.ts).
 const kDolphinTechIdOption = 'dolphin-tech-id';
 const kDolphinTechNameOption = 'dolphin-tech-name';
 const kDolphinTechUntilOption = 'dolphin-tech-until';
+
+/// "Y" while the client's heartbeat to the portal is failing (src/dolphin_portal.rs, written by src/hbbs_http/sync.rs).
+const kDolphinPortalDownOption = 'dolphin-portal-down';
 
 /// How long the prompt waits for the next heartbeat (every 3 s while a connection is open).
 const kDolphinVerifyWaitMs = 6000;
@@ -39,6 +39,7 @@ TechVerdict verifyTechnician({
   if (techId != '-' && techId == peerId && nowSeconds < until) {
     return TechVerdict(TechCheck.verified, techName == '-' ? '' : techName);
   }
+  if (portalDown) return const TechVerdict(TechCheck.unverifiable);
   if (waitedMs < kDolphinVerifyWaitMs) return const TechVerdict(TechCheck.checking);
   return const TechVerdict(TechCheck.rejected);
 }
