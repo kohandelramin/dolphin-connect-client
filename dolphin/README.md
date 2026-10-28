@@ -84,10 +84,12 @@ or a path, query or fragment under it; never `''`, `about:blank` or another orig
 one-time code only to that page.
 
 The code is hidden (no display, no «کپی رمز», no answer to a code request) while the server reports a connection,
-and until the count is known for real: `home.dart` has no immediate read (the first read would be the unsynced 0 and
-flash the code for 1–2 s when the window opens during a session), so the count is unknown, and the code hidden, until
-the first 2 s tick, then every 2 s (`connectedCount`, `codeHiddenFor`). The x86 window (`index.tis`) starts hidden and
-trusts the count from its third 1 s tick. `model.clients` is not used: on desktop it is empty in the main window,
+and for a short time after the window opens: `home.dart` has no immediate read (the first read would be the unsynced 0
+and flash the code for 1–2 s when the window opens during a session), so the code stays hidden until the first 2 s tick
+(about 2 s on x64), then every 2 s (`connectedCount`, `codeHiddenFor`). The x86 window (`index.tis`) starts hidden and
+reads the count from its 4th 1 s callback (about 4 s). This is a timing margin, not proof that the count is known: the
+server's first count lands about 1 s after the window opens, and if the server never answers over IPC the default 0 is
+trusted and the code shows after that time. `model.clients` is not used: on desktop it is empty in the main window,
 because connections live in the `--cm` process. The client rotates the code at a successful login (upstream) and again
 when the last authorised connection closes (the `// Dolphin Connect:` block in `src/server/connection.rs`,
 `AuthedConnID::drop`; not for failed logins; in every approve mode, since rotating in click mode is harmless). So a
@@ -114,5 +116,6 @@ branch from the new tag, cherry-pick the `dolphin` commits, and rebuild.
 - CI: `rust-unit` compiles and runs on separate lines, so a compile error fails the job (`test_workflows.py` forbids `rustc … &&`).
 - Update, installed app: if the elevated installer never ends the process within 120 s, the screen shows the failure («تلاش دوباره», «ادامه با همین نسخه») instead of closing silently.
 - Update, waiting for a session to end: «ادامه با همین نسخه» is offered too (Flutter and Sciter). It opens the current version, ends the wait without swapping, and never cuts the session.
-- Installer: after 60 s with the install not done, «نصب» comes back with a hint (a refused Windows prompt leaves no signal); «فقط این بار اجرا شود» runs once; the body text names shortcuts only when the options are on.
-- D5 (WF-11): in click mode the accept prompt has no «پذیرفتن» when the portal check is unreachable; it shows «پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.» and the support phone (`acceptAllowed`, `verify.dart`). Code mode is unchanged; Deny works. x86 (Sciter) is unchanged: its accept prompt (`src/ui/cm.tis`) has no portal check today (the D4 stopgap).
+- Installer: after 60 s with the install not done, only a hint shows (no second «نصب»: a refused or closed Windows prompt already ends the process, so an open window means the first install is pending); «فقط این بار اجرا شود» runs once; the body text names shortcuts only when the options are on.
+- D5 (WF-11): only a technician the portal vouched for (`TechCheck.verified`) can be accepted, in every approve mode (`acceptAllowed`, `verify.dart`). Otherwise the prompt has no «پذیرفتن»; it shows «پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.» and the support phone. «رد» always works, and Accept is checked again at the moment it is pressed. The heartbeat loop (`src/hbbs_http/sync.rs`, rule in `src/dolphin_portal.rs`) sets the local option `dolphin-portal-down` to `Y` on a failed heartbeat and clears it on the next success, writing only on a change; the `--cm` process reads it like `dolphin-tech-id`. While it is `Y`, a stale `-`, another ID or an expired ID is `unverifiable`, not «این اتصال از کارشناس دلفین نیست»; an ID that matches and has not expired still verifies. Code mode stays usable: a valid one-time code is authorised in Rust (`src/server/connection.rs`) before any prompt, so a code login never reaches the prompt and works with the portal down. The prompt serves only a peer with no code or a wrong one. x86 (Sciter) is unchanged: its accept prompt (`src/ui/cm.tis`) has no portal check today (the D4 stopgap).
+- x86 «ادامه با همین نسخه» (Sciter) ends the process after starting a new one, so it is hidden when this process hosts the server (portable run) and a session is live (`may_exit_for_continue`, `can_continue` in the progress JSON); the waiting screen then has no button and the install goes on after the session. Installed x86 keeps the button: its sessions live in the service.
