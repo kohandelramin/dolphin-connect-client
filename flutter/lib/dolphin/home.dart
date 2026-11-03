@@ -106,17 +106,7 @@ class _DolphinHomeState extends State<DolphinHome> {
     return const CallbackStatus(CallbackPhase.failed, 'پاسخی نیامد؛ با پشتیبانی دلفین تماس بگیرید.');
   }
 
-  void _openCallback() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 300),
-          child: DolphinCallbackForm(onSend: _sendCallback, onClose: () => Navigator.of(context).pop()),
-        ),
-      ),
-    );
-  }
+  void _openCallback() => showDolphinCallback(context, _sendCallback);
 
   /// Plan 14 (B5): who the portal has authorized for this PC, until they connect.
   TechComing? _coming() {

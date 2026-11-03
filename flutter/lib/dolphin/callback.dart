@@ -138,3 +138,14 @@ class _DolphinCallbackFormState extends State<DolphinCallbackForm> {
     );
   }
 }
+
+/// The form in a dialog. Here, not in home.dart: upstream's common.dart has its own `Dialog`.
+Future<void> showDolphinCallback(BuildContext context, CallbackSend onSend) => showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: DolphinCallbackForm(onSend: onSend, onClose: () => Navigator.of(context).pop()),
+        ),
+      ),
+    );
