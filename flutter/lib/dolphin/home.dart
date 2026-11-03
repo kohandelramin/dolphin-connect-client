@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,10 +12,13 @@ import '../common/formatter/id_formatter.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'brand.dart';
+import 'callback.dart';
 import 'customer_requests.dart';
 import 'home_view.dart';
 import 'panel_bridge.dart';
 import 'recent_sessions.dart';
+import 'tech_card.dart';
+import 'verify.dart';
 import 'window_sizes.dart';
 
 /// Pushed by the portal with every heartbeat (app/src/lib/engine/policy.ts SUPPORT_PHONE_OPTION),
@@ -91,6 +95,42 @@ class _DolphinHomeState extends State<DolphinHome> {
     }
   }
 
+  /// Plan 14 (B6): src/dolphin_callback.rs sends in the background; ask for its state until it has an answer.
+  Future<CallbackStatus> _sendCallback(String name, String phone, String note) async {
+    await bind.mainSetCommon(key: 'dolphin-callback-send', value: jsonEncode({'name': name, 'phone': phone, 'note': note}));
+    for (var i = 0; i < 40; i++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      final status = CallbackStatus.fromJson(await bind.mainGetCommon(key: 'dolphin-callback-state'));
+      if (status.phase == CallbackPhase.done || status.phase == CallbackPhase.failed) return status;
+    }
+    return const CallbackStatus(CallbackPhase.failed, 'پاسخی نیامد؛ با پشتیبانی دلفین تماس بگیرید.');
+  }
+
+  void _openCallback() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: DolphinCallbackForm(onSend: _sendCallback, onClose: () => Navigator.of(context).pop()),
+        ),
+      ),
+    );
+  }
+
+  /// Plan 14 (B5): who the portal has authorized for this PC, until they connect.
+  TechComing? _coming() {
+    String opt(String key) => bind.mainGetOptionSync(key: key);
+    return techComing(
+      techId: opt(kDolphinTechIdOption),
+      techName: opt(kDolphinTechNameOption),
+      until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
+      nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      connected: _connected,
+      photo: opt(kDolphinTechPhotoOption),
+    );
+  }
+
   void _show(bool requests) {
     setState(() => _requests = requests);
     _fitWindow();
@@ -128,6 +168,8 @@ class _DolphinHomeState extends State<DolphinHome> {
           },
           onRequests: () => _show(true),
           recent: parseRecentSessions(bind.mainGetOptionSync(key: kDolphinRecentSessionsOption)),
+          coming: _connected == null ? null : _coming(),
+          onCallback: callbackShown(bind.mainGetOptionSync(key: kDolphinCallbackOption)) ? _openCallback : null,
         );
       }),
     );

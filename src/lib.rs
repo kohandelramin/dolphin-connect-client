@@ -25,6 +25,8 @@ mod dolphin;
 mod dolphin_portal;
 mod dolphin_update_core;
 mod dolphin_update;
+mod dolphin_callback_core;
+mod dolphin_callback;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

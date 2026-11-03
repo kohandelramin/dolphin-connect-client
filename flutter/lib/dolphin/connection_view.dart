@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import 'digits.dart';
+import 'tech_card.dart';
 import 'theme.dart';
 import 'verify.dart';
 
@@ -21,6 +23,9 @@ class DolphinAcceptView extends StatefulWidget {
   /// The support phone, for the D5 block (see [acceptAllowed]).
   final String phone;
 
+  /// Plan 14 (B5): the verified technician's photo from the portal; shown only with a verified name.
+  final Uint8List? photo;
+
   const DolphinAcceptView(
       {super.key,
       required this.verdict,
@@ -29,7 +34,8 @@ class DolphinAcceptView extends StatefulWidget {
       required this.onDeny,
       this.showElevate = false,
       this.onAcceptElevate,
-      this.phone = ''});
+      this.phone = '',
+      this.photo});
 
   @override
   State<DolphinAcceptView> createState() => _DolphinAcceptViewState();
@@ -83,7 +89,10 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            CircleAvatar(radius: 22, backgroundColor: color, child: Icon(icon, color: Colors.white)),
+            if (state == TechCheck.verified && widget.photo != null)
+              DolphinTechAvatar(photo: widget.photo, radius: 32)
+            else
+              CircleAvatar(radius: 22, backgroundColor: color, child: Icon(icon, color: Colors.white)),
             const SizedBox(height: 10),
             Text(title,
                 textAlign: TextAlign.center,

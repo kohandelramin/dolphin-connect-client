@@ -38,6 +38,10 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 - Next build (rc.5): the tray menu no longer offers «توقف سرویس», which deleted the Windows service and left the
   app on «در حال اتصال به سرور دلفین…» for ever, even after a reinstall. A PC where it was clicked now shows «سرویس
   دلفین خاموش است» with «روشن کردن سرویس», and any install brings the service back (TB-22).
+- Next build (rc.5, Plan 14): while the portal has authorized a technician and nobody is connected yet, the customer
+  window shows «کارشناس دلفین در راه است» with the technician's name and photo; the accept prompt shows the photo beside
+  the verified name (B5). A PC linked to an organization gets «با من تماس بگیرید»: name, phone and an optional line go to
+  the portal, which opens a request for a technician to call back, no account needed (B6). Customer x64 only.
 
 **یادداشت فارسی:** از این نسخه برنامه پیش از باز شدن، نسخه‌ی تازه را خودش از پورتال دلفین دریافت و نصب می‌کند.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.

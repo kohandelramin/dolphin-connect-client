@@ -11,6 +11,7 @@ import 'brand.dart';
 import 'connection_view.dart';
 import 'home.dart';
 import 'home_view.dart';
+import 'tech_card.dart';
 import 'verify.dart';
 
 /// Connections the customer ended from this window («پایان» or «رد»), for the ended screen's reason (UX-6).
@@ -127,6 +128,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         peerName: peerName,
         showElevate: showElevate,
         phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
+        // Plan 14 (B5): pushed only to the PC that technician may connect to (app/src/lib/engine/policy.ts).
+        photo: verdict.state == TechCheck.verified ? techPhoto(bind.mainGetOptionSync(key: kDolphinTechPhotoOption)) : null,
         onAccept: (keyboard, clipboard, file) {
           // The button can be up to 500 ms stale: ask again at the moment of the press.
           if (!acceptAllowed(_verdict())) return;

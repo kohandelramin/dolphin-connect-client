@@ -2684,6 +2684,10 @@ pub fn main_get_common(key: String) -> String {
     if key == "dolphin-update-progress" {
         return crate::dolphin_update::progress();
     }
+    // Dolphin Connect (Plan 14, B6): «با من تماس بگیرید» (src/dolphin_callback.rs).
+    if key == "dolphin-callback-state" {
+        return crate::dolphin_callback::state();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {
@@ -2792,6 +2796,10 @@ pub fn main_set_common(_key: String, _value: String) {
     }
     if _key == "dolphin-update-apply" {
         crate::dolphin_update::apply_or_fail();
+        return;
+    }
+    if _key == "dolphin-callback-send" {
+        crate::dolphin_callback::start(_value);
         return;
     }
     #[cfg(target_os = "windows")]

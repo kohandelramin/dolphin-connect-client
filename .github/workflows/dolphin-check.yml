@@ -54,6 +54,8 @@ jobs:
           "$RUNNER_TEMP/dolphin_wait"
           rustc --edition 2021 --test src/dolphin_portal.rs -o "$RUNNER_TEMP/dolphin_portal"
           "$RUNNER_TEMP/dolphin_portal"
+          rustc --edition 2021 --test src/dolphin_callback_core.rs -o "$RUNNER_TEMP/callback_core"
+          "$RUNNER_TEMP/callback_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

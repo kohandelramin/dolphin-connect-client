@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'callback.dart';
 import 'digits.dart';
 import 'recent_sessions.dart';
+import 'tech_card.dart';
 import 'theme.dart';
 
 /// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
@@ -60,6 +62,12 @@ class DolphinHomeView extends StatelessWidget {
   /// Turns the service back on (Windows asks for admin rights); the button shows only in the stopped state.
   final VoidCallback? onStartService;
 
+  /// Plan 14 (B5): the technician the portal has authorized, before they connect; null hides the card.
+  final TechComing? coming;
+
+  /// Plan 14 (B6): opens «با من تماس بگیرید»; null hides the button (a PC not linked to an organization).
+  final VoidCallback? onCallback;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -71,7 +79,9 @@ class DolphinHomeView extends StatelessWidget {
       this.code = '',
       this.onCopyCode,
       this.recent = const [],
-      this.onStartService});
+      this.onStartService,
+      this.coming,
+      this.onCallback});
 
   @override
   Widget build(BuildContext context) =>
@@ -87,6 +97,8 @@ class DolphinHomeView extends StatelessWidget {
     final down = state == DolphinServerState.offline || state == DolphinServerState.stopped;
     final onStartService = this.onStartService;
     final onRequests = this.onRequests;
+    final coming = this.coming;
+    final onCallback = this.onCallback;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -120,6 +132,10 @@ class DolphinHomeView extends StatelessWidget {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
                         ),
                       ),
+                    ],
+                    if (coming != null && !down) ...[
+                      const SizedBox(height: 12),
+                      DolphinTechCard(coming: coming),
                     ],
                     const SizedBox(height: 14),
                     Container(
@@ -196,6 +212,23 @@ class DolphinHomeView extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
                     ),
+                    if (onCallback != null && coming == null && !down) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: onCallback,
+                          icon: const Icon(Icons.phone_callback_outlined, size: 18),
+                          label: const Text(kCallbackLabel, style: TextStyle(fontWeight: FontWeight.w700)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: DolphinColors.azure,
+                            side: const BorderSide(color: DolphinColors.lineStrong),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                          ),
+                        ),
+                      ),
+                    ],
                     if (recent.isNotEmpty) ...[
                       const SizedBox(height: 14),
                       Container(
