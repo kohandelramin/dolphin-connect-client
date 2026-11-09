@@ -197,5 +197,14 @@ class PortalDownWiringTest(unittest.TestCase):
         self.assertNotIn("is_installed", body)
 
 
+class SharedRustTest(unittest.TestCase):
+    """The x86 build is Sciter, without the "flutter" feature, and compiles every Dolphin Rust module too."""
+
+    def test_dolphin_modules_call_no_flutter_only_helper(self):
+        # ui_interface::get_id exists only with the flutter feature; 2.0.0-rc.5's first x86 build failed on it.
+        for path in sorted((ROOT / "src").glob("dolphin*.rs")):
+            self.assertNotIn("ui_interface::get_id()", path.read_text(encoding="utf-8"), path.name)
+
+
 if __name__ == "__main__":
     unittest.main()

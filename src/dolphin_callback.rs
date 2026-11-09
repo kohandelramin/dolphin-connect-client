@@ -55,7 +55,9 @@ pub fn start(input: String) {
 fn send(name: &str, phone: &str, note: &str) -> hbb_common::ResultType<(u16, String)> {
     let url = format!("{}/rd/api/dolphin/callback", crate::dolphin::PORTAL_URL);
     let body = json!({
-        "id": crate::ui_interface::get_id(),
+        // crate::ipc::get_id, not ui_interface::get_id: that one exists only in the Flutter build, and the x86 (Sciter)
+        // build compiles this module too. On Windows the Flutter one calls this same function.
+        "id": crate::ipc::get_id(),
         "uuid": crate::encode64(hbb_common::get_uuid()),
         "name": name,
         "phone": phone,
