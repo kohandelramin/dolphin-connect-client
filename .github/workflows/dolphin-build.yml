@@ -339,6 +339,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Portal ADR-0014: the exes also go to the public ghcr.io package the portal fetches them from.
+      packages: write
     env:
       TAG: ${{ inputs.release-tag }}
       DOLPHIN_VERSION: ${{ needs.guard.outputs.version }}
@@ -368,3 +370,31 @@ jobs:
             --repo "${{ github.repository }}" --target "${{ github.sha }}" \
             --title "Dolphin Connect $DOLPHIN_VERSION" \
             --notes "Windows apps, Dolphin Connect $DOLPHIN_VERSION (RustDesk ${UPSTREAM_VERSION} with the changes in dolphin/README.md): customer x64, customer x86 (Windows 7/8 and 32-bit), technician x64. Unsigned. Verify with SHA256SUMS. Changes: dolphin/CHANGELOG.md."
+      # Portal ADR-0014: the same three exes on ghcr.io, one raw layer each, so a blob's digest is the file's SHA-256 and
+      # the portal fetches exactly what its pin (app/client/release.json) names. The package is public (free); the owner
+      # sets it public once after the first push.
+      - name: Install oras (pinned, checksum checked)
+        env:
+          ORAS_VERSION: "1.3.6"
+          ORAS_SHA256: 66fb0ad7206f3f6fa77ed5b552049d364ccf4b50b1684554f731f76302b52ca0
+        run: |
+          curl -fsSL -o oras.tar.gz "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          echo "${ORAS_SHA256}  oras.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/oras" && tar -xzf oras.tar.gz -C "$RUNNER_TEMP/oras" oras
+          echo "$RUNNER_TEMP/oras" >> "$GITHUB_PATH"
+      - name: Push the exes to ghcr.io
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/dolphin-connect-client-files"
+          echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+          cd out
+          v="$DOLPHIN_VERSION"
+          type=application/vnd.microsoft.portable-executable
+          oras push "$repo:$v" --artifact-type application/vnd.dolphin.connect.client.v1 \
+            "DolphinConnect-$v-x64.exe:$type" "DolphinConnect-$v-x86.exe:$type" "DolphinConnect-Technician-$v-x64.exe:$type"
+          # Every pushed layer must be the exact file the release lists in SHA256SUMS.
+          oras manifest fetch "$repo:$v" | jq -r '.layers[] | "\(.digest | sub("^sha256:"; ""))  \(.annotations["org.opencontainers.image.title"])"' | sort > pushed.txt
+          grep '\.exe$' SHA256SUMS | sed 's/ \*/  /' | sort > expected.txt
+          diff -u expected.txt pushed.txt
+          echo "pushed $repo:$v"

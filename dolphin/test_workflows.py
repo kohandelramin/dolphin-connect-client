@@ -67,6 +67,21 @@ class BuildWorkflowTest(unittest.TestCase):
         for name in ("check", "bridge", "analyze-and-test"):
             self.assertNotIn("if:", job(BUILD, name))
 
+    def test_a_release_puts_the_exes_on_ghcr_for_the_portal(self):
+        # Portal ADR-0014: the portal fetches the pinned exes from this package by their SHA-256.
+        release = BUILD.split("\n  release:\n", 1)[1]
+        self.assertIn("      packages: write\n", release)
+        self.assertIn('ORAS_VERSION: "1.3.6"', release)
+        self.assertIn("ORAS_SHA256: 66fb0ad7206f3f6fa77ed5b552049d364ccf4b50b1684554f731f76302b52ca0", release)
+        self.assertIn("sha256sum -c -", release)
+        self.assertIn('repo="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/dolphin-connect-client-files"', release)
+        for exe in ('"DolphinConnect-$v-x64.exe:$type"', '"DolphinConnect-$v-x86.exe:$type"', '"DolphinConnect-Technician-$v-x64.exe:$type"'):
+            self.assertIn(exe, release)
+        # the pushed digests are compared with the release's SHA256SUMS, so a wrong push fails the job
+        self.assertIn("diff -u expected.txt pushed.txt", release)
+        # the package push comes after the GitHub release, which stays the public record
+        self.assertLess(release.index("- name: Publish release"), release.index("- name: Push the exes to ghcr.io"))
+
     def test_a_push_still_runs_the_whole_check_and_the_analysis_is_shared(self):
         self.assertIn("uses: ./.github/workflows/dolphin-analyze.yml", CHECK)
         self.assertIn("flutter analyze", ANALYZE)
