@@ -5,7 +5,11 @@ released together. Each entry has a short Persian note for customers.
 
 ## Unreleased (next app build)
 
-Customer x64 only (the technician app and the x86 build are unchanged by these; Plan 14 B5/B6 are also waiting).
+Customer x64 and x86 (the idle setting is compiled into every customer build); the technician app is unchanged by
+these. Plan 14 B5/B6 are also waiting.
+
+- Owner 2026-11-09: a session is never cut because the technician is idle. `allow-auto-disconnect` is now "N" in
+  the compiled settings and part of the build's floor (was "Y" with 30 minutes: «Connection failed due to inactivity»).
 
 - ADR-0012: «انتقال فایل» starts on in the accept prompt, so copying and pasting files works without an extra step;
   the customer can untick it there or in the session bar.
@@ -13,7 +17,7 @@ Customer x64 only (the technician app and the x86 build are unchanged by these; 
   کارشناس دلفین بگویید…»; code mode keeps «… پشت تلفن نخوانید». Only code mode hands the code to the portal page.
 
 **یادداشت فارسی:** کپی و چسباندن فایل بدون روشن کردن «انتقال فایل» کار می‌کند. مشتری می‌تواند به‌جای «پذیرفتن»،
-رمز یک‌بارمصرف را به کارشناس دلفین بگوید.
+رمز یک‌بارمصرف را به کارشناس دلفین بگوید. اتصال به‌خاطر بی‌کار ماندن کارشناس قطع نمی‌شود.
 
 ## 2.0.0
 

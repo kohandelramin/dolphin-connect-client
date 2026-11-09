@@ -29,6 +29,8 @@ FLOOR = (
     # TB-9: recording stays off on the PC whatever is changed there (approved decision 6); opt-in needs a new build.
     ("override", "enable-record-session", "N"),
     ("local-override", "enable-check-update", "N"),
+    # Owner 2026-11-09: a session is never cut because the technician is idle (portal policy.ts pushes the same).
+    ("override", "allow-auto-disconnect", "N"),
     ("builtin", "allow-deep-link-server-settings", "N"),
 )
 

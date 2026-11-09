@@ -16,8 +16,7 @@
     "enable-remote-restart": "N",
     "enable-terminal": "N",
     "direct-server": "N",
-    "allow-auto-disconnect": "Y",
-    "auto-disconnect-timeout": "30",
+    "allow-auto-disconnect": "N",
     "enable-lan-discovery": "N",
     "allow-auto-update": "N",
     "enable-record-session": "N"

@@ -67,6 +67,13 @@ class SettingsTest(unittest.TestCase):
             del removed[section][key]
             self.assertTrue(g.validate_settings(removed), key)
 
+    def test_an_idle_technician_is_never_disconnected(self):
+        # Owner 2026-11-09: no idle cut, in any build; the compiled override wins over what the portal pushes.
+        self.assertEqual(SETTINGS["override"].get("allow-auto-disconnect"), "N")
+        on = copy.deepcopy(SETTINGS)
+        on["override"]["allow-auto-disconnect"] = "Y"
+        self.assertTrue(g.validate_settings(on))
+
     def test_server_keys_belong_to_the_profile_only(self):
         s = copy.deepcopy(SETTINGS)
         s["override"]["api-server"] = "https://evil.example"
