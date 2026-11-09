@@ -11,6 +11,11 @@ these. Plan 14 B5/B6 are also waiting.
 - Owner 2026-11-09: a session is never cut because the technician is idle. `allow-auto-disconnect` is now "N" in
   the compiled settings and part of the build's floor (was "Y" with 30 minutes: «Connection failed due to inactivity»).
 
+- Portal ADR-0014 (release workflow only, no app change): a production release also pushes the three exes to the
+  public package `ghcr.io/<owner>/dolphin-connect-client-files:<version>` (oras 1.3.6, one raw layer each, digests
+  checked against `SHA256SUMS`), so the portal fetches them by itself instead of an admin upload. After the first
+  push the owner sets the package to public once.
+
 - ADR-0012: «انتقال فایل» starts on in the accept prompt, so copying and pasting files works without an extra step;
   the customer can untick it there or in the session bar.
 - In click mode (`approve-mode = both`) the customer window shows the one-time password with «این رمز را فقط به
