@@ -3,10 +3,12 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased (next app build)
+## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
-Customer x64 and x86 (the idle setting is compiled into every customer build); the technician app is unchanged by
-these. Plan 14 B5/B6 are also waiting.
+All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
+
+- The x86 (Sciter) build failed on `ui_interface::get_id`, which exists only in the Flutter build; the callback now
+  reads the ID with `ipc::get_id` (what the Flutter helper calls on Windows), and a text check guards it.
 
 - Owner 2026-11-09: a session is never cut because the technician is idle. `allow-auto-disconnect` is now "N" in
   the compiled settings and part of the build's floor (was "Y" with 30 minutes: «Connection failed due to inactivity»).
