@@ -44,7 +44,9 @@ class DolphinAcceptView extends StatefulWidget {
 class _DolphinAcceptViewState extends State<DolphinAcceptView> {
   bool keyboard = true;
   bool clipboard = true;
-  bool file = false;
+  // ADR-0012: on by default, so copy and paste of files works without an extra step; the customer can untick it here
+  // or switch it off in the session bar.
+  bool file = true;
 
   Widget _toggle(String label, bool value, ValueChanged<bool> set) => FilterChip(
         label: Text(label),

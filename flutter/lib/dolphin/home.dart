@@ -138,10 +138,13 @@ class _DolphinHomeState extends State<DolphinHome> {
             showCode: bind.mainGetOptionSync(key: kDolphinShowCodeOption),
             password: model.serverPasswd.text,
             inSession: codeHiddenFor(_connected));
-        if (_requests) return DolphinCustomerRequests(id: id, code: code, onBack: () => _show(false));
+        if (_requests) {
+          return DolphinCustomerRequests(id: id, code: portalCode(model.approveMode, code), onBack: () => _show(false));
+        }
         return DolphinHomeView(
           id: id,
           code: code,
+          codeSpoken: codeSpoken(model.approveMode),
           onCopyCode: () {
             Clipboard.setData(ClipboardData(text: code));
             showToast('کپی شد');

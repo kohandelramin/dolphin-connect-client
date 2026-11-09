@@ -81,6 +81,25 @@ void main() {
     expect(copied, isTrue);
   });
 
+  testWidgets('the one-time code says where it goes: the portal in code mode, the phone in click mode (ADR-0012)',
+      (tester) async {
+    Widget home({required bool spoken}) => _app(DolphinHomeView(
+        id: '123456789',
+        code: 'Ab3dE6gh',
+        codeSpoken: spoken,
+        state: DolphinServerState.ready,
+        onCopy: () {},
+        phone: '',
+        siteLabel: 'x'));
+    await tester.pumpWidget(home(spoken: false));
+    expect(find.text('Ab3dE6gh'), findsOneWidget);
+    expect(find.text(kCodeForPortalLine), findsOneWidget);
+    expect(find.text(kCodeSpokenLine), findsNothing);
+    await tester.pumpWidget(home(spoken: true));
+    expect(find.text(kCodeSpokenLine), findsOneWidget);
+    expect(find.text(kCodeForPortalLine), findsNothing);
+  });
+
   testWidgets('home opens the request section when asked, and hides the button otherwise', (tester) async {
     var opened = false;
     await tester.pumpWidget(_app(DolphinHomeView(
@@ -115,7 +134,7 @@ void main() {
     expect(find.textContaining('وصل نیست'), findsOneWidget);
   });
 
-  testWidgets('verified prompt: portal name, file transfer off by default, accept passes the toggles',
+  testWidgets('verified prompt: portal name, file transfer on by default (ADR-0012), accept passes the toggles',
       (tester) async {
     List<bool>? got;
     var denied = false;
@@ -127,7 +146,7 @@ void main() {
     expect(find.textContaining('رحمت کهندل از دلفین'), findsOneWidget);
     expect(find.textContaining('DESKTOP-A1'), findsNothing);
     await tester.tap(find.text('پذیرفتن'));
-    expect(got, [true, true, false]);
+    expect(got, [true, true, true]);
     await tester.tap(find.text('رد'));
     expect(denied, isTrue);
   });

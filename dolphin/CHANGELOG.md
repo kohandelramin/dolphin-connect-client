@@ -3,6 +3,18 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
+## Unreleased (next app build)
+
+Customer x64 only (the technician app and the x86 build are unchanged by these; Plan 14 B5/B6 are also waiting).
+
+- ADR-0012: «انتقال فایل» starts on in the accept prompt, so copying and pasting files works without an extra step;
+  the customer can untick it there or in the session bar.
+- In click mode (`approve-mode = both`) the customer window shows the one-time password with «این رمز را فقط به
+  کارشناس دلفین بگویید…»; code mode keeps «… پشت تلفن نخوانید». Only code mode hands the code to the portal page.
+
+**یادداشت فارسی:** کپی و چسباندن فایل بدون روشن کردن «انتقال فایل» کار می‌کند. مشتری می‌تواند به‌جای «پذیرفتن»،
+رمز یک‌بارمصرف را به کارشناس دلفین بگوید.
+
 ## 2.0.0
 
 First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.

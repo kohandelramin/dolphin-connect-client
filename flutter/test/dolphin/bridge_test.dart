@@ -104,9 +104,21 @@ void main() {
   test('the code is shown and handed over only for a PC linked to a code-mode organization', () {
     expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh', inSession: false), 'Ab3dE6gh');
     expect(dolphinCode(approveMode: 'click', showCode: 'Y', password: 'Ab3dE6gh', inSession: false), '');
+    // ADR-0012: click organizations get "both", and the customer may read the code on the phone.
+    expect(dolphinCode(approveMode: 'both', showCode: 'Y', password: 'Ab3dE6gh', inSession: false), 'Ab3dE6gh');
+    expect(dolphinCode(approveMode: 'both', showCode: 'N', password: 'Ab3dE6gh', inSession: false), '');
+    expect(dolphinCode(approveMode: 'both', showCode: 'Y', password: 'Ab3dE6gh', inSession: true), '');
     expect(dolphinCode(approveMode: 'password', showCode: 'N', password: 'Ab3dE6gh', inSession: false), ''); // unlinked, or click
     expect(dolphinCode(approveMode: 'password', showCode: '', password: 'Ab3dE6gh', inSession: false), ''); // never heard from the portal
     expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: '-', inSession: false), '');
+  });
+
+  test('only code mode hands the code to the portal page; click mode says it is read on the phone (ADR-0012)', () {
+    expect(portalCode('password', 'Ab3dE6gh'), 'Ab3dE6gh');
+    expect(portalCode('both', 'Ab3dE6gh'), '');
+    expect(portalCode('click', 'Ab3dE6gh'), '');
+    expect(codeSpoken('both'), isTrue);
+    expect(codeSpoken('password'), isFalse);
   });
 
   test('only the portal page is answered', () {

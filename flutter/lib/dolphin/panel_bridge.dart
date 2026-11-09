@@ -121,15 +121,26 @@ const kPanelNoAnswer = 'پنل جواب نداد؛ اگر وارد پنل نشد
 /// Pushed by the portal (app/src/lib/engine/policy.ts SHOW_CODE_OPTION): "Y" for a PC linked to a code-mode organization.
 const kDolphinShowCodeOption = 'dolphin-show-code';
 
-/// The one-time code to show and hand over, or '' when this PC is not in code mode. `approve-mode` alone cannot tell:
-/// an unlinked PC also gets "password" (Plan 13 F2), so the portal says it outright.
+/// The one-time code to show, or '' when this PC has none to give. `approve-mode` alone cannot tell: an unlinked PC also
+/// gets "password" (Plan 13 F2), so the portal says it outright. Code mode is "password"; click mode is "both" (Accept or
+/// the code read on the phone, ADR-0012).
 ///
 /// While a technician is connected there is no code: the client rotates it when a login succeeds, and the technician
 /// is looking at this screen (review P13 T9).
 String dolphinCode(
         {required String approveMode, required String showCode, required String password, required bool inSession}) =>
     !inSession &&
-            approveMode == 'password' && showCode == 'Y' && panelCodePattern.hasMatch(password) ? password : '';
+            (approveMode == 'password' || approveMode == 'both') &&
+            showCode == 'Y' &&
+            panelCodePattern.hasMatch(password)
+        ? password
+        : '';
+
+/// ADR-0012: in click mode ("both") the customer reads the code to the technician on the phone.
+bool codeSpoken(String approveMode) => approveMode == 'both';
+
+/// Only code mode hands the code to the portal page (the request form); in click mode it never leaves the window.
+String portalCode(String approveMode, String code) => approveMode == 'password' ? code : '';
 
 /// Until the first read of the session count it is unknown, and unknown hides the code: a session accepted while the
 /// update screen was up is live when home opens (final review).

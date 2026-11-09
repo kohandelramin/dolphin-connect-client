@@ -6,6 +6,12 @@ import 'recent_sessions.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 
+/// Under the one-time code in code mode: it goes into the portal, never over the phone.
+const kCodeForPortalLine = 'رمز را فقط در «درخواست‌ها و پیام‌ها» یا پورتال ثبت کنید؛ پشت تلفن نخوانید.';
+
+/// ADR-0012, click mode: the code may be read to the Dolphin technician instead of pressing «پذیرفتن».
+const kCodeSpokenLine = 'این رمز را فقط به کارشناس دلفین بگویید؛ کارشناس با آن بدون «پذیرفتن» وصل می‌شود. رمز بعد از هر اتصال عوض می‌شود.';
+
 /// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
 const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به شما داده است؛ حساب ندارید؟ با پشتیبانی تماس بگیرید.';
 
@@ -52,8 +58,11 @@ class DolphinHomeView extends StatelessWidget {
   /// Opens the request section (the customer portal inside the app); hidden when null.
   final VoidCallback? onRequests;
 
-  /// The one-time code in code mode (WF-3); '' hides it.
+  /// The one-time code (WF-3); '' hides it.
   final String code;
+
+  /// ADR-0012: true in click mode, where the customer reads the code on the phone instead of typing it in the portal.
+  final bool codeSpoken;
   final VoidCallback? onCopyCode;
 
   /// UN-15: the last finished sessions on this PC, newest first (pushed by the portal).
@@ -77,6 +86,7 @@ class DolphinHomeView extends StatelessWidget {
       required this.siteLabel,
       this.onRequests,
       this.code = '',
+      this.codeSpoken = false,
       this.onCopyCode,
       this.recent = const [],
       this.onStartService,
@@ -195,9 +205,9 @@ class DolphinHomeView extends StatelessWidget {
                                 onPressed: onCopyCode,
                               ),
                             ]),
-                            const Text('رمز را فقط در «درخواست‌ها و پیام‌ها» یا پورتال ثبت کنید؛ پشت تلفن نخوانید.',
+                            Text(codeSpoken ? kCodeSpokenLine : kCodeForPortalLine,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+                                style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
                           ],
                         ],
                       ),
