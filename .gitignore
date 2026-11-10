@@ -59,5 +59,7 @@ flutter/web/
 # libdrmtap is cloned at build time by build.py (not a submodule)
 /third_party/libdrmtap/
 src/dolphin_generated.rs
+# D21: the obfuscated fixed password, written by dolphin/gen_profile.py from a CI secret. Never commit it.
+src/dolphin_fixed_generated.rs
 flutter/lib/dolphin/brand.dart
 out-dev/

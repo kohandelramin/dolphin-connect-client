@@ -1,6 +1,9 @@
 import copy
+import hashlib
+import hmac
 import json
 import pathlib
+import re
 import tempfile
 import unittest
 
@@ -15,6 +18,9 @@ PROFILE = {
     "key": KEY,
     "api-server": "https://support.dolphindev.ir/rd",
 }
+# A fake fixed password (D21). The real one exists only as the fork's GitHub Actions secret.
+FAKE_FIXED = "fake-fixed-for-tests-only"
+FAKE_ENV = {g.FIXED_ENV: FAKE_FIXED}
 
 
 class ProfileTest(unittest.TestCase):
@@ -167,8 +173,8 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(s), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "dev.json").write_text(json.dumps(PROFILE), encoding="utf-8")
-            self.assertEqual(g.main(["production", "customer", "2.0.0"], root), 1)
-            self.assertEqual(g.main(["dev", "customer", "2.0.0"], root), 0)
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root, FAKE_ENV), 1)
+            self.assertEqual(g.main(["dev", "customer", "2.0.0"], root, {}), 0)
             self.assertIn("class DolphinBrand", (root / "flutter" / "lib" / "dolphin" / "brand.dart").read_text(encoding="utf-8"))
 
     def test_rust_strings_are_escaped_and_control_characters_refused(self):
@@ -193,14 +199,14 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(with_phone), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
-            self.assertEqual(g.main(["production", "customer", "2.0.0"], root), 0)
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root, FAKE_ENV), 0)
             self.assertIn('("conn-type", "incoming")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
             self.assertIn("approve-mode", (root / "dolphin" / "build" / "baked-settings.json").read_text(encoding="utf-8"))
-            self.assertEqual(g.main(["production", "technician", "2.0.0"], root), 0)
+            self.assertEqual(g.main(["production", "technician", "2.0.0"], root, FAKE_ENV), 0)
             self.assertIn('("conn-type", "outgoing")', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
-            self.assertEqual(g.main(["empty", "customer", "2.0.0"], root), 1)
-            self.assertEqual(g.main(["production", "guest", "2.0.0"], root), 1)
-            self.assertEqual(g.main(["production"], root), 2)
+            self.assertEqual(g.main(["empty", "customer", "2.0.0"], root, FAKE_ENV), 1)
+            self.assertEqual(g.main(["production", "guest", "2.0.0"], root, FAKE_ENV), 1)
+            self.assertEqual(g.main(["production"], root, FAKE_ENV), 2)
 
 
 class VersionTest(unittest.TestCase):
@@ -229,9 +235,120 @@ class VersionTest(unittest.TestCase):
             (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             for bad in ("v2.0.0", "2.0", "2.0.0-beta.1", "1.5.0-dc.4", ""):
-                self.assertEqual(g.main(["production", "customer", bad], root), 1, bad)
-            self.assertEqual(g.main(["production", "customer", "2.0.0-dev.7"], root), 0)
+                self.assertEqual(g.main(["production", "customer", bad], root, FAKE_ENV), 1, bad)
+            self.assertEqual(g.main(["production", "customer", "2.0.0-dev.7"], root, FAKE_ENV), 0)
             self.assertIn('DOLPHIN_VERSION: &str = "2.0.0-dev.7"', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
+
+
+def _root(tmp, settings=None):
+    root = pathlib.Path(tmp)
+    (root / "dolphin" / "profiles").mkdir(parents=True)
+    (root / "src").mkdir()
+    (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
+    (root / "dolphin" / "settings.json").write_text(json.dumps(settings or SETTINGS), encoding="utf-8")
+    for name in ("production", "dev"):
+        (root / "dolphin" / "profiles" / f"{name}.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+    return root
+
+
+def _arrays(rust):
+    """The three byte arrays of a rendered src/dolphin_fixed_generated.rs."""
+    out = {}
+    for name, body in re.findall(r"pub static (\w+): \[u8; \d+\] = \[([^\]]*)\];", rust):
+        out[name] = bytes(int(x, 16) for x in body.split(",") if x.strip())
+    return out
+
+
+def _unmask(a):
+    return bytes(m ^ x ^ y for m, x, y in zip(a["FIXED_MASKED"], a["FIXED_PAD_A"], a["FIXED_PAD_B"]))
+
+
+class FixedPasswordTest(unittest.TestCase):
+    """Owner decision D21: one fixed password, from a CI secret, obfuscated in both apps, never in git or logs."""
+
+    def test_the_apps_carry_a_derived_value_not_the_password_itself(self):
+        secret = g.fixed_secret(FAKE_FIXED)
+        self.assertEqual(secret, hmac.new(FAKE_FIXED.encode(), b"dolphin-connect fixed password v1", hashlib.sha256).hexdigest())
+        self.assertRegex(secret, r"^[0-9a-f]{64}$")
+        self.assertNotIn(FAKE_FIXED, secret)
+        self.assertNotEqual(g.fixed_secret(FAKE_FIXED + "x"), secret)
+
+    def test_the_rendered_file_recovers_the_value_but_never_shows_it(self):
+        secret = g.fixed_secret(FAKE_FIXED)
+        rust = g.render_fixed_rust(secret)
+        a = _arrays(rust)
+        self.assertEqual(set(a), {"FIXED_MASKED", "FIXED_PAD_A", "FIXED_PAD_B"})
+        self.assertEqual({len(v) for v in a.values()}, {64})
+        self.assertEqual(_unmask(a).decode("ascii"), secret)
+        for plain in (FAKE_FIXED, secret, secret[:16]):
+            self.assertNotIn(plain, rust)
+        self.assertNotIn(secret.encode(), a["FIXED_MASKED"])
+        self.assertIn("Obfuscated, not encrypted", rust)
+
+    def test_every_build_gets_fresh_pads(self):
+        secret = g.fixed_secret(FAKE_FIXED)
+        self.assertNotEqual(_arrays(g.render_fixed_rust(secret))["FIXED_MASKED"], _arrays(g.render_fixed_rust(secret))["FIXED_MASKED"])
+        zero = g.render_fixed_rust(secret, rand=lambda n: bytes(n))
+        self.assertEqual(_arrays(zero)["FIXED_MASKED"], secret.encode())  # zero pads: the masking is a plain XOR
+
+    def test_without_a_secret_the_arrays_are_empty(self):
+        rust = g.render_fixed_rust(None)
+        self.assertEqual({len(v) for v in _arrays(rust).values()}, {0})
+        self.assertIn("pub static FIXED_MASKED: [u8; 0] = [];", rust)
+
+    def test_a_weak_or_odd_value_is_refused(self):
+        self.assertEqual(g.validate_fixed_password(FAKE_FIXED), [])
+        for bad in ("short", " padded-value ", "tab\tinside-it", "newline\ninside"):
+            self.assertTrue(g.validate_fixed_password(bad), repr(bad))
+
+    def test_a_production_build_fails_without_the_secret(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _root(tmp)
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root, {}), 1)
+            self.assertEqual(g.main(["production", "technician", "2.0.0"], root, {g.FIXED_ENV: ""}), 1)
+            self.assertFalse((root / "src" / "dolphin_fixed_generated.rs").exists())
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root, {g.FIXED_ENV: "short"}), 1)
+
+    def test_both_apps_get_the_same_value_and_no_file_shows_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _root(tmp)
+            secret = g.fixed_secret(FAKE_FIXED)
+            for variant in ("customer", "technician"):
+                self.assertEqual(g.main(["production", variant, "2.0.0"], root, FAKE_ENV), 0)
+                a = _arrays((root / "src" / "dolphin_fixed_generated.rs").read_text(encoding="utf-8"))
+                self.assertEqual(_unmask(a).decode(), secret)
+            for f in (root / "src" / "dolphin_generated.rs", root / "src" / "dolphin_fixed_generated.rs",
+                      root / "flutter" / "lib" / "dolphin" / "brand.dart", root / "dolphin" / "build" / "baked-settings.json"):
+                text = f.read_text(encoding="utf-8")
+                self.assertNotIn(FAKE_FIXED, text, f)
+                self.assertNotIn(secret, text, f)
+
+    def test_a_dev_build_without_the_secret_leaves_the_feature_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _root(tmp)
+            self.assertEqual(g.main(["dev", "customer", "2.0.0-dev.1"], root, {}), 0)
+            a = _arrays((root / "src" / "dolphin_fixed_generated.rs").read_text(encoding="utf-8"))
+            self.assertEqual({len(v) for v in a.values()}, {0})
+
+    def test_checks_may_leave_it_out_on_purpose_in_any_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _root(tmp)
+            self.assertEqual(g.main(["production", "customer", "2.0.0", g.WITHOUT_FIXED], root, FAKE_ENV), 0)
+            a = _arrays((root / "src" / "dolphin_fixed_generated.rs").read_text(encoding="utf-8"))
+            self.assertEqual({len(v) for v in a.values()}, {0})
+            self.assertEqual(g.main(["production", "customer", g.WITHOUT_FIXED], root, {}), 2)
+
+    def test_the_customer_cannot_set_a_permanent_password_or_take_one_from_a_link(self):
+        self.assertEqual(SETTINGS["builtin"]["disable-change-permanent-password"], "Y")
+        self.assertEqual(SETTINGS["builtin"]["allow-deep-link-password"], "N")
+        # The upstream permanent password stays off; the portal switches only Dolphin's own path (dolphin-fixed-password).
+        self.assertEqual(SETTINGS["override"]["verification-method"], "use-temporary-password")
+        self.assertNotIn("password", SETTINGS["hard"])
+        self.assertNotIn("dolphin-fixed-password", json.dumps(SETTINGS))
+
+    def test_the_secret_file_is_git_ignored(self):
+        ignore = (HERE.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn("src/dolphin_fixed_generated.rs", ignore)
 
 
 if __name__ == "__main__":

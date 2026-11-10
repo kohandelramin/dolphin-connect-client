@@ -33,6 +33,7 @@
   "builtin": {
     "allow-deep-link-server-settings": "N",
     "allow-deep-link-password": "N",
+    "disable-change-permanent-password": "Y",
     "hide-server-settings": "Y",
     "hide-security-settings": "Y",
     "hide-help-cards": "Y",
