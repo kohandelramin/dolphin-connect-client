@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'digits.dart';
+import 'reconnect.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 import 'verify.dart';
@@ -160,6 +161,9 @@ class DolphinSessionView extends StatelessWidget {
   final bool clipboard;
   final bool file;
 
+  /// D23: the same technician came back within 2 minutes of a drop; the badge says «دوباره وصل شد».
+  final bool resumed;
+
   /// `permission` is `keyboard`, `clipboard` or `file` (bind.cmSwitchPermission names).
   final void Function(String permission, bool enabled) onToggle;
   final VoidCallback onEnd;
@@ -171,6 +175,7 @@ class DolphinSessionView extends StatelessWidget {
       required this.keyboard,
       required this.clipboard,
       required this.file,
+      this.resumed = false,
       required this.onToggle,
       required this.onEnd});
 
@@ -196,7 +201,8 @@ class DolphinSessionView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
-              child: const Text('● در جلسه', style: TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700)),
+              child: Text(resumed ? '● $kDolphinReconnected' : '● در جلسه',
+                  style: const TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 10),
             Text(technician, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),

@@ -11,11 +11,16 @@ import 'brand.dart';
 import 'connection_view.dart';
 import 'home.dart';
 import 'home_view.dart';
+import 'reconnect.dart';
 import 'tech_card.dart';
 import 'verify.dart';
 
 /// Connections the customer ended from this window («پایان» or «رد»), for the ended screen's reason (UX-6).
 final _endedByCustomer = <int>{};
+
+/// D23: when each technician (peer ID) was last seen in a live session in this window. Forgotten when the customer ends
+/// the session, so only a drop, not the customer's «پایان», makes the next session «دوباره وصل شد».
+final _lastLive = <String, DateTime>{};
 
 /// Customer build's connection window for one incoming client. Unlike upstream, accepting does not
 /// minimize the window: the customer keeps seeing who is connected and the End button (SECURITY control 2).
@@ -36,14 +41,22 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   // Fixed at the first build after the end (see latchReason); the screen must not change its mind.
   bool? _byCustomer;
   DolphinEndReason? _reason;
+  late final bool _resumed;
 
   @override
   void initState() {
     super.initState();
+    // Remote control only: a file-transfer tab opened beside a live session is not a comeback.
+    _resumed = widget.client.type_() == ClientType.remote && dolphinResumed(_lastLive[widget.client.peerId], DateTime.now());
     // Twice a second: re-check what the portal said about this peer, and note when the session started.
     _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       setState(() {
-        if (widget.client.authorized && !widget.client.disconnected) _sessionStart ??= DateTime.now();
+        if (widget.client.authorized && !widget.client.disconnected) {
+          _sessionStart ??= DateTime.now();
+          if (widget.client.type_() == ClientType.remote && !_endedByCustomer.contains(widget.client.id)) {
+            _lastLive[widget.client.peerId] = DateTime.now();
+          }
+        }
         if (widget.client.disconnected) _endedAt ??= DateTime.now();
       });
     });
@@ -147,6 +160,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         },
         onDeny: () {
           _endedByCustomer.add(c.id);
+          _lastLive.remove(c.peerId);
           bind.cmCloseConnection(connId: c.id);
         },
       );
@@ -157,6 +171,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       keyboard: c.keyboard,
       clipboard: c.clipboard,
       file: c.file,
+      resumed: _resumed,
       onToggle: (name, enabled) {
         bind.cmSwitchPermission(connId: c.id, name: name, enabled: enabled);
         setState(() {
@@ -167,6 +182,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       },
       onEnd: () {
         _endedByCustomer.add(c.id);
+        _lastLive.remove(c.peerId);
         bind.cmCloseConnection(connId: c.id);
       },
     );

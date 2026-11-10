@@ -283,5 +283,30 @@ class FixedPasswordWiringTest(unittest.TestCase):
         self.assertIn("const SESSION_TIMEOUT: Duration = Duration::from_secs(120);", conn)
 
 
+class QuietReconnectWiringTest(unittest.TestCase):
+    """D23: no Flutter here, so the source text proves the hook is in place and CI analyzes the file it touches."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_msgbox_handler_retries_quietly_before_anything_else(self):
+        model = self.read("flutter", "lib", "models", "model.dart")
+        body = model.split("handleMsgBox(Map<String, dynamic> evt", 1)[1]
+        hook = body.index("if (_dolphinQuietRetry(type, title, text, dialogManager)) return;")
+        self.assertLess(hook, body.index("if (type == 're-input-password')"))
+        self.assertIn("technician: bind.isOutgoingOnly(),", model)
+        self.assertIn("_dolphinReconnected(); // Dolphin Connect (D23)", model)
+        self.assertIn("import 'package:flutter_hbb/dolphin/reconnect.dart';", model)
+
+    def test_ci_analyzes_model_dart_and_tests_the_rules(self):
+        self.assertIn("lib/models/model.dart", ANALYZE)
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "reconnect_test.dart").is_file())
+
+    def test_the_customer_window_marks_a_comeback(self):
+        conn = self.read("flutter", "lib", "dolphin", "connection.dart")
+        self.assertIn("resumed: _resumed,", conn)
+        self.assertEqual(conn.count("_lastLive.remove(c.peerId);"), 2)  # «پایان» and «رد» forget it
+
+
 if __name__ == "__main__":
     unittest.main()

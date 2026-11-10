@@ -43,6 +43,7 @@ import '../common/widgets/dialog.dart';
 import 'input_model.dart';
 import 'platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
+import 'package:flutter_hbb/dolphin/reconnect.dart'; // Dolphin Connect (D23)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -121,6 +122,10 @@ class FfiModel with ChangeNotifier {
   Timer? _restartReconnectDelayTimer;
   var _reconnects = 1;
   DateTime? _offlineReconnectStartTime;
+  // Dolphin Connect (D23): the technician app's quiet retries after a drop (flutter/lib/dolphin/reconnect.dart).
+  DateTime? _dolphinDropAt;
+  int _dolphinAttempt = 0;
+  Timer? _dolphinRetryTimer;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
   bool _viewOnly = false;
@@ -908,6 +913,9 @@ class FfiModel with ChangeNotifier {
       parent.target?.inputModel.setRelativeMouseMode(false);
     }
 
+    // Dolphin Connect (D23): a dropped link in the technician app is retried quietly for about 2 minutes.
+    if (_dolphinQuietRetry(type, title, text, dialogManager)) return;
+
     if (type == 're-input-password') {
       wrongPasswordDialog(sessionId, dialogManager, type, title, text);
     } else if (type == 'input-2fa') {
@@ -967,6 +975,55 @@ class FfiModel with ChangeNotifier {
       }
       showMsgBox(sessionId, type, title, text, link, hasRetry, dialogManager);
     }
+  }
+
+  /// Dolphin Connect (D23): instead of the error box, «در حال اتصال دوباره…» and a retry after a short delay, while the
+  /// rules in flutter/lib/dolphin/reconnect.dart allow it. False hands the message to upstream's handling.
+  bool _dolphinQuietRetry(dynamic type, dynamic title, dynamic text,
+      OverlayDialogManager dialogManager) {
+    if (type is! String || title is! String || text is! String) return false;
+    final now = DateTime.now();
+    if (!dolphinQuietRetry(
+        technician: bind.isOutgoingOnly(),
+        wasConnected: _pi.isSet.isTrue,
+        type: type,
+        title: title,
+        text: text,
+        firstDrop: _dolphinDropAt,
+        now: now)) {
+      return false;
+    }
+    final dropAt = _dolphinDropAt ??= now;
+    _timer?.cancel();
+    _dolphinRetryTimer?.cancel();
+    final delay = dolphinRetryDelay(_dolphinAttempt++);
+    dialogManager.dismissAll();
+    dialogManager.showLoading(
+        dolphinReconnectingText(
+            kDolphinReconnectWindow - now.difference(dropAt)),
+        onCancel: closeConnection);
+    _dolphinRetryTimer = Timer(delay, () {
+      _dolphinRetryTimer = null;
+      if (parent.target?.closed == true) return;
+      _cancelPendingMonitorRestore();
+      bind.sessionReconnect(sessionId: sessionId, forceRelay: false);
+      clearPermissions();
+    });
+    return true;
+  }
+
+  /// Dolphin Connect (D23): the session is back; say so once if it came back from a quiet retry.
+  void _dolphinReconnected() {
+    _dolphinRetryTimer?.cancel();
+    _dolphinRetryTimer = null;
+    _dolphinAttempt = 0;
+    if (_dolphinDropAt == null) return;
+    _dolphinDropAt = null;
+    BotToast.showText(
+        text: kDolphinReconnected,
+        duration: const Duration(seconds: 3),
+        clickClose: true,
+        onlyOne: true);
   }
 
   void resetRestartReconnectState() {
@@ -1447,6 +1504,7 @@ class FfiModel with ChangeNotifier {
       if (displays.isNotEmpty) {
         _reconnects = 1;
         _offlineReconnectStartTime = null;
+        _dolphinReconnected(); // Dolphin Connect (D23)
         resetRestartReconnectState();
         waitForFirstImage.value = true;
         isRefreshing = false;
