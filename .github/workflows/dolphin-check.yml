@@ -32,8 +32,9 @@ jobs:
           pip install pillow==11.3.0
           python -m unittest discover -s dolphin -p "test_*.py" -v
           v="$(cat dolphin/version.txt)-dev.${{ github.run_number }}"
-          python dolphin/gen_profile.py "$PROFILE" customer "$v"
-          python dolphin/gen_profile.py "$PROFILE" technician "$v"
+          # The settings and profile checks only; the fixed password (D21) goes into the app builds alone.
+          python dolphin/gen_profile.py "$PROFILE" customer "$v" --without-fixed-password
+          python dolphin/gen_profile.py "$PROFILE" technician "$v" --without-fixed-password
       - name: No visible RustDesk text or links (fails early, before the long builds)
         run: python dolphin/rebrand.py
 
@@ -54,6 +55,8 @@ jobs:
           "$RUNNER_TEMP/dolphin_wait"
           rustc --edition 2021 --test src/dolphin_portal.rs -o "$RUNNER_TEMP/dolphin_portal"
           "$RUNNER_TEMP/dolphin_portal"
+          rustc --edition 2021 --test src/dolphin_fixed_core.rs -o "$RUNNER_TEMP/fixed_core"
+          "$RUNNER_TEMP/fixed_core"
           rustc --edition 2021 --test src/dolphin_callback_core.rs -o "$RUNNER_TEMP/callback_core"
           "$RUNNER_TEMP/callback_core"
 

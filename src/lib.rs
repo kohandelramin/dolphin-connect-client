@@ -23,6 +23,8 @@ pub use self::rendezvous_mediator::*;
 pub mod common;
 mod dolphin;
 mod dolphin_portal;
+mod dolphin_fixed_core;
+mod dolphin_fixed;
 mod dolphin_update_core;
 mod dolphin_update;
 mod dolphin_callback_core;

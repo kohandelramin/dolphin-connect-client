@@ -2798,6 +2798,9 @@ impl VideoHandler {
 enum PasswordSource {
     PersonalAb(Vec<u8>),
     SharedAb(String),
+    // Dolphin Connect (D21): the fixed password. Handled like a shared password (never saved to the peer's config or
+    // synced), and carries no value, so a conn token handed to another window does not hold it.
+    DolphinFixed,
     Undefined,
 }
 
@@ -2826,6 +2829,7 @@ impl PasswordSource {
         }
         match self {
             PasswordSource::SharedAb(p) => Self::equal(p, password, hash),
+            PasswordSource::DolphinFixed => true,
             _ => false,
         }
     }
@@ -4688,6 +4692,21 @@ pub async fn handle_hash(
             let res = hasher.finalize();
             password = res[..].into();
             lc.write().unwrap().password_source = Default::default();
+        }
+    }
+    // Dolphin Connect (owner decision D21): the technician app's fixed password, when neither a reconnect nor the panel
+    // gave one (the panel sends the customer's one-time code in code mode, or the password the customer read out).
+    // Before the remembered password, so an old one-time password saved for this PC is not tried first. Marked as
+    // `DolphinFixed`, handled like upstream's shared passwords, so it is never saved to the peer's config.
+    // The customer PC decides whether it counts; if not, the technician gets the password box and the customer the
+    // accept prompt, as before.
+    if password.is_empty() {
+        if let Some(p) = crate::dolphin_fixed::technician_password() {
+            let mut hasher = Sha256::new();
+            hasher.update(p.as_bytes());
+            hasher.update(&hash.salt);
+            password = hasher.finalize()[..].into();
+            lc.write().unwrap().password_source = PasswordSource::DolphinFixed;
         }
     }
     // shared password

@@ -2597,6 +2597,34 @@ impl Connection {
         false
     }
 
+    /// Dolphin Connect (owner decision D21). `None`: not the fixed password, upstream decides as before. `Some(true)`:
+    /// the fixed password, accepted. `Some(false)`: the fixed password, refused for this PC now. A login that may only
+    /// be early (the portal's word on the technician comes with the next heartbeat, every 3 s while a connection is
+    /// open) waits up to `WAIT_MS`. Wrong passwords never reach the wait: they are not the fixed one.
+    async fn dolphin_fixed_login(&mut self, peer_id: &str, presented: &[u8]) -> Option<bool> {
+        use crate::dolphin_fixed_core::{Gate, POLL_MS, WAIT_MS};
+        if !crate::dolphin_fixed::presented(&self.hash.salt, &self.hash.challenge, presented) {
+            return None;
+        }
+        let mut waited = 0;
+        loop {
+            match crate::dolphin_fixed::gate_now(peer_id) {
+                Gate::Allow => {
+                    log::info!("Dolphin fixed password accepted for the technician the portal authorized");
+                    return Some(true);
+                }
+                Gate::Refuse => break,
+                Gate::Wait if waited >= WAIT_MS => break,
+                Gate::Wait => {
+                    sleep(POLL_MS as f32 / 1000.).await;
+                    waited += POLL_MS;
+                }
+            }
+        }
+        log::info!("Dolphin fixed password not accepted (off for this organization, code mode, portal unreachable, or not the authorized technician)");
+        Some(false)
+    }
+
     fn is_recent_session(&mut self, tfa: bool) -> bool {
         SESSIONS
             .lock()
@@ -2990,6 +3018,31 @@ impl Connection {
             let allow_logon_screen_password =
                 crate::get_builtin_option(keys::OPTION_ALLOW_LOGON_SCREEN_PASSWORD) == "Y"
                     && is_logon();
+
+            // Dolphin Connect (owner decision D21): the fixed password, ahead of the approve-mode rules so it works in
+            // click mode ("both") without the customer's Accept, but only as src/dolphin_fixed_core.rs allows (the
+            // portal turned it on, not code mode, the portal reachable, the peer is the authorized technician). A
+            // session started this way shows the same window, banner and «پایان» as one started with the one-time
+            // password, and is audited as a permanent-password login.
+            if let Some(accepted) = self.dolphin_fixed_login(&lr.my_id, &lr.password).await {
+                if accepted {
+                    self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::PermanentPassword);
+                    if !self.send_logon_response_and_keep_alive().await {
+                        return false;
+                    }
+                    self.try_start_cm(lr.my_id, lr.my_name, self.authorized);
+                } else {
+                    // As if no password came: the customer gets the accept prompt (click mode) and the technician the
+                    // password box (the one-time password read on the phone). Not a failed attempt: it neither counts
+                    // towards the lock-out nor rotates the one-time password, because the technician app sends it by
+                    // itself to every PC.
+                    self.try_start_cm(lr.my_id, lr.my_name, false);
+                    self.send_login_error(crate::client::LOGIN_MSG_PASSWORD_EMPTY)
+                        .await;
+                }
+                return true;
+            }
+            // End Dolphin Connect.
 
             if (password::approve_mode() == ApproveMode::Click && !allow_logon_screen_password)
                 || password::approve_mode() == ApproveMode::Both && !password::has_valid_password()

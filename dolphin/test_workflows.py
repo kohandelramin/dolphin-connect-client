@@ -128,7 +128,7 @@ class BuildWorkflowTest(unittest.TestCase):
 
     def test_std_only_rust_files_are_tested_in_ci(self):
         std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs",
-                    "src/dolphin_portal.rs", "src/dolphin_callback_core.rs")
+                    "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -149,8 +149,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 5)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 5)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 6)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 6)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -204,6 +204,79 @@ class SharedRustTest(unittest.TestCase):
         # ui_interface::get_id exists only with the flutter feature; 2.0.0-rc.5's first x86 build failed on it.
         for path in sorted((ROOT / "src").glob("dolphin*.rs")):
             self.assertNotIn("ui_interface::get_id()", path.read_text(encoding="utf-8"), path.name)
+
+
+class FixedPasswordWiringTest(unittest.TestCase):
+    """D21: the secret reaches the two app-build steps only, and no build can quietly leave it out."""
+
+    SECRET_ENV = "DOLPHIN_FIXED_PASSWORD: ${{ secrets.DOLPHIN_FIXED_PASSWORD }}"
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_both_app_builds_get_the_secret_in_their_generation_step_only(self):
+        self.assertEqual(BUILD.count("secrets.DOLPHIN_FIXED_PASSWORD"), 2)
+        steps = BUILD.split("- name: Dolphin settings, version and branding\n")[1:]
+        self.assertEqual(len(steps), 2)  # the x64 job (customer and technician) and the x86 job
+        for step in steps:
+            step = step.split("\n      - ", 1)[0]
+            self.assertIn(self.SECRET_ENV, step)
+            self.assertIn("python dolphin/gen_profile.py", step)
+        # not in the job-wide env, where every step (and every action) would see it
+        for name in ("build-windows", "build-windows-x86"):
+            head = job(BUILD, name).split("    steps:\n", 1)[0]
+            self.assertNotIn("DOLPHIN_FIXED_PASSWORD", head, name)
+
+    def test_no_app_build_leaves_the_fixed_password_out(self):
+        self.assertNotIn("--without-fixed-password", BUILD)
+
+    def test_checks_and_the_analysis_never_see_the_secret(self):
+        for text in (CHECK, ANALYZE, BRIDGE):
+            self.assertNotIn("DOLPHIN_FIXED_PASSWORD", text)
+            self.assertNotIn("secrets: inherit", text)
+        self.assertNotIn("secrets: inherit", BUILD)
+        gens = re.findall(r"python dolphin/gen_profile\.py[^\n]*", CHECK + ANALYZE)
+        self.assertEqual(len(gens), 3)
+        for line in gens:
+            self.assertTrue(line.endswith("--without-fixed-password"), line)
+
+    def test_the_secret_is_never_printed(self):
+        for text in (BUILD, CHECK, ANALYZE):
+            self.assertIsNone(re.search(r"(echo|printf|Write-Host|cat)[^\n]*DOLPHIN_FIXED_PASSWORD", text))
+        self.assertNotIn("dolphin_fixed_generated.rs", BUILD)  # never uploaded or shown
+
+    def test_the_customer_login_hook_and_the_technician_hook_are_in_place(self):
+        conn = self.read("src", "server", "connection.rs")
+        login = conn.split("let allow_logon_screen_password =", 1)[1]
+        hook = login.index("self.dolphin_fixed_login(&lr.my_id, &lr.password)")
+        self.assertLess(hook, login.index("password::approve_mode() == ApproveMode::Click"))
+        self.assertIn("crate::client::LOGIN_MSG_PASSWORD_EMPTY", login[hook:hook + 2000])
+        self.assertIn("crate::dolphin_fixed::presented(&self.hash.salt, &self.hash.challenge, presented)", conn)
+        self.assertIn("crate::dolphin_fixed::gate_now(peer_id)", conn)
+        client = self.read("src", "client.rs")
+        body = client.split("pub async fn handle_hash(", 1)[1]
+        self.assertLess(body.index("crate::dolphin_fixed::technician_password()"), body.index("// peer config password"))
+        self.assertIn("PasswordSource::DolphinFixed => true,", client)
+        fixed = self.read("src", "dolphin_fixed.rs")
+        self.assertIn('include!("dolphin_fixed_generated.rs");', fixed)
+        self.assertEqual(fixed.count("std::hint::black_box("), 3)
+        self.assertIn("config::is_outgoing_only()", fixed)
+        self.assertIn("config::is_incoming_only()", fixed)
+        self.assertNotRegex(fixed, r"log::\w+!\([^)]*(value|secret)")
+
+    def test_the_array_names_match_between_generator_and_module(self):
+        fixed = self.read("src", "dolphin_fixed.rs")
+        gen = self.read("dolphin", "gen_profile.py")
+        for name in ("FIXED_MASKED", "FIXED_PAD_A", "FIXED_PAD_B"):
+            self.assertIn(f'"{name}"', gen)
+            self.assertIn(f"&{name}[..]", fixed)
+
+    def test_the_option_name_is_the_one_the_portal_pushes(self):
+        core = self.read("src", "dolphin_fixed_core.rs")
+        self.assertIn('pub const FIXED_OPTION: &str = "dolphin-fixed-password";', core)
+        tech = re.search(r'TECH_ID_OPTION: &str = "([^"]+)"', core).group(1)
+        dart = re.search(r"kDolphinTechIdOption = '([^']+)'", self.read("flutter", "lib", "dolphin", "verify.dart")).group(1)
+        self.assertEqual(tech, dart)
 
 
 if __name__ == "__main__":
