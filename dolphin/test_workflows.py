@@ -278,6 +278,10 @@ class FixedPasswordWiringTest(unittest.TestCase):
         dart = re.search(r"kDolphinTechIdOption = '([^']+)'", self.read("flutter", "lib", "dolphin", "verify.dart")).group(1)
         self.assertEqual(tech, dart)
 
+    def test_a_dropped_session_can_be_taken_back_for_two_minutes(self):
+        conn = self.read("src", "server", "connection.rs")
+        self.assertIn("const SESSION_TIMEOUT: Duration = Duration::from_secs(120);", conn)
+
 
 if __name__ == "__main__":
     unittest.main()

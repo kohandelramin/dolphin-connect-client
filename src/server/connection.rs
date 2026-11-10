@@ -504,7 +504,13 @@ const H1: Duration = Duration::from_secs(3600);
 const MILLI1: Duration = Duration::from_millis(1);
 const SEND_TIMEOUT_VIDEO: u64 = 12_000;
 const SEND_TIMEOUT_OTHER: u64 = SEND_TIMEOUT_VIDEO * 10;
-const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
+// Dolphin Connect (owner decision D23): a technician whose link dropped (network blip, VPN on or off) takes the same
+// session back without a new Accept for 2 minutes after the last packet (upstream: 30 s). Only a session that began
+// with the one-time password is kept here (`validate_password`), and taking it back needs the same session key (peer
+// ID, name and the client's random session ID, sent inside the encrypted connection) and that password, which is dead
+// for any new login by then (rotated at login and when the last connection closes). A session the customer, the
+// technician or the portal ended on purpose is removed at once (`send_close_reason_no_retry`, `check_remove_session`).
+const SESSION_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Whether the DRM backend can serve a Wayland login screen here.
 ///
