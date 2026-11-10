@@ -24,4 +24,9 @@ pub fn apply() {
     fill(&config::BUILTIN_SETTINGS, BUILTIN_SETTINGS);
     fill(&config::HARD_SETTINGS, HARD_SETTINGS);
     hbb_common::log::info!("Dolphin Connect settings applied (profile {})", PROFILE);
+    // D21: only whether the build has it, never the value.
+    hbb_common::log::info!(
+        "Dolphin fixed password: {}",
+        if crate::dolphin_fixed::built_in() { "built in" } else { "not in this build (feature off)" }
+    );
 }

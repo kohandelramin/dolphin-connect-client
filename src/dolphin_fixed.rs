@@ -23,6 +23,11 @@ fn secret() -> Option<String> {
     core::unmask(masked, pad_a, pad_b)
 }
 
+/// Whether this build carries the fixed password (a dev build without the secret does not). Says nothing about it.
+pub fn built_in() -> bool {
+    !FIXED_MASKED.is_empty()
+}
+
 /// The technician app's password for a customer PC when the panel gave none; `None` in a customer app or a build
 /// without the value. The customer PC decides whether it counts (src/server/connection.rs).
 pub fn technician_password() -> Option<String> {

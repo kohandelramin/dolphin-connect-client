@@ -25,6 +25,8 @@ AGPL-3.0, with the changes below. The full source of every build we ship is this
 | Persian overlay for the technician app's texts | `dolphin/rebrand.py` (`FA_OVERLAY`) → `src/lang/fa.rs` | Own wording, no reversed text |
 | Checks and Dart analysis on every push | `.github/workflows/dolphin-check.yml`, `dolphin-analyze.yml`, `bridge.yml` (upstream's, now cached) | CI is the only test runner |
 | The packer passes its path to the app (`DOLPHIN_PACKER`) and waits for the old app (`DOLPHIN_WAIT_PID`) | `libs/portable/src/dolphin_wait.rs`, `libs/portable/src/main.rs` | A portable app can replace the file the customer started |
+| Fixed password (D21): from the `DOLPHIN_FIXED_PASSWORD` Actions secret, derived and XOR-masked at build time (obfuscation, not encryption); the technician app sends it; a customer PC takes it only when the portal pushed `dolphin-fixed-password = Y`, not in code mode, with the portal reachable, and from the authorized technician | `dolphin/gen_profile.py` (`render_fixed_rust`), `src/dolphin_fixed_core.rs` (rules, std-only tests), `src/dolphin_fixed.rs`, hooks in `src/server/connection.rs` (`dolphin_fixed_login`) and `src/client.rs` (`handle_hash`, `PasswordSource::DolphinFixed`) | The customer only reads out the ID; the portal keeps the final say per organization |
+| A dropped session taken back for 2 minutes (D23): `SESSION_TIMEOUT` 120 s; the technician app retries quietly («در حال اتصال دوباره…»); both sides say «دوباره وصل شد» | `src/server/connection.rs`, `flutter/lib/dolphin/reconnect.dart`, hook in `flutter/lib/models/model.dart` (`_dolphinQuietRetry`), `flutter/lib/dolphin/connection.dart` | VPN on/off or a network blip no longer needs a new Accept |
 
 Everything else is upstream RustDesk. Copyright notices of the RustDesk authors are kept.
 
@@ -50,7 +52,7 @@ opens RustDesk's installer (`src/common.rs` `is_setup`), and a portable name. Th
 (packer) exe is branded by `libs/portable/build.rs` and the inner `DolphinConnect.exe` by the Sciter resource file;
 CI checks FileVersion and ProductVersion of both. Its `sciter.dll` is pinned by commit and SHA-256 in the workflow.
 
-Local generation: `python dolphin/gen_profile.py <profile> <customer|technician> <version>`.
+Local generation: `python dolphin/gen_profile.py <profile> <customer|technician> <version>`. The fixed password (D21) comes only from the environment variable `DOLPHIN_FIXED_PASSWORD` (the fork's Actions secret of that name): a production run fails without it, a dev run leaves the feature out, `--without-fixed-password` is for checks.
 
 Tests (no Rust toolchain needed): `python -m unittest discover -s dolphin -p "test_*.py"` (needs Pillow).
 

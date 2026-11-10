@@ -3,6 +3,37 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
+## Unreleased (next build; no app build until the owner says)
+
+All three apps. Owner decisions D21 and D23 (2026-11-10). Not compiled on the maintainer's PC (no Rust or Flutter
+there): the Python tests ran; the std-only Rust, the Dart analysis and the widget tests run in CI at the next push.
+
+- D21, fixed password: every app carries one fixed password from the GitHub Actions secret `DOLPHIN_FIXED_PASSWORD`
+  (never in git). The apps hold HMAC-SHA256(secret, context), XOR-masked with two random pads per build
+  (`src/dolphin_fixed_generated.rs`, git-ignored): obfuscation, not encryption. A production build fails without the
+  secret; a dev build without it leaves the feature out and logs so.
+- The technician app sends it when the panel gave no password (before any remembered password); it is never saved to
+  the peer's config.
+- A customer PC (x64 and x86) accepts it, with no «پذیرفتن», only when the portal pushed `dolphin-fixed-password = Y`
+  for its organization, the PC is not in code mode (`approve-mode = password` never takes it), the heartbeat reaches
+  the portal, and the connecting peer is the technician the portal authorized for this PC (`dolphin-tech-id`, not
+  expired). A login that comes before the portal's word waits up to 9 s for the next heartbeat. Otherwise it is
+  handled as if no password came: the accept prompt for the customer, the password box (one-time password) for the
+  technician, and it is not counted as a wrong password. Audited as a permanent-password login. The session window,
+  banner and «پایان» are the same as before.
+- The customer can no longer set a permanent password (`disable-change-permanent-password = Y`, now in the build's
+  floor with `allow-deep-link-password = N`).
+- D23: a session that began with the one-time password can be taken back without a new Accept for 2 minutes after a
+  drop (was 30 s). The technician app retries a dropped link by itself every 1–5 s for 2 minutes, showing «در حال
+  اتصال دوباره…» instead of the error box, and says «دوباره وصل شد» when it is back; the customer window's badge says
+  «دوباره وصل شد» for the same technician's session within 2 minutes of the last one.
+- Portal change needed (not in this repo): push `dolphin-fixed-password` = "Y" for click-mode organizations with the
+  feature on, "N" for code mode and to turn it off.
+
+**یادداشت فارسی:** مشتری فقط برنامه را باز می‌کند و شناسه را می‌گوید؛ کارشناس دلفین بدون «پذیرفتن» وصل می‌شود،
+فقط وقتی پورتال دلفین همان کارشناس را برای همین رایانه فرستاده باشد. دکمه‌ی «پایان» مثل همیشه کار می‌کند. اگر اتصال
+(مثلاً با روشن و خاموش شدن VPN) قطع شود، برنامه‌ی کارشناس تا دو دقیقه خودش دوباره وصل می‌شود.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
