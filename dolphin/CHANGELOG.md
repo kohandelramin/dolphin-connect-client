@@ -5,6 +5,45 @@ released together. Each entry has a short Persian note for customers.
 
 ## Unreleased
 
+### Plan 19 wave 2: the customer app's new look (C1–C7, customer x64)
+
+Compiled here: `cargo check --features flutter`, the std-only Rust cores (`dolphin_system_core`, `dolphin_frame_core`),
+the Python tests, the Dart analysis and the widget tests; previews 01–11 and 100–106 looked at, light and dark. Not built
+into an exe, not run on a PC. The x86 (Sciter) customer app is unchanged.
+
+- C1 main window, 380 × 580 (smaller only on a screen that cannot hold it, never under 360 × 540): one big status card
+  («آماده برای پشتیبانی», «کارشناس در راه است», «… وصل است», «بدون اینترنت»), the big ID with «کپی شناسه», three tiles
+  «بررسی سلامت», «گزارش», «عکس صفحه», the network box (state and IP, side by side), the «اشتراک‌گذاری» switch (was the
+  strip above the window), and a footer with the support phone, the version (About) and ⚙. Everything older stays,
+  further down the same scroll: the one-time code (in the ID card), the stopped-service, no-monitor and ID-changed
+  notices (under the status card), «با من تماس بگیرید», recent sessions, «درخواست‌ها و پیام‌ها», the DD-32 helpers.
+- C2 accept prompt, 320 × 520: photo or initial, name, «کارشناس تأییدشده‌ی دلفین ✓», the profiles «کامل» / «فقط تماشا»,
+  switches for mouse and keyboard, clipboard, file transfer and the PC's sound. Sound is now the customer's own switch,
+  off by default (DD-31): until they turn it on, the technician's sound button says the customer closed it. It is hidden
+  where the organization's `remote-sound` is hidden.
+- The technician cannot press anything in the connection window from his side: besides upstream's pointer block
+  (`allow-remote-cm-modification` "N"), every press in our prompt, session window and the demo question is checked
+  against the technician's last click (upstream's `checkClickTime`) and ignored when it was his.
+- C3 session window, 300 × 380, now in the bottom-right corner above the taskbar (the prompt stays top right): «… وصل
+  است» with the timer, one switch per permission (sound too), «کادر رنگی دور صفحه», «مکث», «پایان».
+- «کادر رنگی دور صفحه» (customer's choice, off by default): four thin always-on-top, click-through windows along the
+  edges of every screen while a technician is connected, in the theme's danger colour, left out of screen capture on
+  Windows 10 2004 and later (src/dolphin_frame.rs). They belong to the session window's process.
+- C5 «تنظیمات» (⚙): ask on close, the frame, the received-files folder (with «باز کردن»), the look («مثل ویندوز» /
+  «روشن» / «تیره», a local option; default like Windows), «بررسی نسخه‌ی تازه». A choice the portal fixed shows
+  «سازمان تعیین کرده».
+- The customer screens follow the chosen look, light or dark, from the same tokens (the portal's `dolphin-theme` still
+  applies to both); the technician app's look is unchanged.
+- C6 first run: three steps with dots (the ID → how support works → permissions and «پایان»), «رد کردن» / «بعدی».
+- C7 tray menu: the state line, «باز کردن دلفین کانکت», «توقف اشتراک» / «شروع اشتراک» (not while the portal hides the
+  share switch), «بستن کامل».
+- «ارائه دمو»'s customer views (the question, the window bar, the ended screen) take the same look.
+
+**یادداشت فارسی:** برنامه‌ی مشتری ظاهر تازه گرفت: وضعیت بزرگ بالای پنجره، شناسه‌ی درشت، سه دکمه‌ی کمکی و کلید
+«اشتراک‌گذاری». در پیام پذیرفتن می‌توانید «کامل» یا «فقط تماشا» را انتخاب کنید و صدای رایانه تا خودتان روشن نکنید خاموش
+است؛ کارشناس نمی‌تواند این کلیدها را از راه دور بزند. اگر بخواهید، در طول جلسه یک کادر رنگی دور صفحه نشان می‌دهد کسی وصل
+است. پوسته‌ی روشن یا تیره را در «تنظیمات» انتخاب کنید.
+
 ### Plan 19 wave 1, part B: version accuracy, the update popup, theme tokens, RO-4 to RO-7 (all three apps)
 
 Compiled here: `cargo check --features flutter` (no new warnings), the std-only Rust cores, the Python tests, the Dart
@@ -36,6 +75,10 @@ analysis and the widget tests. Not built into an exe, not run on a PC.
 با نوار پیشرفت دریافت و نصب می‌کند و بعد باز می‌شود؛ برنامه‌ی کارشناس می‌پرسد «به‌روزرسانی» یا «بعداً». رنگ‌ها و گردی گوشه‌ها
 از پورتال قابل تغییر است. سازمان‌هایی که بخواهند می‌توانند فقط ارسال فایل به رایانه‌ی مشتری را باز بگذارند، یا رایانه پس از
 پایان پشتیبانی قفل شود.
+
+### Plan 19: «ارائه دمو» (D1–D2)
+
+- «ارائه دمو» (D1–D2): the technician shows his screen to a customer PC. The customer presses «دیدن» first (60 s, otherwise «مشتری جواب نداد»); the customer's app then connects back over upstream's switch sides and shows the technician's screen in a «دمو از دلفین — …» window, view only, with «پایان دمو». The technician app is reachable only while it waits for that one connection (at most 90 s) and refuses every other login; the technician sees a red bar «در حال نمایش صفحه‌ی شما به …» with «پایان دمو». Audited `demo` from the customer PC. Not on the x86 build (Windows 7/8). Persian: «ارائه دمو: کارشناس می‌تواند صفحه‌ی خودش را به شما نشان دهد؛ شما اول «دیدن» را می‌زنید و فقط تماشا می‌کنید.»
 
 ## 2.1.0-rc.1 (built 2026-11-13 on the owner's word; a release candidate, not pinned by the portal until tested)
 

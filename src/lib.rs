@@ -60,6 +60,9 @@ mod dolphin_net;
 // Dolphin Connect, Plan 18 Phase 6: DD-42 WebSocket over 443, only when the normal ports fail.
 mod dolphin_ws_core;
 mod dolphin_ws;
+// Dolphin Connect, Plan 19 (D1–D2): «ارائه دمو», the customer watches the technician's screen.
+mod dolphin_demo_core;
+mod dolphin_demo;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

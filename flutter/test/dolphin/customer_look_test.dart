@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/access_profile.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/customer_settings.dart';
+import 'package:flutter_hbb/dolphin/demo.dart';
 import 'package:flutter_hbb/dolphin/first_run_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/network_status.dart';
@@ -381,6 +382,30 @@ void main() {
         await _at(tester, const Size(300, 380), DolphinEndedView(reason: DolphinEndReason.technician, onClose: () {}),
             dark: dark);
         expectAllTextReadable(tester);
+      });
+
+      testWidgets('«ارائه دمو», the customer side ($tag)', (tester) async {
+        addTearDown(tester.view.reset);
+        for (final canSee in [true, false]) {
+          await _at(tester, const Size(320, 520),
+              DolphinDemoAskView(
+                  technician: 'علی رضایی', canSee: canSee, secondsLeft: 42, phone: '021-44280505', onSee: () {}, onNo: () {}),
+              dark: dark);
+          expect(tester.takeException(), isNull);
+          expectAllTextReadable(tester);
+        }
+        expect(contrast(DolphinColors.onFill, DolphinColors.accentFill), greaterThanOrEqualTo(4.5)); // «دیدن»
+        await _at(tester, const Size(900, 60),
+            DolphinDemoWindowBar(title: demoWindowTitle('علی رضایی'), screens: 2, onScreen: (_) {}, onEnd: () {}),
+            dark: dark);
+        expect(tester.takeException(), isNull);
+        expectAllTextReadable(tester);
+        for (final was in [true, false]) {
+          await _at(tester, const Size(380, 300),
+              DolphinLight(child: Center(child: DolphinDemoEndedView(wasConnected: was, onClose: () {}))),
+              dark: dark);
+          expectAllTextReadable(tester);
+        }
       });
 
       testWidgets('C5 settings and C6 first run ($tag)', (tester) async {

@@ -3,7 +3,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'theme_tokens.dart';
 
-export 'theme_tokens.dart' show DolphinTheme, DolphinThemeTokens, DolphinThemeSet, applyThemeOverrides;
+export 'theme_tokens.dart' show DolphinTheme, DolphinThemeTokens, DolphinThemeSet, applyThemeOverrides, kDolphinDemoRed;
 
 /// Plan 19 (C5): the customer chooses how the customer app looks, «مثل ویندوز», «روشن» or «تیره». Kept as a local
 /// option of this Windows account (not pushed by the portal); the session window reads it when it opens.
