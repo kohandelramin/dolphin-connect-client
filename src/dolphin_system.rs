@@ -259,10 +259,11 @@ async fn query_server() -> hbb_common::ResultType<(bool, usize, std::collections
     Ok((online.unwrap_or(false), sessions.unwrap_or(0), options.unwrap_or_default()))
 }
 
-/// Every 3 s: the tray's state, sent when it changes; `None` tells the tray to end (a portable app was closed).
+/// Every 3 s: the tray's state and whether the share item shows (the portal's `share-toggle`), sent when either
+/// changes; `None` tells the tray to end (a portable app was closed).
 #[cfg(all(windows, feature = "flutter"))]
 #[tokio::main(flavor = "current_thread")]
-async fn watch_state(sender: std::sync::mpsc::Sender<Option<rules::TrayState>>) {
+async fn watch_state(sender: std::sync::mpsc::Sender<Option<(rules::TrayState, bool)>>) {
     let installed = crate::platform::is_installed();
     let mut last = None;
     loop {
@@ -273,14 +274,13 @@ async fn watch_state(sender: std::sync::mpsc::Sender<Option<rules::TrayState>>) 
         }
         let (online, sessions, options) = query_server().await.unwrap_or_default();
         let get = |k: &str| options.get(k).map(String::as_str).unwrap_or("");
-        let stopped = rules::sharing_stopped(
-            switch(get(rules::SWITCHES_OPTION), rules::SWITCH_SHARE_TOGGLE),
-            get(rules::SHARE_OFF_OPTION),
-        );
+        let share_toggle = switch(get(rules::SWITCHES_OPTION), rules::SWITCH_SHARE_TOGGLE);
+        let stopped = rules::sharing_stopped(share_toggle, get(rules::SHARE_OFF_OPTION));
         let state = rules::tray_state(open, online, sessions, stopped);
-        if last != Some(state) {
-            last = Some(state);
-            if sender.send(Some(state)).is_err() {
+        let view = (state, share_toggle != rules::SwitchMode::Hidden);
+        if last != Some(view) {
+            last = Some(view);
+            if sender.send(Some(view)).is_err() {
                 return;
             }
         }
@@ -300,13 +300,15 @@ pub fn tray_icon_rgba(ico: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
 }
 
 /// The customer app's tray, in place of upstream's (src/tray.rs hands over after its single-instance check): a dot
-/// in the state's colour, the state as the tooltip, «باز کردن» and «بستن کامل». Hidden while nobody could connect.
+/// in the state's colour, the state as the tooltip, and the short menu of Plan 19 C7: the state line, «باز کردن دلفین
+/// کانکت», «توقف اشتراک» / «شروع اشتراک» (not while the portal hides the share switch), a line, «بستن کامل». Hidden
+/// while nobody could connect.
 #[cfg(all(windows, feature = "flutter"))]
 pub fn run_customer_tray(rgba: Vec<u8>, width: u32, height: u32) -> hbb_common::ResultType<()> {
     use std::time::{Duration, Instant};
     use tao::event_loop::{ControlFlow, EventLoopBuilder};
     use tray_icon::{
-        menu::{Menu, MenuEvent, MenuItem},
+        menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
         MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
     };
 
@@ -323,11 +325,17 @@ pub fn run_customer_tray(rgba: Vec<u8>, width: u32, height: u32) -> hbb_common::
     };
 
     let menu = Menu::new();
+    let state_i = MenuItem::new(rules::tray_state_line(rules::TrayState::Closed), false, None);
     let open_i = MenuItem::new(rules::TRAY_OPEN, true, None);
+    let share_i = MenuItem::new(rules::TRAY_SHARE_STOP, true, None);
     let quit_i = MenuItem::new(rules::TRAY_QUIT, true, None);
-    menu.append_items(&[&open_i, &quit_i]).ok();
+    menu.append_items(&[&state_i, &open_i, &PredefinedMenuItem::separator(), &quit_i]).ok();
+    // The share item sits after «باز کردن دلفین کانکت» while it shows.
+    const SHARE_POSITION: usize = 2;
+    let mut share_shown = false;
+    let mut shown_state = rules::TrayState::Closed;
 
-    let (tx, rx) = std::sync::mpsc::channel::<Option<rules::TrayState>>();
+    let (tx, rx) = std::sync::mpsc::channel::<Option<(rules::TrayState, bool)>>();
     std::thread::spawn(move || watch_state(tx));
 
     let mut tray: Option<TrayIcon> = None;
@@ -356,6 +364,9 @@ pub fn run_customer_tray(rgba: Vec<u8>, width: u32, height: u32) -> hbb_common::
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             if event.id == open_i.id() {
                 open_window();
+            } else if event.id == share_i.id() {
+                // The same option the home's «اشتراک‌گذاری» switch writes; the next look (3 s) shows the new state.
+                set_share_off(rules::tray_share_press_stops(shown_state));
             } else if event.id == quit_i.id() {
                 quit_main_windows();
             }
@@ -373,7 +384,23 @@ pub fn run_customer_tray(rgba: Vec<u8>, width: u32, height: u32) -> hbb_common::
         }
         if let Ok(update) = rx.try_recv() {
             match update {
-                Some(state) => {
+                Some((state, share_toggle)) => {
+                    shown_state = state;
+                    state_i.set_text(rules::tray_state_line(state));
+                    match rules::tray_share_item(state, share_toggle) {
+                        Some(text) => {
+                            share_i.set_text(text);
+                            if !share_shown {
+                                share_shown = menu.insert(&share_i, SHARE_POSITION).is_ok();
+                            }
+                        }
+                        None => {
+                            if share_shown {
+                                menu.remove(&share_i).ok();
+                                share_shown = false;
+                            }
+                        }
+                    }
                     if let Some(t) = &tray {
                         t.set_icon(icon_for(state)).ok();
                         t.set_tooltip(Some(rules::tray_tooltip(state))).ok();

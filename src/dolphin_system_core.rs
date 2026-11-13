@@ -413,8 +413,37 @@ pub fn tray_should_exit(installed: bool, window_open: bool) -> bool {
     !installed && !window_open
 }
 
-pub const TRAY_OPEN: &str = "باز کردن";
+// Plan 19 C7: the menu beside the clock, short (design C7): the state line, «باز کردن دلفین کانکت», «توقف اشتراک»
+// (or «شروع اشتراک»), a line, «بستن کامل».
+pub const TRAY_OPEN: &str = "باز کردن دلفین کانکت";
 pub const TRAY_QUIT: &str = "بستن کامل";
+pub const TRAY_SHARE_STOP: &str = "توقف اشتراک";
+pub const TRAY_SHARE_START: &str = "شروع اشتراک";
+
+/// The menu's first line (not pressable): the state in words, with the dot the icon shows.
+pub fn tray_state_line(state: TrayState) -> &'static str {
+    match state {
+        TrayState::Closed => "دلفین کانکت بسته است",
+        TrayState::Ready => "● در دسترس — آماده برای پشتیبانی",
+        TrayState::Connected => "● کارشناس دلفین وصل است",
+        TrayState::Offline => "● بدون اینترنت — سرور دلفین در دسترس نیست",
+        TrayState::Stopped => "● اشتراک متوقف است — کسی نمی‌تواند وصل شود",
+    }
+}
+
+/// The share item's text, or None when it is not in the menu: the portal's `share-toggle` hides it (as on the home,
+/// flutter/lib/dolphin/share.dart), or the window is closed (nothing to share).
+pub fn tray_share_item(state: TrayState, share_shown: bool) -> Option<&'static str> {
+    if !share_shown || state == TrayState::Closed {
+        return None;
+    }
+    Some(if state == TrayState::Stopped { TRAY_SHARE_START } else { TRAY_SHARE_STOP })
+}
+
+/// Pressing the share item: true stops sharing, false starts it again (the same option the home switch writes).
+pub fn tray_share_press_stops(state: TrayState) -> bool {
+    state != TrayState::Stopped
+}
 
 /// The PNG frame of an .ico drawn for `want` pixels (offset, length): the exact size, else the next larger, else the
 /// largest. The tray asks Windows for its icon size (16 px at 100 %, 20 at 125 %, 24 at 150 %) so the hand-drawn small
@@ -616,6 +645,19 @@ mod tests {
         assert_eq!(tray_state(false, true, 0, false), TrayState::Closed);
         assert_eq!(tray_state(true, true, 2, true), TrayState::Connected);
         assert_eq!(tray_state(false, true, 1, false), TrayState::Connected); // installed: a session can outlive it
+        // Plan 19 C7: the menu's state line and the share item.
+        assert_eq!(tray_state_line(TrayState::Ready), "● در دسترس — آماده برای پشتیبانی");
+        for s in [TrayState::Closed, TrayState::Ready, TrayState::Connected, TrayState::Offline, TrayState::Stopped] {
+            assert!(!tray_state_line(s).is_empty());
+        }
+        assert_eq!(tray_share_item(TrayState::Ready, true), Some(TRAY_SHARE_STOP));
+        assert_eq!(tray_share_item(TrayState::Connected, true), Some(TRAY_SHARE_STOP));
+        assert_eq!(tray_share_item(TrayState::Stopped, true), Some(TRAY_SHARE_START));
+        assert_eq!(tray_share_item(TrayState::Ready, false), None);
+        assert_eq!(tray_share_item(TrayState::Closed, true), None);
+        assert!(tray_share_press_stops(TrayState::Ready));
+        assert!(!tray_share_press_stops(TrayState::Stopped));
+        assert_eq!(TRAY_OPEN, "باز کردن دلفین کانکت");
         assert!(!tray_visible(TrayState::Closed));
         assert!(tray_visible(TrayState::Ready));
         assert_eq!(tray_colour(TrayState::Closed), None);
