@@ -72,11 +72,11 @@ void main() {
         id: '123456789',
         state: DolphinServerState.ready,
         onCopy: () => copied = true,
-        phone: '021-12345678',
+        phone: '021-44280505',
         siteLabel: 'support.dolphindev.ir')));
     expect(find.text('۱۲۳ ۴۵۶ ۷۸۹'), findsOneWidget); // DD-44: Persian digits in threes
     expect(find.textContaining('آماده'), findsOneWidget);
-    expect(find.textContaining('۰۲۱-۱۲۳۴۵۶۷۸'), findsOneWidget); // Persian digits on customer screens (UX-16)
+    expect(find.textContaining('۰۲۱-۴۴۲۸۰۵۰۵'), findsOneWidget); // Persian digits on customer screens (UX-16)
     await tester.tap(find.text('کپی شناسه'));
     expect(copied, isTrue);
   });
