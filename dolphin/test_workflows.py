@@ -362,5 +362,23 @@ class SystemWiringTest(unittest.TestCase):
         for t in ("presence_test.dart", "share_test.dart", "plain_errors_test.dart", "receive_folder_test.dart"):
             self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
 
+
+class ChatFilesWiringTest(unittest.TestCase):
+    """Plan 18 Phase 3 (DD-29, DD-30, DD-14, DD-15): the hooks in upstream files, proven by their text, since the apps
+    are not built here."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_chat_is_right_to_left_with_an_empty_line(self):
+        page = self.read("flutter", "lib", "common", "widgets", "chat_page.dart")
+        self.assertIn("inputTextDirection: TextDirection.rtl, // Dolphin Connect (DD-29)", page)
+        self.assertIn("DolphinChatText(text: message.text, at: message.createdAt)", page)
+        self.assertIn("return DolphinChatFrame(", page)
+        self.assertIn("empty: messages.isEmpty,", page)
+        self.assertIn("chatFollowsIncoming(", self.read("flutter", "lib", "models", "chat_model.dart"))
+        conn = self.read("flutter", "lib", "dolphin", "connection.dart")
+        self.assertIn("gFFI.chatModel.toggleCMChatPage(MessageKey(c.peerId, c.id))", conn)
+
 if __name__ == "__main__":
     unittest.main()

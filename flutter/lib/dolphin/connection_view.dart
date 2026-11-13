@@ -180,6 +180,9 @@ class DolphinSessionView extends StatelessWidget {
   final void Function(String permission, bool enabled) onToggle;
   final VoidCallback onEnd;
 
+  /// DD-29: opens or closes the chat beside the session; null hides «گفتگو» (a file-transfer tab has no chat).
+  final VoidCallback? onChat;
+
   const DolphinSessionView(
       {super.key,
       required this.technician,
@@ -192,7 +195,8 @@ class DolphinSessionView extends StatelessWidget {
       this.onPause,
       this.inputOff,
       required this.onToggle,
-      required this.onEnd});
+      required this.onEnd,
+      this.onChat});
 
   bool _value(String name) => switch (name) { 'keyboard' => keyboard, 'clipboard' => clipboard, _ => file };
 
@@ -257,6 +261,17 @@ class DolphinSessionView extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+              if (onChat != null)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    key: const ValueKey('dolphin-session-chat'),
+                    onPressed: onChat,
+                    style: TextButton.styleFrom(minimumSize: const Size(0, 36), padding: const EdgeInsets.symmetric(horizontal: 4)),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: const Text(kDolphinChatLabel),
+                  ),
+                ),
               if (inputOff != null)
                 _notice(
                     ground: DolphinColors.dangerSoft,
@@ -308,6 +323,9 @@ class DolphinSessionView extends StatelessWidget {
     );
   }
 }
+
+/// DD-29: the customer's button for the chat with the technician.
+const kDolphinChatLabel = 'گفتگو با کارشناس';
 
 /// How long the ended screen waits for the portal's word before it says the technician ended the session (Plan 13 F5).
 const kDolphinEndSettleMs = 4000;

@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../consts.dart';
+import '../common.dart';
+import '../models/chat_model.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'brand.dart';
@@ -264,6 +266,10 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         _lastLive.remove(c.peerId);
         bind.cmCloseConnection(connId: c.id);
       },
+      // DD-29: the customer opens and closes the chat beside the session (upstream's CM side page).
+      onChat: c.type_() == ClientType.remote
+          ? () => gFFI.chatModel.toggleCMChatPage(MessageKey(c.peerId, c.id))
+          : null,
     );
   }
 }
