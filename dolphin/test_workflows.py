@@ -401,6 +401,24 @@ class ChatFilesWiringTest(unittest.TestCase):
         self.assertLess(listener.index("if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);"),
                         listener.index("signInExpiredAt("))
 
+    def test_the_file_window_drops_queues_pins_and_copies(self):
+        page = self.read("flutter", "lib", "desktop", "pages", "file_manager_page.dart")
+        drop = page.split("void handleDragDone(DropDoneDetails details, bool isLocal) {", 1)[1].split("class FileManagerView extends", 1)[0]
+        self.assertIn("final items = SelectedItems(isLocal: true);", drop)
+        self.assertIn("model.localController.sendFiles(items, remote);", drop)  # local to remote, as «ارسال»
+        self.assertNotIn("remoteController.sendFiles", drop)
+        self.assertIn("DolphinDropMask(", page)
+        self.assertIn("DolphinJobButtons(", page)
+        self.assertIn("jobController.dolphinJobAction(item.id, a)", page)
+        self.assertIn("DolphinPinMenu(", page)
+        self.assertIn("key: kDolphinPinsKey", page)
+        self.assertIn("Clipboard.setData(ClipboardData(text: entry.path));", page)
+        files = self.read("flutter", "lib", "models", "file_model.dart")
+        send = files.split("Future<void> sendFiles(", 1)[1]
+        self.assertLess(send.index("jobController.dolphinTransfers[jobID] = DolphinTransfer("),
+                        send.index("bind.sessionSendFiles("))
+        self.assertIn("transferFiles(handledFileCount, fileCount)", files)
+
 
 if __name__ == "__main__":
     unittest.main()

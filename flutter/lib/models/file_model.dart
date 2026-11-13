@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
 import 'package:flutter_hbb/dolphin/plain_errors.dart'; // Dolphin Connect: plain Persian job errors (DD-13)
+import 'package:flutter_hbb/dolphin/file_transfer.dart'; // Dolphin Connect: queue, retry (DD-30)
 import 'package:flutter_hbb/utils/event_loop.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -633,6 +634,13 @@ class FileController {
     }
     jobController.registerTransferConflictBatch(transferJobIds);
     for (final (from, jobID) in transferJobs) {
+      // Dolphin Connect (DD-30): kept for «تلاش دوباره».
+      jobController.dolphinTransfers[jobID] = DolphinTransfer(
+          path: from.path,
+          to: PathUtil.join(toPath, from.name, isWindows),
+          isDir: from.isDirectory,
+          includeHidden: showHidden,
+          isRemote: isRemoteToLocal);
       bind.sessionSendFiles(
           sessionId: sessionId,
           actId: jobID,
@@ -989,6 +997,54 @@ class JobController {
   int _lastTimeShowMsgbox = DateTime.now().millisecondsSinceEpoch;
 
   JobController(this.getSessionID, this.getDialogManager);
+
+  // Dolphin Connect (DD-30): what each transfer asked for (flutter/lib/dolphin/file_transfer.dart), so «تلاش دوباره»
+  // asks the same again, over the same file-transfer connection.
+  final dolphinTransfers = <int, DolphinTransfer>{};
+
+  /// Dolphin Connect (DD-30): a button on a row of the queue.
+  void dolphinJobAction(int jobId, DolphinJobAction action) {
+    final index = getJob(jobId);
+    if (index < 0) return;
+    final job = jobTable[index];
+    switch (action) {
+      case DolphinJobAction.resume:
+        resumeJob(jobId);
+      case DolphinJobAction.stop:
+        // As upstream's close, but the row stays as «لغو» so it can be sent again.
+        cancelJob(jobId);
+        job.state = JobState.done;
+        job.err = 'cancel';
+        jobTable.refresh();
+      case DolphinJobAction.remove:
+        jobTable.removeAt(index);
+        dolphinTransfers.remove(jobId);
+        cancelJob(jobId);
+      case DolphinJobAction.retry:
+        final t = dolphinTransfers.remove(jobId);
+        if (t == null) return;
+        final id = JobController.jobID.next();
+        jobTable[index] = JobProgress()
+          ..type = JobType.transfer
+          ..fileName = job.fileName
+          ..jobName = job.jobName
+          ..totalSize = job.totalSize
+          ..state = JobState.inProgress
+          ..id = id
+          ..isRemoteToLocal = t.isRemote;
+        dolphinTransfers[id] = t;
+        registerTransferConflictBatch([id]);
+        bind.sessionSendFiles(
+            sessionId: sessionId,
+            actId: id,
+            path: t.path,
+            to: t.to,
+            fileNum: 0,
+            includeHidden: t.includeHidden,
+            isRemote: t.isRemote,
+            isDir: t.isDir);
+    }
+  }
 
   int getJob(int id) {
     return jobTable.indexWhere((element) => element.id == id);
@@ -1807,7 +1863,7 @@ class JobProgress {
       handledFileCount = fileCount;
       finishedSize = totalSize;
     }
-    final filesStr = "$handledFileCount/$fileCount files";
+    final filesStr = transferFiles(handledFileCount, fileCount); // Dolphin Connect (DD-30): «۲ از ۵ فایل»
     final sizeStr = totalSize > 0 ? readableFileSize(totalSize.toDouble()) : "";
     final sizePercentStr = totalSize > 0 && finishedSize > 0
         ? "${readableFileSize(finishedSize.toDouble())} / ${readableFileSize(totalSize.toDouble())}"
