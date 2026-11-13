@@ -34,6 +34,34 @@ there): the Python tests ran; the std-only Rust, the Dart analysis and the widge
 فقط وقتی پورتال دلفین همان کارشناس را برای همین رایانه فرستاده باشد. دکمه‌ی «پایان» مثل همیشه کار می‌کند. اگر اتصال
 (مثلاً با روشن و خاموش شدن VPN) قطع شود، برنامه‌ی کارشناس تا دو دقیقه خودش دوباره وصل می‌شود.
 
+### Plan 18 Phase 2: the customer home (customer x64)
+
+Flutter only (`flutter/lib/dolphin/`); no change to connections or networking. Widget and unit tests in
+`flutter/test/dolphin/home_test.dart`, not run on the maintainer's PC (no Flutter there yet).
+
+- DD-43: one large coloured bar at the top: «آماده برای پشتیبانی», «کارشناس در راه است» or «کارشناس وصل است», with the
+  technician's photo and name when the portal pushed them. It replaces the small status pill and the «در راه است» card.
+- DD-44: the ID in Persian digits, in groups of three, with a full-width «کپی شناسه»; the clipboard gets Latin digits
+  without spaces. The ID is no longer selectable, so a hand copy cannot carry Persian digits.
+- DD-33: the bar's dot is aqua while the server knows this PC and grey otherwise, as the portal's «در دسترس»; without the
+  server the bar turns red, says «بدون اینترنت» and what to do. During a session it stays «کارشناس وصل است» with one
+  quiet line instead.
+- DD-8: «وضعیت شبکه» under the ID: registered with the server or not, the server address in use, this PC's IP (from
+  upstream's NAT test, when it has run) and «شناسه: تازه عوض شد». No VPN line yet (Phase 6 adds it there).
+- DD-32: the version at the bottom; «از اینجا شروع کنید» opens the help page in the browser; «کپی IP من», «کپی لینک
+  دانلود» and «کپی راهنما»; «شناسه‌ی شما عوض شد» when the ID differs from the last one this app saw (kept locally;
+  nothing on the first run). The window is 340 × 520 (was 320 × 400); the rest scrolls.
+- DD-17: a first-run screen, once per Windows account: «شناسه‌ی شما این است، کپی کنید», two lines of what happens next,
+  «بعدی». Remembered as a local option. A PC that already had the app sees it once after this update too.
+- DD-18 (app part): nothing to build. The window shows RustDesk's one-time code, which has no time limit (it changes
+  after each connection); the expiry belongs to the code entered in the portal, and the portal's pages (also inside the
+  app's «درخواست‌ها و پیام‌ها») already show it.
+
+**یادداشت فارسی:** پنجره‌ی اصلی بالای صفحه با یک نوار رنگی می‌گوید آماده است، کارشناس در راه است یا وصل است.
+شناسه با رقم فارسی و سه‌رقم‌سه‌رقم نوشته می‌شود و دکمه‌ی کپی آن رقم انگلیسی کپی می‌کند. زیر شناسه وضعیت شبکه، پایین
+پنجره شماره‌ی نسخه، و دکمه‌های «از اینجا شروع کنید» و کپی لینک‌ها آمده است. اولین بار پس از نصب، یک صفحه‌ی کوتاه شناسه را
+نشان می‌دهد.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
