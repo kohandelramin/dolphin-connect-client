@@ -110,7 +110,7 @@ jobs:
           pip install pillow==11.3.0
           python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}" "$DOLPHIN_VERSION"
           python dolphin/build_plan.py pubspec --run "${{ github.run_number }}"
-          python dolphin/brand.py
+          python dolphin/brand.py "${{ matrix.variant }}"
           python dolphin/rebrand.py
 
       - name: Install LLVM and Clang
@@ -279,7 +279,7 @@ jobs:
         run: |
           pip install pillow==11.3.0
           python dolphin/gen_profile.py "${{ inputs.profile }}" customer "$DOLPHIN_VERSION"
-          python dolphin/brand.py
+          python dolphin/brand.py customer
           python dolphin/rebrand.py
 
       - name: Install LLVM and Clang (32-bit)

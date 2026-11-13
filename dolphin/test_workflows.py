@@ -34,6 +34,16 @@ class BuildWorkflowTest(unittest.TestCase):
         for choice in ("customer-x64", "technician-x64", "customer-x86", "x64", "all"):
             self.assertIn(choice, block)
 
+    def test_each_build_brands_its_own_variant(self):
+        # The technician app gets the blue-tile icon and its own exe name; the x86 build is the customer app only.
+        x64 = whole_job(BUILD, "build-windows")
+        self.assertIn('python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}"', x64)
+        self.assertIn('python dolphin/brand.py "${{ matrix.variant }}"\n', x64)
+        x86 = whole_job(BUILD, "build-windows-x86")
+        self.assertIn('python dolphin/gen_profile.py "${{ inputs.profile }}" customer', x86)
+        self.assertIn("python dolphin/brand.py customer\n", x86)
+        self.assertEqual(len(re.findall(r"python dolphin/brand\.py", BUILD)), 2)
+
     def test_lto_is_relaxed_for_dev_builds_only(self):
         lines = BUILD.splitlines()
         self.assertNotIn("CARGO_PROFILE_RELEASE_LTO=thin", BUILD)

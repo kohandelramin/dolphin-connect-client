@@ -1,6 +1,6 @@
 """Apply Dolphin Connect branding to the working tree (run in CI before building; not committed).
 
-Usage: python dolphin/brand.py   (from the repository root; needs Pillow)
+Usage: python dolphin/brand.py [customer|technician]   (from the repository root; needs Pillow; default customer)
 """
 import base64
 import io
@@ -8,18 +8,21 @@ import pathlib
 import re
 import sys
 
-from PIL import Image, ImageFilter
+from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# The full mark (dolphin in the network) on a transparent ground: shown inside the app (flutter/assets/icon.svg).
 MARK = ROOT / "dolphin" / "brand" / "dolphin-mark.png"
-# The owner's app icon (2026-10-28): the mark on a rounded light tile, 1024 x 1024. Every icon and small PNG comes from it.
-ICON = ROOT / "dolphin" / "brand" / "dolphin-connect-icon.png"
+# The owner's icons (2026-11-13), one PNG per size, drawn for that size: up to 32 px the network mark alone (the dolphin
+# line is lost at that size), from 40 px the full mark. customer on a white tile, technician on a blue tile, tray the
+# network mark on a white tile at every size. Each frame goes into the .ico as it is: no resampling, no sharpening.
+ICONS = ROOT / "dolphin" / "brand" / "icons"
+VARIANTS = ("customer", "technician")
 # Every size Windows asks for (taskbar 16-24 at 100-150 % scaling, Start 32-48, Explorer up to 256), so it never
-# stretches a neighbour size. Each is rendered on its own from the 1024 px source.
+# stretches a neighbour size.
 ICO_SIZES = [(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)]
-# At this size and below the tile and the thin dolphin line eat the pixels: use the mark alone, cropped tight.
-TIGHT_MAX = 32
-ICO_TARGETS = ["res/icon.ico", "res/tray-icon.ico", "flutter/windows/runner/resources/app_icon.ico"]
+APP_ICO_TARGETS = ["res/icon.ico", "flutter/windows/runner/resources/app_icon.ico"]
+TRAY_ICO_TARGETS = ["res/tray-icon.ico"]
 PNG_TARGETS = ["res/icon.png", "res/32x32.png", "res/64x64.png", "res/128x128.png", "res/128x128@2x.png"]
 SVG_TARGETS = ["flutter/assets/icon.svg"]
 
@@ -56,6 +59,42 @@ def brand_winres(text):
     return text
 
 
+def frames(kind, icons=ICONS):
+    """The owner's PNGs for one set (customer, technician or tray), one per ICO size, checked to be that size."""
+    out = []
+    for size in ICO_SIZES:
+        path = icons / f"{kind}-{size[0]}.png"
+        with Image.open(path) as img:
+            frame = img.convert("RGBA")
+        if frame.size != size:
+            raise ValueError(f"{path.name}: expected {size[0]}x{size[1]}, found {frame.width}x{frame.height}")
+        out.append(frame)
+    return out
+
+
+def write_ico(icon_frames, path):
+    """One .ico with every frame as it is (Pillow takes a provided frame of the right size without touching it)."""
+    largest = max(icon_frames, key=lambda f: f.width)
+    largest.save(path, format="ICO", sizes=[f.size for f in icon_frames],
+                 append_images=[f for f in icon_frames if f is not largest])
+
+
+def nearest(icon_frames, size):
+    """The frame of this size; when there is none, the closest larger one (else the largest) resized with LANCZOS."""
+    for frame in icon_frames:
+        if frame.size == size:
+            return frame.copy()
+    larger = [f for f in icon_frames if f.width >= size[0]]
+    source = min(larger, key=lambda f: f.width) if larger else max(icon_frames, key=lambda f: f.width)
+    return source.resize(size, Image.LANCZOS)
+
+
+def write_png(icon_frames, path):
+    with Image.open(path) as existing:
+        size = existing.size
+    nearest(icon_frames, size).save(path, format="PNG")
+
+
 def _square(mark, size):
     side = max(mark.size)
     canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
@@ -63,47 +102,8 @@ def _square(mark, size):
     return canvas.resize(size, Image.LANCZOS)
 
 
-def write_png(mark, path):
-    with Image.open(path) as existing:
-        size = existing.size
-    _square(mark, size).save(path, format="PNG")
-
-
-def tight(icon):
-    """The blue mark without the light tile: crop to the saturated pixels, with a small margin."""
-    rgb = icon.convert("RGB")
-    sat = rgb.convert("HSV").split()[1].point(lambda v: 255 if v > 90 else 0)
-    box = sat.getbbox()
-    if not box:
-        return icon
-    pad = max(box[2] - box[0], box[3] - box[1]) // 24
-    box = (max(0, box[0] - pad), max(0, box[1] - pad), min(icon.width, box[2] + pad), min(icon.height, box[3] + pad))
-    mark = icon.crop(box)
-    # Keep only the mark: the tile's light pixels become transparent, so the small icon sits on any taskbar colour.
-    # Closing (grow, then shrink) fills the white dolphin line inside the blue disc, so it stays white, not a hole.
-    k = max(3, (box[2] - box[0]) // 60) | 1
-    alpha = sat.crop(box).filter(ImageFilter.MaxFilter(k)).filter(ImageFilter.MinFilter(k)).filter(ImageFilter.GaussianBlur(0.6))
-    return Image.merge("RGBA", (*mark.convert("RGB").split(), alpha))
-
-
-def render(icon, size, tight_icon=None):
-    """One icon size from the large source: LANCZOS, then a light sharpen where detail would go soft."""
-    source = tight_icon if (tight_icon is not None and size[0] <= TIGHT_MAX) else icon
-    img = _square(source, size)
-    if size[0] <= 48:
-        img = img.filter(ImageFilter.UnsharpMask(radius=0.6, percent=80, threshold=2))
-    return img
-
-
-def write_ico(icon, path, tray=False):
-    """Every size rendered on its own (Pillow would otherwise shrink one 256 px picture). The tray icon is the mark
-    alone at every size: it sits on the taskbar's own colour, never on a tile."""
-    small = tight(icon)
-    frames = [render(small if tray else icon, s, small) for s in ICO_SIZES]
-    frames[-1].save(path, format="ICO", sizes=ICO_SIZES, append_images=frames[:-1])
-
-
 def svg_with_png(mark):
+    """flutter/assets/icon.svg: the full mark without a tile, as the app shows it on its own background."""
     buf = io.BytesIO()
     _square(mark, (256, 256)).save(buf, format="PNG")
     data = base64.b64encode(buf.getvalue()).decode("ascii")
@@ -115,15 +115,18 @@ UI_ICON = re.compile(r'"data:image/png;base64,[A-Za-z0-9+/=]+"')
 UI_ICON_SIZE = (128, 128)  # upstream's get_icon() PNGs are 128x128 (the macOS one on a padded canvas)
 
 
-def brand_ui_icons(text, mark):
-    """src/ui.rs get_icon(): Sciter's window icon and remote header (AUI-11). Both base64 PNGs become the mark."""
+def brand_ui_icons(text, icon):
+    """src/ui.rs get_icon(): Sciter's window icon and remote header (AUI-11). Both base64 PNGs become [icon]
+    (the customer's 128 px frame: the x86 build is the customer app)."""
+    if icon.size != UI_ICON_SIZE:
+        raise ValueError(f"ui.rs get_icon(): the icon must be {UI_ICON_SIZE[0]}x{UI_ICON_SIZE[1]}")
     start = text.find("pub fn get_icon()")
     if start < 0:
         raise ValueError("ui.rs: get_icon() not found")
     end = text.find("\n}\n", start)
     body = text[start:end]
     buf = io.BytesIO()
-    _square(mark, UI_ICON_SIZE).save(buf, format="PNG", optimize=True)
+    icon.save(buf, format="PNG", optimize=True)
     literal = '"data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode("ascii") + '"'
     new_body, count = UI_ICON.subn(lambda m: literal, body)
     if count != 2:
@@ -131,12 +134,19 @@ def brand_ui_icons(text, mark):
     return text[:start] + new_body + text[end:]
 
 
-def main(root=ROOT):
-    mark = Image.open(ICON if ICON.exists() else MARK).convert("RGBA")
-    for rel in ICO_TARGETS:
-        write_ico(mark, root / rel, tray=rel.endswith("tray-icon.ico"))
+def main(root=ROOT, variant="customer", icons=ICONS, mark_path=MARK):
+    if variant not in VARIANTS:
+        print(f"unknown variant: {variant} (use {' or '.join(VARIANTS)})", file=sys.stderr)
+        return 2
+    app, tray = frames(variant, icons), frames("tray", icons)
+    for rel in APP_ICO_TARGETS:
+        write_ico(app, root / rel)
+    for rel in TRAY_ICO_TARGETS:
+        write_ico(tray, root / rel)
     for rel in PNG_TARGETS:
-        write_png(mark, root / rel)
+        write_png(app, root / rel)
+    with Image.open(mark_path) as img:
+        mark = img.convert("RGBA")
     for rel in SVG_TARGETS:
         (root / rel).write_text(svg_with_png(mark), encoding="utf-8")
     rc = root / "flutter" / "windows" / "runner" / "Runner.rc"
@@ -145,10 +155,12 @@ def main(root=ROOT):
     cargo.write_text(brand_winres(cargo.read_text(encoding="utf-8")), encoding="utf-8")
     ui = root / "src" / "ui.rs"
     if ui.exists():  # absent only in the unit tests' toy trees; the real tree always has it
-        ui.write_text(brand_ui_icons(ui.read_text(encoding="utf-8"), mark), encoding="utf-8")
-    print(f"branded {len(ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)} images, Runner.rc and Cargo.toml winres")
+        customer128 = frames("customer", icons)[ICO_SIZES.index(UI_ICON_SIZE)]
+        ui.write_text(brand_ui_icons(ui.read_text(encoding="utf-8"), customer128), encoding="utf-8")
+    count = len(APP_ICO_TARGETS) + len(TRAY_ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)
+    print(f"branded {count} images ({variant}), Runner.rc and Cargo.toml winres")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(variant=sys.argv[1] if len(sys.argv) > 1 else "customer"))
