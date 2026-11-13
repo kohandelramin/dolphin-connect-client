@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../brand.dart';
+import '../demo.dart' show DolphinDemoConfirmView;
 import '../tech/actions.dart';
 import '../tech/api.dart';
 import '../tech/session_store.dart';
@@ -117,6 +118,30 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
     );
     return yes ?? false;
   }
+
+  /// D1 (demo.dart's view, as demo_hooks.dart's showDolphinDemoConfirm shows it).
+  @override
+  Future<bool?> confirmDemo(PcRef pc) => showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          var all = false;
+          return StatefulBuilder(
+            builder: (ctx, setLocal) => Dialog(
+              backgroundColor: tokensOf(ctx).surface,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: DolphinDemoConfirmView(
+                  peerName: pc.name ?? pc.rustdeskId,
+                  allScreens: all,
+                  onAllScreens: (v) => setLocal(() => all = v),
+                  onStart: () => Navigator.of(ctx).pop(all),
+                  onCancel: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+            ),
+          );
+        },
+      );
 
   @override
   Future<void> endOfCall(PcRef pc, OpenCall call) => _showEndOfCall(pc.name ?? pc.rustdeskId, call);

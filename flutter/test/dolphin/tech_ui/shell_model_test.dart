@@ -123,6 +123,43 @@ void main() {
     expect(m.notice, kMsgDemoNotOpened);
   });
 
+  group('«ارائه دمو» through demo_hooks', () {
+    late List<(String, bool)> opened;
+    late TechShellModel dm;
+    setUp(() async {
+      opened = [];
+      final s = servicesOn(portal, launcher: launcher, demo: TechDemoStarter((id, all) async => opened.add((id, all))));
+      await signIn(s);
+      dm = TechShellModel(s, platform, prompts: prompts);
+      await dm.start();
+    });
+    tearDown(() => shutDown(dm));
+
+    test('confirmed with all screens: the portal authorizes first (POST /demo), then the demo session opens', () async {
+      prompts.demoAnswer = true;
+      final o = await dm.connect(const PcRef('pc-1', '194052361', 'پذیرش'), demo: true);
+      expect(prompts.demoAsked, ['پذیرش']);
+      expect(o, isA<Connected>());
+      expect(portal.body(portal.sent('POST /demo').single)['deviceId'], 'pc-1');
+      expect(opened, [('194052361', true)]);
+      expect(launcher.opened, isEmpty, reason: 'no control session');
+    });
+
+    test('cancelled at D1: nothing reaches the portal, nothing opens', () async {
+      prompts.demoAnswer = null;
+      expect(await dm.connect(const PcRef('pc-1', '194052361'), demo: true), isNull);
+      expect(portal.sent('POST /demo'), isEmpty);
+      expect(opened, isEmpty);
+    });
+
+    test('the portal refuses: its Persian text, and no session', () async {
+      portal.on('POST /demo', (_) => FakePortal.error(403, 'forbidden', 'دمو برای این سازمان بسته است.'));
+      await dm.connect(const PcRef('pc-1', '194052361'), demo: true);
+      expect(dm.notice, 'دمو برای این سازمان بسته است.');
+      expect(opened, isEmpty);
+    });
+  });
+
   test('code mode: «اتصال» opens the card and waits for the code instead of a window', () async {
     await m.start();
     portal.on('POST /calls', (_) => {...callJson, 'consentMode': 'code', 'waiting': true, 'authorizedUntil': null});

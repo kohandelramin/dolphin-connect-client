@@ -83,7 +83,15 @@ class AnswerPrompts implements TechPrompts {
   bool takeover;
   final takeoverAsked = <String>[];
   final endAsked = <(PcRef, OpenCall)>[];
-  AnswerPrompts({this.takeover = true});
+  bool? demoAnswer;
+  final demoAsked = <String>[];
+  AnswerPrompts({this.takeover = true, this.demoAnswer = false});
+  @override
+  Future<bool?> confirmDemo(PcRef pc) async {
+    demoAsked.add(pc.name ?? pc.rustdeskId);
+    return demoAnswer;
+  }
+
   @override
   Future<bool> confirmTakeover(String holderName, PcRef pc) async {
     takeoverAsked.add(holderName);

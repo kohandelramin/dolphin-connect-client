@@ -49,8 +49,25 @@ String? cleanTypedId(String typed) {
   return panelIdPattern.hasMatch(latin) ? latin : null;
 }
 
+/// «ارائه دمو» (D1–D2, demo_hooks.dart): after the portal authorized the demo (POST /demo, through [TechActions]),
+/// opens the demo session to the PC with the technician's choice of screens. The app passes demo_hooks.dart's
+/// `startDemo`; tests record the calls.
+class TechDemoStarter implements DemoStarter {
+  final Future<void> Function(String rustdeskId, bool allScreens) open;
+
+  /// The D1 choice for the next demo («همه‌ی صفحه‌های من»), set by the shell model just before it asks the portal.
+  bool allScreens = false;
+  TechDemoStarter(this.open);
+
+  @override
+  Future<void> startDemo(DemoTarget target) => open(target.rustdeskId, allScreens);
+}
+
 /// What the shell asks the person (dialogs need a context; tests answer directly).
 abstract class TechPrompts {
+  /// D1: «ارائه دمو به …» with «همه‌ی صفحه‌های من». The choice, or null when cancelled.
+  Future<bool?> confirmDemo(PcRef pc);
+
   /// Another technician holds the PC: take the session over?
   Future<bool> confirmTakeover(String holderName, PcRef pc);
 
@@ -232,6 +249,13 @@ class TechShellModel extends ChangeNotifier {
   Future<ConnectOutcome?> connect(PcRef pc, {bool demo = false}) async {
     if (_busy) return null;
     if (offline && !demo) return _connectOffline(pc.rustdeskId, name: pc.name);
+    if (demo) {
+      // D1 first: nothing reaches the portal before the technician confirmed.
+      final all = await (prompts?.confirmDemo(pc) ?? Future<bool?>.value(false));
+      if (all == null) return null;
+      final starter = services.actions.demoStarter;
+      if (starter is TechDemoStarter) starter.allScreens = all;
+    }
     _busy = true;
     _changed();
     try {
@@ -255,7 +279,7 @@ class TechShellModel extends ChangeNotifier {
       case Connected():
         services.connection.reachable();
         if (!demo) _launched[pc.rustdeskId] = pc;
-        say(demo ? 'ارائه‌ی دمو به «$name» شروع شد.' : 'پنجره‌ی اتصال به «$name» باز شد.', ok: true);
+        say(demo ? 'از «$name» پرسیده می‌شود که دمو را ببیند…' : 'پنجره‌ی اتصال به «$name» باز شد.', ok: true);
       case WaitingForCode():
         services.connection.reachable();
         _launched[pc.rustdeskId] = pc;

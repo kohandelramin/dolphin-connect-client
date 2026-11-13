@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../brand.dart';
-import '../tech/actions.dart';
+import '../demo_hooks.dart' show startDemo;
 import '../tech/launcher.dart';
 import '../tech/services.dart';
 import '../tech_theme.dart';
@@ -21,10 +21,6 @@ import 'widgets.dart';
 /// sign-in or the window. Hook: flutter/lib/desktop/pages/desktop_home_page.dart.
 class DolphinTechnicianApp extends StatefulWidget {
   const DolphinTechnicianApp({super.key});
-
-  /// «ارائه دمو» (D1–D2): p19-demo sets its implementation here at start-up, before the main window opens. Without
-  /// one, «ارائه دمو» still asks the portal (authorized and audited) and says the demo window did not open.
-  static DemoStarter? demoStarter;
 
   @override
   State<DolphinTechnicianApp> createState() => _DolphinTechnicianAppState();
@@ -50,8 +46,11 @@ class _DolphinTechnicianAppState extends State<DolphinTechnicianApp> {
 
   Future<void> _open() async {
     try {
+      // «ارائه دمو»: after the portal's authorization, demo_hooks.dart opens the demo session (D1–D2).
       final s = await TechServices.open(
-          launcher: RustdeskSessionLauncher(), prefs: const LocalOptionPrefs(), demoStarter: DolphinTechnicianApp.demoStarter);
+          launcher: RustdeskSessionLauncher(),
+          prefs: const LocalOptionPrefs(),
+          demoStarter: TechDemoStarter((id, all) => startDemo(id, allScreens: all)));
       await s.session.load();
       if (!mounted) {
         s.dispose();

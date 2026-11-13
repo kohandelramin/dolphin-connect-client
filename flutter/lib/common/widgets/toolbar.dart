@@ -557,7 +557,9 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
         }));
   }
   // switchSides
-  if (isDefaultConn &&
+  // Dolphin Connect (Plan 19): the technician app has «ارائه دمو» instead (demo_hooks.dart); no upstream Switch Sides.
+  if (!bind.isOutgoingOnly() &&
+      isDefaultConn &&
       isDesktop &&
       ffiModel.keyboard &&
       pi.platform != kPeerPlatformAndroid &&
