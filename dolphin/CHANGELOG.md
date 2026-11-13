@@ -366,3 +366,5 @@ First numbered release of the apps (Plan 12). Based on RustDesk 1.5.0.
 اگر پورتال در دسترس نباشد، برنامه مثل همیشه باز می‌شود. نسخه‌های پیشین را یک بار دستی به ۲.۰.۰ برسانید.
 در حالت رمز یک‌بارمصرف، رمز فقط در همان حالت دیده می‌شود و تا وقتی کارشناس وصل است پنهان می‌ماند؛ ظاهر برنامه
 هم روی ویندوز تیره روشن و خوانا است. اگر پورتال در دسترس نباشد، «پذیرفتن» فعال نمی‌شود و شماره‌ی تماس نشان داده می‌شود.
+- Installer icon (owner 2026-11-13, «نشان دانلود»): the downloaded file (libs/portable) shows the app icon with an aqua
+  download badge, `res/setup.ico` from `dolphin/brand/icons/setup-<variant>-<size>.png`; the installed app keeps its own icon.

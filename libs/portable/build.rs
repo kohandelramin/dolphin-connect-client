@@ -5,7 +5,8 @@ fn main() {
     {
         use std::io::Write;
         let mut res = winres::WindowsResource::new();
-        res.set_icon("../../res/icon.ico")
+        // Dolphin Connect: the downloaded file shows the installer icon, not the app's (res/setup.ico, dolphin/brand.py).
+        res.set_icon("../../res/setup.ico")
             .set_language(winapi::um::winnt::MAKELANGID(
                 winapi::um::winnt::LANG_ENGLISH,
                 winapi::um::winnt::SUBLANG_ENGLISH_US,

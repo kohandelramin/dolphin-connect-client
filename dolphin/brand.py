@@ -24,6 +24,9 @@ VARIANTS = ("customer", "technician")
 ICO_SIZES = [(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)]
 APP_ICO_TARGETS = ["res/icon.ico", "flutter/windows/runner/resources/app_icon.ico"]
 TRAY_ICO_TARGETS = ["res/tray-icon.ico"]
+# The downloaded file (libs/portable, the installer customers and technicians run first) has its own icon: the app
+# icon with an aqua download badge (owner 2026-11-13, «نشان دانلود»), from setup-<variant>-<size>.png.
+SETUP_ICO_TARGETS = ["res/setup.ico"]
 PNG_TARGETS = ["res/icon.png", "res/32x32.png", "res/64x64.png", "res/128x128.png", "res/128x128@2x.png"]
 SVG_TARGETS = ["flutter/assets/icon.svg"]
 
@@ -152,11 +155,13 @@ def main(root=ROOT, variant="customer", icons=ICONS, mark_path=MARK):
     if variant not in VARIANTS:
         print(f"unknown variant: {variant} (use {' or '.join(VARIANTS)})", file=sys.stderr)
         return 2
-    app, tray = frames(variant, icons), frames("tray", icons)
+    app, tray, setup = frames(variant, icons), frames("tray", icons), frames(f"setup-{variant}", icons)
     for rel in APP_ICO_TARGETS:
         write_ico(app, root / rel)
     for rel in TRAY_ICO_TARGETS:
         write_ico(tray, root / rel)
+    for rel in SETUP_ICO_TARGETS:
+        write_ico(setup, root / rel)
     for rel in PNG_TARGETS:
         write_png(app, root / rel)
     with Image.open(mark_path) as img:
@@ -171,7 +176,7 @@ def main(root=ROOT, variant="customer", icons=ICONS, mark_path=MARK):
     if ui.exists():  # absent only in the unit tests' toy trees; the real tree always has it
         customer128 = frames("customer", icons)[ICO_SIZES.index(UI_ICON_SIZE)]
         ui.write_text(brand_ui_icons(ui.read_text(encoding="utf-8"), customer128), encoding="utf-8")
-    count = len(APP_ICO_TARGETS) + len(TRAY_ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)
+    count = len(APP_ICO_TARGETS) + len(TRAY_ICO_TARGETS) + len(SETUP_ICO_TARGETS) + len(PNG_TARGETS) + len(SVG_TARGETS)
     print(f"branded {count} images ({variant}), Runner.rc and Cargo.toml winres")
     return 0
 

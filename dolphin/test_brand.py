@@ -81,7 +81,7 @@ def _png_bytes(path):
 
 def _toy_tree(root):
     """The files brand.main() rewrites, in a temporary tree (no src/ui.rs: the real one is tested on its own)."""
-    for rel in brand.APP_ICO_TARGETS + brand.TRAY_ICO_TARGETS:
+    for rel in brand.APP_ICO_TARGETS + brand.TRAY_ICO_TARGETS + brand.SETUP_ICO_TARGETS:
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGBA", (32, 32), "red").save(root / rel)
     for rel, side in zip(brand.PNG_TARGETS, (1024, 32, 64, 128, 256)):
@@ -97,7 +97,7 @@ class IconTest(unittest.TestCase):
     """The owner's icons (2026-11-13): one PNG per size, packed into the .ico files as they are."""
 
     def test_every_set_has_every_ico_size_at_its_exact_size(self):
-        for kind in ("customer", "technician", "tray"):
+        for kind in ("customer", "technician", "tray", "setup-customer", "setup-technician"):
             got = brand.frames(kind)
             self.assertEqual([f.size for f in got], brand.ICO_SIZES, kind)
 
@@ -131,6 +131,10 @@ class IconTest(unittest.TestCase):
                     got = _ico_frames(root / rel)
                     for w, h in brand.ICO_SIZES:
                         self.assertEqual(got[(w, h)], _png_bytes(brand.ICONS / f"{kind}-{w}.png"), (rel, w))
+                # The downloaded file (the portable packer) has its own installer icon (owner 2026-11-13).
+                setup = _ico_frames(root / "res" / "setup.ico")
+                for w, h in brand.ICO_SIZES:
+                    self.assertEqual(setup[(w, h)], _png_bytes(brand.ICONS / f"setup-{kind}-{w}.png"), ("setup", w))
                 tray = _ico_frames(root / "res" / "tray-icon.ico")
                 for w, h in brand.ICO_SIZES:
                     self.assertEqual(tray[(w, h)], _png_bytes(brand.ICONS / f"tray-{w}.png"), w)
@@ -143,6 +147,15 @@ class IconTest(unittest.TestCase):
 
     def test_the_two_variants_get_different_icons(self):
         self.assertNotEqual(brand.frames("customer")[-1].tobytes(), brand.frames("technician")[-1].tobytes())
+
+    def test_the_installer_icon_differs_from_the_app_icon(self):
+        for variant in brand.VARIANTS:
+            self.assertNotEqual(brand.frames(variant)[-1].tobytes(), brand.frames(f"setup-{variant}")[-1].tobytes(), variant)
+
+    def test_the_packer_uses_the_installer_icon(self):
+        build = (brand.ROOT / "libs" / "portable" / "build.rs").read_text(encoding="utf-8")
+        self.assertIn('set_icon("../../res/setup.ico")', build)
+        self.assertNotIn('set_icon("../../res/icon.ico")', build)
 
     def test_an_unknown_variant_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
