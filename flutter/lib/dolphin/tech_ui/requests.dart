@@ -148,7 +148,7 @@ class TechRequestsView extends StatelessWidget {
             if (row.contactName != null) TechHint(row.contactName!),
             if (row.contactPhone != null) ...[
               const TechHint(' · '),
-              Text(row.contactPhone!, textDirection: TextDirection.ltr, style: TextStyle(fontSize: 12, color: t.textMuted)),
+              Text(faDigits(row.contactPhone!), textDirection: TextDirection.ltr, style: TextStyle(fontSize: 12, color: t.textMuted)),
             ],
             if (row.assigneeName != null && !row.mine) TechHint(' · با ${row.assigneeName}'),
           ]),

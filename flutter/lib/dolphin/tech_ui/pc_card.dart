@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../digits.dart';
 import '../tech/actions.dart';
 import '../tech/api.dart';
 import '../tech/state.dart';
@@ -281,7 +282,7 @@ class _TechPcCardState extends State<TechPcCard> {
           Flexible(child: TechHint([if (call.contactName != null) call.contactName!].join(' · '))),
           if (call.contactPhone != null) ...[
             const TechHint(' · '),
-            Text(call.contactPhone!, textDirection: TextDirection.ltr, style: TextStyle(fontSize: 12, color: t.textMuted)),
+            Text(faDigits(call.contactPhone!), textDirection: TextDirection.ltr, style: TextStyle(fontSize: 12, color: t.textMuted)),
           ],
         ]),
       const SizedBox(height: 6),
