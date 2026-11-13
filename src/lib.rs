@@ -37,6 +37,11 @@ mod dolphin_panel_core;
 mod dolphin_panel;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod dolphin_system;
+// Dolphin Connect, Plan 19 C3: the coloured frame around the customer's screen during a session.
+#[cfg(windows)]
+mod dolphin_frame_core;
+#[cfg(windows)]
+mod dolphin_frame;
 // Dolphin Connect, Plan 18 Phase 5: signed settings (DD-24), the ID kept across a reinstall (DD-5).
 mod dolphin_strategy_core;
 mod dolphin_strategy;
