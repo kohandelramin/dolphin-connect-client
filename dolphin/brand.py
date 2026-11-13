@@ -4,6 +4,7 @@ Usage: python dolphin/brand.py [customer|technician]   (from the repository root
 """
 import base64
 import io
+import json
 import pathlib
 import re
 import sys
@@ -26,19 +27,32 @@ TRAY_ICO_TARGETS = ["res/tray-icon.ico"]
 PNG_TARGETS = ["res/icon.png", "res/32x32.png", "res/64x64.png", "res/128x128.png", "res/128x128@2x.png"]
 SVG_TARGETS = ["flutter/assets/icon.svg"]
 
-RC_VALUES = {
-    "CompanyName": "Dolphin",
-    "FileDescription": "Dolphin Connect",
-    "InternalName": "DolphinConnect",
-    "OriginalFilename": "DolphinConnect.exe",
-    "ProductName": "Dolphin Connect",
-    # AGPL: keeps the upstream authors' copyright notice; the upstream product name is not shown (own brand).
-    "LegalCopyright": "\u00a9 Dolphin \u00b7 portions \u00a9 Purslane Tech Pte. Ltd. \u00b7 AGPL-3.0",
-}
+SETTINGS = ROOT / "dolphin" / "settings.json"
 
 
-def brand_rc(text):
-    for field, value in RC_VALUES.items():
+def rc_values(variant="customer"):
+    """The exe's version-resource names for one variant, from dolphin/settings.json (Task Manager, the taskbar and the
+    exe's Properties show FileDescription and ProductName). The technician app says «Technician» (owner 2026-11-13)."""
+    settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    chosen = settings["variants"][variant]
+    name = chosen.get("display-name-en", settings["brand"]["display-name-en"])
+    app = chosen.get("app-name", settings["app-name"])
+    return {
+        "CompanyName": "Dolphin",
+        "FileDescription": name,
+        "InternalName": app,
+        "OriginalFilename": f"{app}.exe",
+        "ProductName": name,
+        # AGPL: keeps the upstream authors' copyright notice; the upstream product name is not shown (own brand).
+        "LegalCopyright": "\u00a9 Dolphin \u00b7 portions \u00a9 Purslane Tech Pte. Ltd. \u00b7 AGPL-3.0",
+    }
+
+
+RC_VALUES = rc_values("customer")
+
+
+def brand_rc(text, variant="customer"):
+    for field, value in rc_values(variant).items():
         pattern = re.compile(r'(VALUE "' + field + r'", )"[^"]*"')
         text, count = pattern.subn(lambda m: m.group(1) + '"' + value + '"', text)
         if count != 1:
@@ -150,7 +164,7 @@ def main(root=ROOT, variant="customer", icons=ICONS, mark_path=MARK):
     for rel in SVG_TARGETS:
         (root / rel).write_text(svg_with_png(mark), encoding="utf-8")
     rc = root / "flutter" / "windows" / "runner" / "Runner.rc"
-    rc.write_text(brand_rc(rc.read_text(encoding="utf-8")), encoding="utf-8")
+    rc.write_text(brand_rc(rc.read_text(encoding="utf-8"), variant), encoding="utf-8")
     cargo = root / "Cargo.toml"
     cargo.write_text(brand_winres(cargo.read_text(encoding="utf-8")), encoding="utf-8")
     ui = root / "src" / "ui.rs"

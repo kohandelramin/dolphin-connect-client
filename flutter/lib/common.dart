@@ -48,6 +48,7 @@ import 'package:flutter_hbb/native/common.dart'
 import 'package:flutter_hbb/utils/http_service.dart' as http;
 import 'package:flutter_hbb/dolphin/theme.dart'; // Dolphin Connect: message-box colours (D20)
 import 'package:flutter_hbb/dolphin/plain_errors.dart'; // Dolphin Connect: plain Persian OS errors (DD-13)
+import 'package:flutter_hbb/dolphin/brand.dart'; // Dolphin Connect: the window title (owner 2026-11-13)
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -3026,7 +3027,9 @@ int versionCmp(String v1, String v2) {
 }
 
 String getWindowName({WindowType? overrideType}) {
-  final name = bind.mainGetAppNameSync();
+  // Dolphin Connect: the build's shown name («دلفین کانکت کارشناس» for the technician), not app-name; main.cpp and
+  // core_main.rs find the running main window by the same title (src/dolphin_generated.rs DISPLAY_NAME_FA).
+  final name = DolphinBrand.appNameFa;
   switch (overrideType ?? kWindowType) {
     case WindowType.Main:
       return name;

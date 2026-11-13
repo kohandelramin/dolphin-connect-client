@@ -16,8 +16,11 @@ fn main() {
         println!("cargo:rerun-if-env-changed=DOLPHIN_FILE_VERSION");
         if let (Ok(version), Ok(file_version)) = (std::env::var("DOLPHIN_VERSION"), std::env::var("DOLPHIN_FILE_VERSION")) {
             let packed = pack_file_version(&file_version).expect("DOLPHIN_FILE_VERSION must be four numbers up to 65535");
-            res.set("ProductName", "Dolphin Connect")
-                .set("FileDescription", "Dolphin Connect")
+            // Dolphin Connect: the technician build says so (DOLPHIN_PRODUCT_NAME from the workflow, owner 2026-11-13).
+            println!("cargo:rerun-if-env-changed=DOLPHIN_PRODUCT_NAME");
+            let name = std::env::var("DOLPHIN_PRODUCT_NAME").unwrap_or_else(|_| "Dolphin Connect".to_owned());
+            res.set("ProductName", &name)
+                .set("FileDescription", &name)
                 .set("CompanyName", "Dolphin")
                 .set("LegalCopyright", "\u{a9} Dolphin \u{b7} portions \u{a9} Purslane Tech Pte. Ltd. \u{b7} AGPL-3.0")
                 .set("FileVersion", &file_version)

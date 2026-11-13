@@ -86,6 +86,8 @@ jobs:
       # The portal derives these names: DolphinConnect-<version>-x64.exe, DolphinConnect-Technician-<version>-x64.exe.
       OUT_NAME: ${{ matrix.variant == 'technician' && 'DolphinConnect-Technician' || 'DolphinConnect' }}
       APP_EXE: ${{ matrix.variant == 'technician' && 'DolphinConnectTech.exe' || 'DolphinConnect.exe' }}
+      # The outer (packer) exe's ProductName and FileDescription (libs/portable/build.rs); settings.json's display-name-en.
+      DOLPHIN_PRODUCT_NAME: ${{ matrix.variant == 'technician' && 'Dolphin Connect Technician' || 'Dolphin Connect' }}
       # Brotli quality for the portable packer: 5 is much faster for dev builds; production keeps 11 (generate.py's
       # default). The packer's decoder reads any quality.
       PACK_LEVEL: ${{ inputs.profile == 'dev' && '5' || '11' }}

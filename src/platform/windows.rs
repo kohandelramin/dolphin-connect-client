@@ -1782,7 +1782,7 @@ md \"{path}\"
 {copy_exe}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
-reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
+reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{display_name}\"
 reg add {subkey} /f /v DisplayVersion /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v Version /t REG_SZ /d \"{version}\"
 reg add {subkey} /f /v BuildDate /t REG_SZ /d \"{build_date}\"
@@ -1821,6 +1821,7 @@ ie4uinit.exe -show
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         import_config = get_import_config(&exe),
         dolphin_leftovers = dolphin_leftover_cleanup(&path, &cur_exe), // Dolphin Connect (DD-21)
+        display_name = crate::dolphin::DISPLAY_NAME_EN, // Dolphin Connect: Settings > Apps shows the build's name
     );
     run_cmds(cmds, debug, "install")?;
     run_after_run_cmds(silent);

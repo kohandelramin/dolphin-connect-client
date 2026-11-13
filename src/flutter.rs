@@ -214,6 +214,19 @@ pub unsafe extern "C" fn get_rustdesk_app_name(buffer: *mut u16, length: i32) ->
     -1
 }
 
+/// Dolphin Connect (owner 2026-11-13): the build's shown name (dolphin/settings.json), the main window's title.
+/// flutter/windows/runner/main.cpp finds the running instance by it; app-name stays for paths, service and pipes.
+#[cfg(windows)]
+#[no_mangle]
+pub unsafe extern "C" fn get_dolphin_display_name(buffer: *mut u16, length: i32) -> i32 {
+    let name = crate::platform::wide_string(crate::dolphin::DISPLAY_NAME_FA);
+    if length > name.len() as i32 {
+        std::ptr::copy_nonoverlapping(name.as_ptr(), buffer, name.len());
+        return 0;
+    }
+    -1
+}
+
 #[derive(Default)]
 struct SessionHandler {
     event_stream: Option<StreamSink<EventToUI>>,

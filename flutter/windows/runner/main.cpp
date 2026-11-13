@@ -14,6 +14,7 @@
 typedef char** (*FUNC_RUSTDESK_CORE_MAIN)(int*);
 typedef void (*FUNC_RUSTDESK_FREE_ARGS)( char**, int);
 typedef int (*FUNC_RUSTDESK_GET_APP_NAME)(wchar_t*, int);
+typedef int (*FUNC_DOLPHIN_GET_DISPLAY_NAME)(wchar_t*, int); // Dolphin Connect: the shown name (src/flutter.rs)
 typedef int (*FUNC_RUSTDESK_IS_DISABLE_INSTALLATION)();
 /// Note: `--server`, `--service` are already handled in [core_main.rs].
 const std::vector<std::string> parameters_white_list = {"--install", "--cm"};
@@ -89,8 +90,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     }
   }
 
+  // Dolphin Connect (owner 2026-11-13): the windows show the build's shown name (the technician's says Technician),
+  // the same title Flutter's getWindowName() sets; app_name stays for paths, service and pipe names.
+  std::wstring display_name = app_name;
+  FUNC_DOLPHIN_GET_DISPLAY_NAME get_dolphin_display_name = (FUNC_DOLPHIN_GET_DISPLAY_NAME)GetProcAddress(hInstance, "get_dolphin_display_name");
+  if (get_dolphin_display_name) {
+    wchar_t display_name_buffer[512] = {0};
+    if (get_dolphin_display_name(display_name_buffer, 512) == 0) {
+      display_name = std::wstring(display_name_buffer);
+    }
+  }
+
   // Uri links dispatch
-  HWND hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());
+  HWND hwnd = ::FindWindowW(getWindowClassName(), display_name.c_str());
+  if (hwnd == NULL) hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str()); // Dolphin Connect: as upstream
   if (hwnd != NULL) {
     // Allow multiple flutter instances when being executed by parameters
     // contained in whitelists.
@@ -172,11 +185,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::wstring window_title;
   if (is_cm_page) {
     // Dolphin Connect (AUI-10): Persian title, escaped so the compiler's source encoding cannot garble it ("— اتصال").
-    window_title = app_name + L" — اتصال";
+    window_title = display_name + L" — اتصال";
   } else if (is_install_page) {
-    window_title = app_name + L" — نصب"; // Dolphin Connect: "— نصب"
+    window_title = display_name + L" — نصب"; // Dolphin Connect: "— نصب"
   } else {
-    window_title = app_name;
+    window_title = display_name; // Dolphin Connect: the shown name, found above by the next launch
   }
   if (!window.CreateAndShow(window_title, origin, size, !is_cm_page)) {
       return EXIT_FAILURE;

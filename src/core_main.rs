@@ -844,13 +844,17 @@ fn core_main_invoke_new_connection(mut args: std::env::Args) -> Option<Vec<Strin
     #[cfg(windows)]
     {
         use winapi::um::winuser::WM_USER;
-        let res = crate::platform::send_message_to_hnwd(
-            &crate::platform::FLUTTER_RUNNER_WIN32_WINDOW_CLASS,
-            &crate::get_app_name(),
-            (WM_USER + 2) as _, // referred from unilinks desktop pub
-            uni_links.as_str(),
-            false,
-        );
+        // Dolphin Connect (owner 2026-11-13): the main window's title is the shown name (DISPLAY_NAME_FA), then
+        // upstream's app name.
+        let res = [crate::dolphin::DISPLAY_NAME_FA.to_owned(), crate::get_app_name()].iter().any(|title| {
+            crate::platform::send_message_to_hnwd(
+                &crate::platform::FLUTTER_RUNNER_WIN32_WINDOW_CLASS,
+                title,
+                (WM_USER + 2) as _, // referred from unilinks desktop pub
+                uni_links.as_str(),
+                false,
+            )
+        });
         return if res { None } else { Some(Vec::new()) };
     }
     #[cfg(target_os = "macos")]

@@ -621,5 +621,64 @@ class PrinterWiringTest(unittest.TestCase):
         for f in ("printer_test.dart",):
             self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / f).is_file())
 
+
+class AppNameWiringTest(unittest.TestCase):
+    """Owner 2026-11-13: the technician app's shown name says «کارشناس» (settings.json variants.technician.display-name-*),
+    while app-name (install paths, service, pipes, shortcuts) stays. The hooks are proven by their text: neither the
+    runner nor the Rust crate is built here."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_flutter_titles_every_window_with_the_shown_name(self):
+        common = self.read("flutter", "lib", "common.dart")
+        body = common.split("String getWindowName({WindowType? overrideType}) {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("final name = DolphinBrand.appNameFa;", body)
+        self.assertNotIn("mainGetAppNameSync", body)
+
+    def test_the_runner_titles_and_finds_the_main_window_by_the_same_name(self):
+        main = self.read("flutter", "windows", "runner", "main.cpp")
+        self.assertIn('GetProcAddress(hInstance, "get_dolphin_display_name")', main)
+        lookup = main.index("HWND hwnd = ::FindWindowW(getWindowClassName(), display_name.c_str());")
+        self.assertLess(main.index('GetProcAddress(hInstance, "get_rustdesk_app_name")'), lookup)
+        self.assertLess(lookup, main.index("if (hwnd == NULL) hwnd = ::FindWindowW(getWindowClassName(), app_name.c_str());"))
+        self.assertIn("    window_title = display_name; // Dolphin Connect", main)
+        self.assertNotIn("window_title = app_name", main)
+        flutter = self.read("src", "flutter.rs")
+        export = flutter.split('pub unsafe extern "C" fn get_dolphin_display_name(', 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("crate::platform::wide_string(crate::dolphin::DISPLAY_NAME_FA)", export)
+        self.assertIn("#[no_mangle]\npub unsafe extern \"C\" fn get_dolphin_display_name(", flutter)
+
+    def test_a_link_reaches_the_running_window_by_its_shown_name_first(self):
+        core = self.read("src", "core_main.rs")
+        self.assertIn("[crate::dolphin::DISPLAY_NAME_FA.to_owned(), crate::get_app_name()].iter().any(|title| {", core)
+
+    def test_settings_apps_shows_the_shown_name_and_app_name_keeps_the_rest(self):
+        win = self.read("src", "platform", "windows.rs")
+        self.assertIn('reg add {subkey} /f /v DisplayName /t REG_SZ /d \\"{display_name}\\"', win)
+        self.assertIn("display_name = crate::dolphin::DISPLAY_NAME_EN,", win)
+        self.assertIn('&format!("{app_name}.lnk")', win)  # shortcuts keep app-name
+
+    def test_the_outer_exe_gets_the_variant_name_from_the_workflow(self):
+        import json
+        settings = json.loads(self.read("dolphin", "settings.json"))
+        tech = settings["variants"]["technician"]["display-name-en"]
+        cust = settings["brand"]["display-name-en"]
+        self.assertIn(f"DOLPHIN_PRODUCT_NAME: ${{{{ matrix.variant == 'technician' && '{tech}' || '{cust}' }}}}",
+                      job(BUILD, "build-windows"))
+        build = self.read("libs", "portable", "build.rs")
+        self.assertIn('std::env::var("DOLPHIN_PRODUCT_NAME").unwrap_or_else(|_| "Dolphin Connect".to_owned())', build)
+        self.assertIn('res.set("ProductName", &name)', build)
+
+    def test_the_dart_views_use_the_generated_names(self):
+        self.assertIn("Text(DolphinBrand.technicianNameFa,", self.read("flutter", "lib", "dolphin", "technician_header.dart"))
+        self.assertIn("this.name = DolphinBrand.appNameFa", self.read("flutter", "lib", "dolphin", "about.dart"))
+        update = self.read("flutter", "lib", "dolphin", "update.dart")
+        self.assertEqual(update.count("DolphinBrand.appNameFa"), 2)
+        self.assertNotIn("DolphinBrand.nameFa", update)
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "app_name_test.dart").is_file())
+        self.assertIn("lib/common.dart", ANALYZE)
+
+
 if __name__ == "__main__":
     unittest.main()

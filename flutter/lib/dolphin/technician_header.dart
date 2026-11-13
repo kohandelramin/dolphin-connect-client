@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../common.dart';
+import 'brand.dart';
 import 'call_status.dart';
 import 'home_view.dart';
 import 'tech_theme.dart';
@@ -42,13 +43,8 @@ class DolphinTechnicianHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            Text('دلفین کانکت', style: TextStyle(fontWeight: FontWeight.w800, color: p.accent)),
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: p.accentSoft, borderRadius: BorderRadius.circular(99)),
-              child: Text('کارشناس', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: p.accent)),
-            ),
+            // Owner 2026-11-13: the app's own name, «دلفین کانکت کارشناس» (settings.json, through brand.dart).
+            Text(DolphinBrand.technicianNameFa, style: TextStyle(fontWeight: FontWeight.w800, color: p.accent)),
             const SizedBox(width: 16),
             Text('شناسه‌ی شما', style: TextStyle(color: p.muted, fontSize: 12)),
             const SizedBox(width: 6),

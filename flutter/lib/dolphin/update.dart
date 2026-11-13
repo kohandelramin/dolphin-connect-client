@@ -23,12 +23,12 @@ Future<bool> runDolphinUpdateIfNeeded(Future<void> Function() openApp) async {
   await windowManager.setPreventClose(false);
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
-    title: DolphinBrand.nameFa,
+    title: DolphinBrand.appNameFa,
     theme: dolphinTheme(ThemeData.light()),
     home: Scaffold(body: DolphinUpdateScreen(check: check, openApp: openApp)),
   ));
   await windowManager.waitUntilReadyToShow(
-      const WindowOptions(size: kDolphinUpdateSize, center: true, title: DolphinBrand.nameFa), () async {
+      const WindowOptions(size: kDolphinUpdateSize, center: true, title: DolphinBrand.appNameFa), () async {
     await windowManager.setOpacity(1);
     await windowManager.show();
     await windowManager.focus();

@@ -36,6 +36,33 @@ class RunnerRcTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             brand.brand_rc(RC.replace('"ProductName"', '"Product"'))
 
+    def test_the_technician_exe_says_technician(self):
+        # Task Manager, the taskbar and the exe's Properties show FileDescription / ProductName.
+        out = brand.brand_rc(RC, "technician")
+        self.assertIn('VALUE "ProductName", "Dolphin Connect Technician" "\\0"', out)
+        self.assertIn('VALUE "FileDescription", "Dolphin Connect Technician" "\\0"', out)
+        self.assertIn('VALUE "OriginalFilename", "DolphinConnectTech.exe" "\\0"', out)
+        self.assertIn('VALUE "InternalName", "DolphinConnectTech" "\\0"', out)
+        self.assertIn('VALUE "CompanyName", "Dolphin" "\\0"', out)
+        self.assertEqual(brand.brand_rc(RC, "customer"), brand.brand_rc(RC))
+
+    def test_main_writes_the_variant_into_runner_rc(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            _toy_tree(root)
+            brand.main(root, "technician")
+            rc = (root / "flutter" / "windows" / "runner" / "Runner.rc").read_text(encoding="utf-8")
+            cargo = (root / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertIn('"FileDescription", "Dolphin Connect Technician"', rc)
+        # Cargo winres is the x86 Sciter build, which is the customer app only.
+        self.assertIn('FileDescription = "Dolphin Connect"\n', cargo)
+
+    def test_the_names_come_from_settings_json(self):
+        import json
+        settings = json.loads((brand.ROOT / "dolphin" / "settings.json").read_text(encoding="utf-8"))
+        self.assertEqual(brand.rc_values("technician")["ProductName"], settings["variants"]["technician"]["display-name-en"])
+        self.assertEqual(brand.rc_values("customer")["ProductName"], settings["brand"]["display-name-en"])
+
 
 def _ico_frames(path):
     """Every frame of an .ico as RGBA bytes, by size."""

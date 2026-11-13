@@ -209,6 +209,66 @@ class RenderTest(unittest.TestCase):
             self.assertEqual(g.main(["production"], root, FAKE_ENV), 2)
 
 
+class DisplayNameTest(unittest.TestCase):
+    """Owner 2026-11-13: the technician app says «کارشناس» in its name; app-name (paths, service, pipes) stays."""
+
+    def test_the_technician_has_its_own_display_name_and_the_same_app_name(self):
+        tech = SETTINGS["variants"]["technician"]
+        self.assertEqual(tech["display-name-fa"], "دلفین کانکت کارشناس")
+        self.assertEqual(tech["display-name-en"], "Dolphin Connect Technician")
+        self.assertEqual(tech["app-name"], "DolphinConnectTech")
+        self.assertEqual(g.display_names(SETTINGS, "technician"), ("دلفین کانکت کارشناس", "Dolphin Connect Technician"))
+        self.assertEqual(g.display_names(SETTINGS, "customer"), ("دلفین کانکت", "Dolphin Connect"))
+
+    def test_display_names_come_in_pairs_and_are_checked(self):
+        for broken in ({"display-name-fa": "دلفین"}, {"display-name-en": "Dolphin"},
+                       {"display-name-fa": " ", "display-name-en": "Dolphin"},
+                       {"display-name-fa": "دلفین", "display-name-en": 3},
+                       {"display-name-fa": "دلفین\n", "display-name-en": "Dolphin"}):
+            s = copy.deepcopy(SETTINGS)
+            for key in ("display-name-fa", "display-name-en"):
+                s["variants"]["technician"].pop(key, None)
+            s["variants"]["technician"].update(broken)
+            self.assertTrue(any("display-name" in e for e in g.validate_settings(s)), broken)
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["customer"].update({"display-name-fa": "دلفین", "display-name-en": "Dolphin"})
+        self.assertEqual(g.validate_settings(s), [])
+
+    def test_rust_carries_the_build_display_name(self):
+        tech = g.render_rust(SETTINGS, PROFILE, "production", "technician", "2.0.0")
+        self.assertIn('pub const DISPLAY_NAME_FA: &str = "دلفین کانکت کارشناس";', tech)
+        self.assertIn('pub const DISPLAY_NAME_EN: &str = "Dolphin Connect Technician";', tech)
+        cust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0")
+        self.assertIn('pub const DISPLAY_NAME_FA: &str = "دلفین کانکت";', cust)
+        self.assertIn('pub const DISPLAY_NAME_EN: &str = "Dolphin Connect";', cust)
+
+    def test_brand_dart_has_this_build_name_and_the_technician_name(self):
+        cust = g.render_brand_dart(SETTINGS, PROFILE, "2.0.0", "customer")
+        self.assertIn("static const String nameFa = 'دلفین کانکت';", cust)
+        self.assertIn("static const String appNameFa = 'دلفین کانکت';", cust)
+        self.assertIn("static const String appNameEn = 'Dolphin Connect';", cust)
+        self.assertIn("static const String technicianNameFa = 'دلفین کانکت کارشناس';", cust)
+        tech = g.render_brand_dart(SETTINGS, PROFILE, "2.0.0", "technician")
+        self.assertIn("static const String nameFa = 'دلفین کانکت';", tech)
+        self.assertIn("static const String appNameFa = 'دلفین کانکت کارشناس';", tech)
+        self.assertIn("static const String appNameEn = 'Dolphin Connect Technician';", tech)
+        # The variant defaults to customer for older callers.
+        self.assertEqual(g.render_brand_dart(SETTINGS, PROFILE, "2.0.0"), cust)
+
+    def test_main_writes_the_variant_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "dolphin" / "profiles").mkdir(parents=True)
+            (root / "src").mkdir()
+            (root / "dolphin" / "settings.json").write_text(json.dumps(SETTINGS), encoding="utf-8")
+            (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
+            self.assertEqual(g.main(["production", "technician", "2.0.0"], root, FAKE_ENV), 0)
+            dart = (root / "flutter" / "lib" / "dolphin" / "brand.dart").read_text(encoding="utf-8")
+            self.assertIn("static const String appNameFa = 'دلفین کانکت کارشناس';", dart)
+            rust = (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8")
+            self.assertIn('pub const DISPLAY_NAME_EN: &str = "Dolphin Connect Technician";', rust)
+
+
 class VersionTest(unittest.TestCase):
     def test_rust_and_dart_carry_the_dolphin_version_the_portal_and_the_phone(self):
         rust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0-rc.1")

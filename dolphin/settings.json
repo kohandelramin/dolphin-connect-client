@@ -51,6 +51,8 @@
     },
     "technician": {
       "app-name": "DolphinConnectTech",
+      "display-name-fa": "دلفین کانکت کارشناس",
+      "display-name-en": "Dolphin Connect Technician",
       "hard": { "conn-type": "outgoing" }
     }
   }

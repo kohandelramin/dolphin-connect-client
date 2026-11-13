@@ -25,9 +25,7 @@ class DolphinAbout extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(DolphinBrand.nameFa,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            Text(versionLabel(DolphinBrand.version), style: const TextStyle(color: DolphinColors.muted)),
+            const DolphinAboutHeading(),
             // DD-20: beside the start-up self-update (TB-20).
             const SizedBox(height: 8),
             const DolphinUpdateCheckButton(),
@@ -56,6 +54,19 @@ class DolphinAbout extends StatelessWidget {
       ),
     );
   }
+}
+
+/// About's first lines: this build's name («دلفین کانکت کارشناس» in the technician app, owner 2026-11-13) and version.
+class DolphinAboutHeading extends StatelessWidget {
+  final String name;
+  final String version;
+  const DolphinAboutHeading({super.key, this.name = DolphinBrand.appNameFa, this.version = DolphinBrand.version});
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted)),
+      ]);
 }
 
 /// DD-20: the customer window has no settings page, so its version line opens About in a dialog.
