@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(error_text("hash"), error_text("size"));
         assert!(error_text("hash").contains("تغییری نکرد"));
         assert!(!error_text("something new").is_empty());
-        assert_eq!(phone_text("021-44200250"), "اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۰۰۲۵۰");
+        assert_eq!(phone_text("021-44280505"), "اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۸۰۵۰۵");
         assert_eq!(phone_text(""), "اگر درست نشد با پشتیبانی دلفین تماس بگیرید.");
         assert_eq!(pick_phone(" 021-1 ", "021-2"), "021-1");
         assert_eq!(pick_phone("-", "021-2"), "021-2");

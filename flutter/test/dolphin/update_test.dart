@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 Widget _app(Widget child) =>
     MaterialApp(theme: dolphinTheme(ThemeData.light()), home: Scaffold(body: child));
 
-const _phone = 'اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۰۰۲۵۰';
+const _phone = 'اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۸۰۵۰۵';
 const _update = DolphinUpdateCheck(
     state: 'update',
     version: '2.0.1',

@@ -45,7 +45,7 @@ DolphinHomeView _home({
       connected: connected,
       coming: coming,
       onCopy: onCopy ?? () {},
-      phone: '021-44200250',
+      phone: '021-44280505',
       siteLabel: 'support.dolphindev.ir',
       network: network,
       idChanged: idChanged,

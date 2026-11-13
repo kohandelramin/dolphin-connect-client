@@ -55,8 +55,8 @@ void main() {
   });
 
   test('support numbers pushed by the portal win over the compiled one', () {
-    expect(supportPhone('021-44200250 · 0912-0000000', '021-44200250'), '021-44200250 · 0912-0000000');
-    expect(supportPhone('  ', '021-44200250'), '021-44200250');
+    expect(supportPhone('021-44280505 · 0912-0000000', '021-44280505'), '021-44280505 · 0912-0000000');
+    expect(supportPhone('  ', '021-44280505'), '021-44280505');
   });
 
   test('the theme uses Vazirmatn and azure', () {
@@ -270,11 +270,11 @@ void main() {
     await tester.pumpWidget(_app(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.unverifiable),
         peerName: 'x',
-        phone: '021-44200250',
+        phone: '021-44280505',
         onAccept: (k, c, f) {},
         onDeny: () => denied = true)));
     expect(find.textContaining('پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.'), findsOneWidget);
-    expect(find.textContaining('۰۲۱-۴۴۲۰۰۲۵۰'), findsOneWidget);
+    expect(find.textContaining('۰۲۱-۴۴۲۸۰۵۰۵'), findsOneWidget);
     expect(find.text('پذیرفتن'), findsNothing);
     await tester.tap(find.text('رد'));
     expect(denied, isTrue);
@@ -284,9 +284,9 @@ void main() {
     final verdict = verifyTechnician(
         peerId: '287654321', techId: '-', techName: '-', until: 0, nowSeconds: 1000, waitedMs: 9000, portalDown: true);
     await tester.pumpWidget(_app(DolphinAcceptView(
-        verdict: verdict, peerName: 'x', phone: '021-44200250', onAccept: (k, c, f) {}, onDeny: () {})));
+        verdict: verdict, peerName: 'x', phone: '021-44280505', onAccept: (k, c, f) {}, onDeny: () {})));
     expect(find.textContaining('پورتال دلفین در دسترس نیست'), findsOneWidget);
-    expect(find.textContaining('۰۲۱-۴۴۲۰۰۲۵۰'), findsOneWidget);
+    expect(find.textContaining('۰۲۱-۴۴۲۸۰۵۰۵'), findsOneWidget);
     expect(find.textContaining('این اتصال از کارشناس دلفین نیست'), findsNothing);
     expect(find.text('پذیرفتن'), findsNothing);
   });

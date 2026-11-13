@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn phones_in_persian_or_latin_digits_with_spaces_are_the_same() {
         assert_eq!(normalize_phone("۰۹۱۲ ۳۴۵ ۶۷۸۹").as_deref(), Some("09123456789"));
-        assert_eq!(normalize_phone("(021) 4420-0250").as_deref(), Some("02144200250"));
+        assert_eq!(normalize_phone("(021) 4428-0505").as_deref(), Some("02144280505"));
         assert_eq!(normalize_phone("+98 912 345 6789").as_deref(), Some("+989123456789"));
         assert_eq!(normalize_phone("12"), None);
         assert_eq!(normalize_phone("0912abc4567"), None);
