@@ -9,7 +9,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
+import 'package:flutter_hbb/dolphin/monitor_picker.dart';
+import 'package:flutter_hbb/dolphin/no_picture.dart';
+import 'package:flutter_hbb/dolphin/request_outcome.dart';
+import 'package:flutter_hbb/dolphin/session_toolbar.dart';
+import 'package:flutter_hbb/dolphin/side_pane.dart';
+import 'package:flutter_hbb/dolphin/signin_expired.dart';
+import 'package:flutter_hbb/dolphin/tech_theme.dart';
 import 'package:flutter_hbb/dolphin/first_run_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/network_status.dart';
@@ -37,20 +45,21 @@ Future<void> _loadFonts() async {
   await icons.load();
 }
 
-Future<void> _shot(WidgetTester tester, String name, Size size, Widget child) async {
+Future<void> _shot(WidgetTester tester, String name, Size size, Widget child, {ThemeData? theme, Duration wait = const Duration(milliseconds: 300)}) async {
   await tester.binding.setSurfaceSize(size);
   tester.view.physicalSize = size * 2;
   tester.view.devicePixelRatio = 2;
   final key = GlobalKey();
   await tester.pumpWidget(MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: dolphinTheme(ThemeData.light()),
+    theme: theme ?? dolphinTheme(ThemeData.light()),
     home: Directionality(
       textDirection: TextDirection.rtl,
       child: RepaintBoundary(key: key, child: Scaffold(body: child)),
     ),
   ));
-  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(wait);
+  await tester.pump(const Duration(milliseconds: 50));
   await tester.runAsync(() async {
     final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 2);
@@ -58,6 +67,15 @@ Future<void> _shot(WidgetTester tester, String name, Size size, Widget child) as
     File('$_dir/$name.png').writeAsBytesSync(png!.buffer.asUint8List());
   });
 }
+
+/// Upstream's chat page draws this bubble around each message (the preview has no chat page).
+Widget _bubble(Widget child) => Align(
+    alignment: Alignment.centerRight,
+    child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(color: DolphinColors.azure, borderRadius: BorderRadius.circular(12)),
+        child: child));
 
 void main() {
   const home = Size(340, 520);
@@ -101,5 +119,45 @@ void main() {
         technician: 'علی رضایی', elapsed: const Duration(minutes: 9), keyboard: false, clipboard: true, file: false, paused: true,
         inputOff: 'علی رضایی خاموش کرد، ۳ دقیقه پیش', onPause: (_) {}, onToggle: (_, __) {}, onEnd: () {}));
     await _shot(tester, '11-ended', session, DolphinEndedView(reason: DolphinEndReason.values.first, onClose: () {}));
+  }, skip: _dir == null);
+
+  // Plan 18 Phase 3: the technician's pieces, light and dark (DD-53).
+  testWidgets('write technician previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    const screens = [
+      DolphinScreen(x: 0, y: 0, width: 1920, height: 1080, pixelWidth: 1920, pixelHeight: 1080),
+      DolphinScreen(x: 1920, y: 120, width: 1366, height: 768, pixelWidth: 1366, pixelHeight: 768),
+    ];
+    for (final dark in [false, true]) {
+      final theme = DolphinTechTheme.dataFor(dark ? Brightness.dark : Brightness.light);
+      final tag = dark ? 'dark' : 'light';
+      await _shot(tester, '20-toolbar-$tag', const Size(1000, 64), DolphinSessionBar(
+          state: const DolphinBarState(latencyMs: 45, direct: false, screens: 2, canFollow: true),
+          axis: Axis.horizontal, onCtrlAltDel: noop, onLock: noop, onFiles: noop, onViewOnly: noop, onMyCursor: noop,
+          onFollow: noop, onNoPicture: noop, onCollapse: noop, onScreenshot: noop, onKeyboardLayout: noop), theme: theme);
+      await _shot(tester, '21-monitors-$tag', const Size(360, 240),
+          Center(child: DolphinMonitorPicker(screens: screens, current: 0, primary: 0, onPick: (_) {})), theme: theme);
+      await _shot(tester, '22-no-picture-$tag', const Size(440, 300),
+          Center(child: DolphinNoPictureHelp(canCtrlAltDel: true, installed: true, onCtrlAltDel: noop, onWait: noop, onDisconnect: noop)),
+          theme: theme);
+    }
+    final t = DateTime(2026, 11, 13, 10, 30);
+    await _shot(tester, '23-chat', const Size(360, 320), DolphinChatFrame(empty: false, child: ListView(padding: const EdgeInsets.all(8), children: [
+      _bubble(DolphinChatText(text: 'سلام، برنامه‌ی حسابداری باز نمی‌شود', at: t)),
+      _bubble(DolphinChatText(text: r'C:\Program Files\Dolphin\MS.exe', at: t.add(const Duration(minutes: 1)))),
+      _bubble(DolphinChatText(text: 'الان بررسی می‌کنم', at: t.add(const Duration(minutes: 2)))),
+    ])));
+    await _shot(tester, '24-chat-empty', const Size(360, 200), DolphinChatFrame(empty: true, child: const SizedBox.expand()));
+    var calls = 0;
+    final start = DateTime(2026, 11, 13, 10, 0);
+    await _shot(tester, '25-no-answer', const Size(380, 220),
+        Center(child: DolphinWaitAccept(now: () => calls++ < 2 ? start : start.add(const Duration(seconds: 75)))),
+        wait: const Duration(milliseconds: 1500));
+    await _shot(tester, '26-signin-expired', const Size(400, 360), DolphinSignInExpired(onSignIn: noop));
+    await _shot(tester, '27-side-strip', const Size(80, 200),
+        Center(child: DolphinSideStrip(open: true, onToggle: noop, onScreenshot: noop, onKeyboard: (_) {})));
+    await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }
