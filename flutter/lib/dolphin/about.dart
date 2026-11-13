@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/platform_model.dart';
 import 'brand.dart';
 import 'digits.dart';
+import 'printer_hooks.dart';
 import 'theme.dart';
 import 'update.dart';
 
@@ -36,6 +37,8 @@ class DolphinAbout extends StatelessWidget {
               builder: (context, snapshot) => SelectableText('شناسه‌ی این رایانه: ${snapshot.data ?? ''}',
                   style: const TextStyle(color: DolphinColors.muted)),
             ),
+            // DD-41: the customer's virtual printer; nothing while the portal's `remote-printer` switch is hidden.
+            if (bind.isIncomingOnly()) ...[const SizedBox(height: 10), const DolphinPrinterSection()],
             const SizedBox(height: 12),
             const Text('© ۱۴۰۵ دلفین · بخش‌هایی © Purslane Tech Pte. Ltd.'),
             Wrap(children: [

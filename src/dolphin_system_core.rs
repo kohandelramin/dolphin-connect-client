@@ -203,6 +203,25 @@ pub fn heartbeat_share(stopped: bool) -> &'static str {
     }
 }
 
+// ---- DD-41: the remote printer (owner 2026-11-13: off unless an organization turns it on) ----
+
+#[cfg_attr(not(feature = "flutter"), allow(dead_code))]
+pub const SWITCH_REMOTE_PRINTER: &str = "remote-printer";
+
+/// Whether a print job from the customer's «DolphinConnect Printer» goes to the technician. `permitted` is upstream's
+/// own answer (`enable-remote-printer`, on unless set to "N", and the server's control permissions). Hidden refuses
+/// every job whatever the option says; forced sends it even when the option was turned off; available leaves it to
+/// upstream's answer, which the customer's switch in About sets. Only the Flutter build prints (the x86 build has no
+/// printer service).
+#[cfg_attr(not(feature = "flutter"), allow(dead_code))]
+pub fn printer_forward(mode: SwitchMode, permitted: bool) -> bool {
+    match mode {
+        SwitchMode::Hidden => false,
+        SwitchMode::Available => permitted,
+        SwitchMode::Forced => true,
+    }
+}
+
 // ---- DD-12: the fixed receive folder ----
 
 /// `<home>\Downloads\دریافتی دلفین`.
@@ -372,6 +391,19 @@ mod tests {
         assert!(!sharing_stopped(SwitchMode::Available, "N"));
         assert_eq!(heartbeat_share(true), "stopped");
         assert_eq!(heartbeat_share(false), "on");
+    }
+
+    #[test]
+    fn the_remote_printer_is_off_unless_the_portal_turns_it_on() {
+        assert_eq!(switch_default(SWITCH_REMOTE_PRINTER), SwitchMode::Hidden); // as kSwitchDefaults in switches.dart
+        assert_eq!(switch_mode("", SWITCH_REMOTE_PRINTER), SwitchMode::Hidden);
+        assert!(!printer_forward(SwitchMode::Hidden, true));
+        assert!(!printer_forward(SwitchMode::Hidden, false));
+        assert!(printer_forward(SwitchMode::Available, true));
+        assert!(!printer_forward(SwitchMode::Available, false));
+        assert!(printer_forward(SwitchMode::Forced, false));
+        let raw = r#"{"remote-printer":"available"}"#;
+        assert!(printer_forward(switch_mode(raw, SWITCH_REMOTE_PRINTER), true));
     }
 
     #[test]

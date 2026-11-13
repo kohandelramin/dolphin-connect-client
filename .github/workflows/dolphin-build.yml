@@ -190,6 +190,31 @@ jobs:
           # The portable packer extracts into a folder named after this exe; keep it apart from stock RustDesk.
           mv ./rustdesk/rustdesk.exe "./rustdesk/$env:APP_EXE"
 
+      # DD-41: upstream's remote-printer driver (drivers\RustDeskPrinterDriver) and its adapter DLL, laid out as
+      # upstream 1.5.0's flutter-build.yml does, for the customer app only (the technician prints with Windows' own
+      # spooler). Pinned by SHA-256 (from upstream's sha256sums, checked 2026-11-13); unlike upstream, a changed file
+      # fails the build. The driver is installed on a PC only by «نصب چاپگر» (UAC) or an install with the printer
+      # option, and print jobs leave the PC only when the portal's `remote-printer` switch is not hidden.
+      - name: Remote printer driver (DD-41)
+        if: matrix.variant == 'customer'
+        shell: bash
+        env:
+          PRINTER_DRIVER_URL: https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip
+          PRINTER_DRIVER_SHA256: c4cf4d3b48c4d9079b243edc43bb1db03b076282bc259c9f49883e9db20fa8b5
+          PRINTER_ADAPTER_URL: https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip
+          PRINTER_ADAPTER_SHA256: e90e5d52c8807b4c6293c78a52479338715e0bf396b1b34802777b8c452e6781
+        run: |
+          mkdir -p printer-dl
+          curl -fsSL -o printer-dl/driver.zip "$PRINTER_DRIVER_URL"
+          curl -fsSL -o printer-dl/adapter.zip "$PRINTER_ADAPTER_URL"
+          echo "$PRINTER_DRIVER_SHA256  printer-dl/driver.zip" | sha256sum -c -
+          echo "$PRINTER_ADAPTER_SHA256  printer-dl/adapter.zip" | sha256sum -c -
+          python -c "import zipfile; [zipfile.ZipFile(f'printer-dl/{n}.zip').extractall(f'printer-dl/{n}') for n in ('driver', 'adapter')]"
+          mkdir -p ./rustdesk/drivers
+          mv printer-dl/driver/rustdesk_printer_driver_v4-1.4 ./rustdesk/drivers/RustDeskPrinterDriver
+          mv printer-dl/adapter/printer_driver_adapter.dll ./rustdesk/
+          test -f ./rustdesk/drivers/RustDeskPrinterDriver/RustDeskPrinterDriver.inf
+
       # DD-21: a clean Windows 10 without the VC++ redistributable must start the app. Rust and the runner are built
       # with the static runtime (upstream); this copies any VC++ runtime DLL a prebuilt DLL next to the exe imports
       # (flutter_windows.dll, the printer adapter) from Visual Studio's redist folder, and fails if one is missing.

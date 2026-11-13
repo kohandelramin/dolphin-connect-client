@@ -553,5 +553,53 @@ class UpdateCheckWiringTest(unittest.TestCase):
         self.assertIn("Widget build(BuildContext context) => const DolphinAbout(); // Dolphin Connect", settings)
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "update_check_test.dart").is_file())
 
+
+class PrinterWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-41): upstream's remote printer behind the portal's `remote-printer` switch."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_pc_asks_the_switch_before_any_job_leaves(self):
+        conn = self.read("src", "server", "connection.rs")
+        branch = conn.split("ipc::Data::PrinterData(data) => {", 1)[1].split("_ => {}", 1)[0]
+        self.assertIn("crate::dolphin_system_core::SWITCH_REMOTE_PRINTER", branch)
+        self.assertLess(branch.index("crate::dolphin_system_core::printer_forward("),
+                        branch.index("conn.send_printer_request(data).await;"))
+        self.assertIn("conn.send_remote_printing_disallowed().await;", branch)
+        core = self.read("src", "dolphin_system_core.rs")
+        self.assertIn('pub const SWITCH_REMOTE_PRINTER: &str = "remote-printer";', core)
+        self.assertIn("SwitchMode::Hidden => false,", core.split("pub fn printer_forward(", 1)[1][:300])
+        # hidden is the default on both sides (owner 2026-11-13)
+        self.assertIn("DolphinSwitch.remotePrinter: SwitchMode.hidden,", self.read("flutter", "lib", "dolphin", "switches.dart"))
+        self.assertNotIn("remote-printer", core.split("pub fn switch_default(", 1)[1].split("\n}\n", 1)[0])
+
+    def test_the_driver_ships_with_the_customer_app_only_pinned_by_sha256(self):
+        text = whole_job(BUILD, "build-windows")
+        step = text.split("- name: Remote printer driver (DD-41)\n", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("if: matrix.variant == 'customer'", step)
+        self.assertIn("PRINTER_DRIVER_SHA256: c4cf4d3b48c4d9079b243edc43bb1db03b076282bc259c9f49883e9db20fa8b5", step)
+        self.assertIn("PRINTER_ADAPTER_SHA256: e90e5d52c8807b4c6293c78a52479338715e0bf396b1b34802777b8c452e6781", step)
+        self.assertEqual(step.count("sha256sum -c -"), 2)
+        self.assertLess(step.index("sha256sum -c -"), step.index("zipfile"))
+        self.assertIn("./rustdesk/drivers/RustDeskPrinterDriver", step)  # remote_printer's RD_DRIVER_INF_PATH
+        self.assertNotIn("continue-on-error", step)
+        self.assertNotIn("|| true", step)
+        self.assertLess(text.index("- name: Remote printer driver (DD-41)"), text.index("- name: VC++ runtime next to the app (DD-21)"))
+        lib = self.read("libs", "remote_printer", "src", "lib.rs")
+        self.assertIn('"drivers/RustDeskPrinterDriver/RustDeskPrinterDriver.inf"', lib)
+
+    def test_the_ui_follows_the_switch(self):
+        settings = self.read("flutter", "lib", "desktop", "pages", "desktop_setting_page.dart")
+        tab = settings.split("static final List<SettingsTabKey> tabKeys = [", 1)[1].split("];", 1)[0]
+        self.assertIn("dolphinPrinterTabShown() /* Dolphin Connect (DD-41) */)\n      SettingsTabKey.printer,", tab)
+        install = self.read("flutter", "lib", "desktop", "pages", "install_page.dart")
+        self.assertIn("if (dolphinInstallWithPrinter(printer.value)) args += ' printer'; // Dolphin Connect (DD-41)", install)
+        self.assertNotIn("if (printer.value) args += ' printer';", install)
+        about = self.read("flutter", "lib", "dolphin", "about.dart")
+        self.assertIn("if (bind.isIncomingOnly()) ...[const SizedBox(height: 10), const DolphinPrinterSection()],", about)
+        for f in ("printer_test.dart",):
+            self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / f).is_file())
+
 if __name__ == "__main__":
     unittest.main()

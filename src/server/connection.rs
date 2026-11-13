@@ -1213,7 +1213,16 @@ impl Connection {
                     match data {
                         #[cfg(all(target_os = "windows", feature = "flutter"))]
                         ipc::Data::PrinterData(data) => {
-                            if Self::permission(keys::OPTION_ENABLE_REMOTE_PRINTER, &conn.control_permissions) {
+                            // Dolphin Connect (DD-41): the portal's `remote-printer` switch decides first; hidden (the
+                            // default) refuses every job, forced sends it (src/dolphin_system_core.rs printer_forward).
+                            let dolphin_printer = crate::dolphin_system_core::switch_mode(
+                                &Config::get_option(crate::dolphin_system_core::SWITCHES_OPTION),
+                                crate::dolphin_system_core::SWITCH_REMOTE_PRINTER,
+                            );
+                            if crate::dolphin_system_core::printer_forward(
+                                dolphin_printer,
+                                Self::permission(keys::OPTION_ENABLE_REMOTE_PRINTER, &conn.control_permissions),
+                            ) {
                                 conn.send_printer_request(data).await;
                             } else {
                                 conn.send_remote_printing_disallowed().await;
