@@ -3,6 +3,40 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
+## Unreleased
+
+### Plan 19 wave 1, part B: version accuracy, the update popup, theme tokens, RO-4 to RO-7 (all three apps)
+
+Compiled here: `cargo check --features flutter` (no new warnings), the std-only Rust cores, the Python tests, the Dart
+analysis and the widget tests. Not built into an exe, not run on a PC.
+
+- Version accuracy: the x64 builds' inner exe (the Flutter `DolphinConnect.exe` / `DolphinConnectTech.exe`) said
+  `X.Y.Z+<run>` in FileVersion and ProductVersion; `build_plan.py pubspec --version` now writes the packer's strings
+  (FileVersion `X.Y.Z.<run>`, ProductVersion `2.1.0-rc.1`) into `Runner.rc`, and CI checks both strings of both exes for
+  every build. The update check's order (`2.1.0-dev.N` < `2.1.0-rc.1` < `2.1.0` < `2.1.1-dev.N`) is tested on both sides.
+- Update popup at every start: the customer app shows a required popup (D10) with both versions, the bar, the megabytes
+  and the percentage; «ادامه با همین نسخه» after a failure stays (D19). The technician app opens as usual and shows
+  «به‌روزرسانی» (opens the panel's «حساب من», D13) / «بعداً» once per start; «بعداً» stores nothing, so the next start asks
+  again. The x86 (Sciter) update screen is unchanged.
+- Theme tokens: one `DolphinThemeTokens` set (flutter/lib/dolphin/theme_tokens.dart) for every colour, radius and the font
+  scale of both apps, light and dark; the built-in set is the look before this change. The portal's `dolphin-theme`
+  (`{v:1, light:{...}, dark:{...}}`) overrides it on the customer app from the heartbeat; a malformed value, or one whose
+  text would fall below AA, is ignored as a whole. The technician app gets `applyThemeOverrides(json)` for the app API's
+  `/config` (wave 2).
+- RO-4: the portal's `one-way-transfer` switch (hidden by default) turns on upstream's `one-way-file-transfer` and
+  `one-way-clipboard-redirection` on the customer PC: the technician can send files, not take, rename or delete them,
+  and gets no clipboard from the customer. The refusal is upstream's (not audited by the app).
+- RO-5: the portal's `lock-on-end` switch (hidden by default) locks the customer's Windows at the end of every session.
+- RO-6, RO-7: the technician build keeps the PC awake during a session, asks before closing a session tab, and has no
+  record button.
+- Portal change needed (portal part A2): push `dolphin-theme`, and the `one-way-transfer` and `lock-on-end` keys in
+  `dolphin-switches`.
+
+**یادداشت فارسی:** هر بار که برنامه باز می‌شود نسخه‌ی تازه را از پورتال می‌پرسد. برنامه‌ی مشتری اگر نسخه‌ی تازه باشد آن را
+با نوار پیشرفت دریافت و نصب می‌کند و بعد باز می‌شود؛ برنامه‌ی کارشناس می‌پرسد «به‌روزرسانی» یا «بعداً». رنگ‌ها و گردی گوشه‌ها
+از پورتال قابل تغییر است. سازمان‌هایی که بخواهند می‌توانند فقط ارسال فایل به رایانه‌ی مشتری را باز بگذارند، یا رایانه پس از
+پایان پشتیبانی قفل شود.
+
 ## 2.1.0-rc.1 (built 2026-11-13 on the owner's word; a release candidate, not pinned by the portal until tested)
 
 All three apps. Owner decisions D21 and D23 (2026-11-10). Not compiled on the maintainer's PC (no Rust or Flutter
