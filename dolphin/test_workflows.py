@@ -1255,3 +1255,28 @@ class ThemeTokensWiringTest(unittest.TestCase):
         self.assertEqual(home.count("syncThemeFromPortal();"), 2)  # at start and on the 2 s read
         self.assertIn("themeFromMainWindow();", self.read("flutter", "lib", "dolphin", "connection.dart"))
         self.assertIn("ThemeOverrideResult applyThemeOverrides(Object? json)", tokens)
+
+
+class StartUpdatePopupWiringTest(unittest.TestCase):
+    """Plan 19: every start asks the portal (TB-20's check). Customer: required popup before the app (D10).
+    Technician: the app opens and «به‌روزرسانی» / «بعداً» shows over it once per start."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_every_start_asks_and_the_answer_picks_the_popup(self):
+        main = self.read("flutter", "lib", "main.dart")
+        self.assertIn("if (await runDolphinUpdateIfNeeded(() => _openMainApp(startService))) return;", main)
+        update = self.read("flutter", "lib", "dolphin", "update.dart")
+        self.assertIn("await bind.mainGetCommon(key: 'dolphin-update-check')", update)
+        self.assertIn("switch (startUpdateAction(check, technician: bind.isOutgoingOnly())) {", update)
+        self.assertIn("dolphinPendingTechUpdate = check;", update)
+
+    def test_the_technician_home_shows_the_popup_after_its_first_frame(self):
+        home = self.read("flutter", "lib", "dolphin", "technician_home.dart")
+        self.assertIn("if (mounted) showPendingTechUpdate(context);", home)
+        # «بعداً» stores nothing: the pending answer lives in memory for this start only
+        update = self.read("flutter", "lib", "dolphin", "update.dart")
+        body = update.split("Future<void> showPendingTechUpdate(BuildContext context) async {", 1)[1]
+        self.assertNotIn("mainSetLocalOption", body)
+        self.assertNotIn("mainSetOption", body)

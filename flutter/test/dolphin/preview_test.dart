@@ -33,6 +33,7 @@ import 'package:flutter_hbb/dolphin/sound.dart';
 import 'package:flutter_hbb/dolphin/switches.dart';
 import 'package:flutter_hbb/dolphin/tech_card.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
+import 'package:flutter_hbb/dolphin/theme_tokens.dart';
 import 'package:flutter_hbb/dolphin/update_check.dart';
 import 'package:flutter_hbb/dolphin/update_view.dart';
 import 'package:flutter_hbb/dolphin/verify.dart';
@@ -270,9 +271,56 @@ void main() {
         '"phone":"اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۸۰۵۰۵","downloadPage":"https://support.dolphindev.ir/download"}');
     await _shot(tester, '43-update-dialog', const Size(460, 260), DolphinUpdateView(
         check: found.screen,
-        progress: const DolphinUpdateProgress(state: 'downloading', percent: 40, text: '۴۰ درصد'),
+        progress: const DolphinUpdateProgress(state: 'downloading', percent: 40, text: '۹٫۸ از ۲۴٫۶ مگابایت'),
+        currentVersion: '2.1.0-rc.1', framed: false,
         onRetry: noop, onDownloadPage: noop, onClose: noop, onContinue: noop));
     await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+  // Plan 19: the update popup at every start (customer required, technician «به‌روزرسانی» / «بعداً») and a portal theme.
+  testWidgets('write plan 19 previews', (tester) async {
+    await _loadFonts();
+    debugDisableShadows = false;
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    const customer = DolphinUpdateCheck(
+        state: 'update',
+        version: '2.1.0',
+        lead: 'نسخه‌ی ۲.۱.۰ آماده است. پیش از باز شدن برنامه، نسخه‌ی تازه دریافت و جایگزین می‌شود.',
+        phone: 'اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۸۰۵۰۵');
+    await _shot(tester, '80-update-popup-customer', const Size(500, 440), DolphinUpdateView(
+        check: customer,
+        progress: const DolphinUpdateProgress(state: 'downloading', percent: 48, text: '۱۲٫۰ از ۲۴٫۶ مگابایت'),
+        currentVersion: '2.1.0-rc.1',
+        onRetry: noop, onDownloadPage: noop, onClose: noop, onContinue: noop));
+    const tech = DolphinUpdateCheck(
+        state: 'manual',
+        version: '2.1.0',
+        lead: 'نسخه‌ی ۲.۱.۰ برنامه‌ی کارشناس آماده است. آن را از پنل دلفین دریافت کنید و به جای این برنامه اجرا کنید.',
+        downloadPage: 'https://support.dolphindev.ir/staff/me');
+    for (final (name, b) in [('81-update-popup-tech', Brightness.light), ('81-update-popup-tech-dark', Brightness.dark)]) {
+      await tester.pumpWidget(const SizedBox()); // a new MaterialApp theme, not an animated change
+      await _shot(tester, name, const Size(560, 360), Container(
+          color: Colors.black.withOpacity(0.35),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(16),
+          child: DolphinTechUpdatePopupView(check: tech, currentVersion: '2.1.0-rc.1', onUpdate: noop, onLater: noop)),
+          theme: DolphinTechTheme.dataFor(b));
+    }
+    // A portal theme (`dolphin-theme`): green brand, smaller radii; the same customer home as 01.
+    await tester.pumpWidget(const SizedBox());
+    expect(applyThemeOverrides('{"v":1,"light":{"primary":"#0F5132","primaryText":"#0F5132","background":"#F4F8F5",'
+            '"surfaceAlt":"#E6F2EA","accent":"#198754","success":"#0F5132","radius":6,"radiusLarge":10}}'),
+        ThemeOverrideResult.applied);
+    final now = DateTime.now();
+    await _shot(tester, '82-theme-override', const Size(340, 900), DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        network: networkRows(server: DolphinServerState.ready, localIp: '192.168.1.24'),
+        recent: [RecentSession(now.subtract(const Duration(hours: 3)), 12, 'علی رضایی')],
+        version: '2.1.0', onStartHere: noop, onCopyIp: noop, onCopyDownload: noop, onCopyGuide: noop,
+        onRequests: noop, onCallback: noop));
+    applyThemeOverrides(null);
+    await tester.pumpWidget(const SizedBox());
+    debugDisableShadows = true;
   }, skip: _dir == null);
   // Plan 18 Phase 5 (DD-11): Safe Mode restart and return.
   testWidgets('write safe mode previews', (tester) async {

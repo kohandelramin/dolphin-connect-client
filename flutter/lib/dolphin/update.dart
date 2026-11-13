@@ -7,19 +7,36 @@ import 'package:window_manager/window_manager.dart';
 import '../common.dart' hide Dialog;
 import '../models/platform_model.dart';
 import 'brand.dart';
+import 'tech_theme.dart';
 import 'theme.dart';
+import 'theme_option.dart';
 import 'update_check.dart';
 import 'update_view.dart';
 
-const kDolphinUpdateSize = Size(480, 380);
+const kDolphinUpdateSize = Size(500, 440); // Plan 19: the popup card with room around it
 
-/// TB-20: runs before the main window opens. True when the update screen took the window (the app stays closed).
+/// Plan 19: the technician app's answer from this start, shown once as a popup over its home (technician_home.dart).
+DolphinUpdateCheck? dolphinPendingTechUpdate;
+
+/// TB-20, Plan 19: runs at every start, before the main window opens, and asks the portal for the newest build
+/// (at most about 4 s; no answer opens the app, D12). Customer app: a newer build is required (D10), the update popup
+/// takes the window and the app opens after it; returns true then. Technician app: the app opens as usual and the
+/// popup («به‌روزرسانی» / «بعداً») shows over it; returns false.
 ///
 /// [openApp] opens the normal home page; it runs when the customer taps «ادامه با همین نسخه» after a failure (D19).
 Future<bool> runDolphinUpdateIfNeeded(Future<void> Function() openApp) async {
   if (!isWindows) return false; // the update screen is a Windows desktop screen
   final check = DolphinUpdateCheck.fromJson(await bind.mainGetCommon(key: 'dolphin-update-check'));
-  if (!check.blocksStart) return false;
+  switch (startUpdateAction(check, technician: bind.isOutgoingOnly())) {
+    case StartUpdate.open:
+      return false;
+    case StartUpdate.ask:
+      dolphinPendingTechUpdate = check;
+      return false;
+    case StartUpdate.required:
+      break;
+  }
+  themeFromMainWindow(); // the portal's theme as the main window last applied it (Plan 19)
   await windowManager.setPreventClose(false);
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -115,6 +132,8 @@ class _DolphinUpdateScreenState extends State<DolphinUpdateScreen> {
   Widget build(BuildContext context) => DolphinUpdateView(
         check: _check,
         progress: _progress,
+        currentVersion: DolphinBrand.version,
+        framed: !widget.inApp,
         onRetry: _retry,
         onDownloadPage: () => launchUrl(Uri.parse(
             _check.downloadPage.isNotEmpty ? _check.downloadPage : '${DolphinBrand.portalUrl}/download')),
@@ -167,4 +186,37 @@ class _DolphinUpdateCheckButtonState extends State<DolphinUpdateCheckButton> {
   @override
   Widget build(BuildContext context) =>
       DolphinUpdateCheckView(phase: _result.phase, version: _result.version, onCheck: _check, onUpdate: _update);
+}
+
+/// Plan 19: the technician app's start-up popup, once per start. «به‌روزرسانی» opens where the technician file is
+/// (the panel's «حساب من», staff sign-in, D13; wave 2 downloads it through the app API instead); «بعداً» closes it
+/// and nothing is stored, so the next start asks again.
+Future<void> showPendingTechUpdate(BuildContext context) async {
+  final check = dolphinPendingTechUpdate;
+  dolphinPendingTechUpdate = null;
+  if (check == null) return;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) {
+      void close() => Navigator.of(ctx).pop();
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.all(16),
+        child: DolphinTechTheme(
+          paint: false,
+          child: DolphinTechUpdatePopupView(
+            check: check,
+            currentVersion: DolphinBrand.version,
+            onUpdate: () {
+              close();
+              launchUrl(Uri.parse(check.downloadPage.isNotEmpty ? check.downloadPage : '${DolphinBrand.portalUrl}/staff/me'));
+            },
+            onLater: close,
+          ),
+        ),
+      );
+    },
+  );
 }

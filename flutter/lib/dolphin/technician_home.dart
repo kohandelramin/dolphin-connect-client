@@ -9,6 +9,7 @@ import 'panel_bridge.dart';
 import 'portal_view.dart';
 import 'tech_theme.dart';
 import 'technician_header.dart';
+import 'update.dart';
 
 /// How long the field waits for the panel's answer before saying it got none.
 const kDolphinCallWait = Duration(seconds: 8);
@@ -32,6 +33,10 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     super.initState();
     bind.mainGetMyId().then((id) {
       if (mounted) setState(() => _myId = id);
+    });
+    // Plan 19: a newer technician build found at this start: «به‌روزرسانی» / «بعداً» over the open app.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showPendingTechUpdate(context);
     });
   }
 
