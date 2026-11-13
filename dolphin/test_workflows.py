@@ -564,6 +564,16 @@ class UpdateCheckWiringTest(unittest.TestCase):
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "update_check_test.dart").is_file())
 
 
+class PauseAuditTest(unittest.TestCase):
+    """DD-46: «مکث» and «ادامه» reach the portal's connection audit."""
+
+    def test_the_pause_posts_a_conn_audit(self):
+        conn = ROOT.joinpath("src", "server", "connection.rs").read_text(encoding="utf-8")
+        body = conn.split("async fn dolphin_set_paused(&mut self, paused: bool) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn('self.post_conn_audit(json!({ "action": dc::pause_audit_action(paused) }));', body)
+        self.assertLess(body.index("self.dolphin_paused = paused;"), body.index("self.post_conn_audit("))
+
+
 class TrayIconSizeTest(unittest.TestCase):
     """The customer tray shows the .ico frame drawn for the tray's size, not the 256 px one shrunk by Windows."""
 

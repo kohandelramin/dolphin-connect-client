@@ -149,6 +149,16 @@ pub fn mono_ms() -> u64 {
     START.get_or_init(Instant::now).elapsed().as_millis() as u64
 }
 
+/// The `action` of the connection audit the portal records for «مکث» / «ادامه» (DD-46: pauses are audited).
+#[cfg_attr(not(feature = "flutter"), allow(dead_code))]
+pub fn pause_audit_action(paused: bool) -> &'static str {
+    if paused {
+        "pause"
+    } else {
+        "resume"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,4 +242,11 @@ mod tests {
         assert_eq!(INPUT_BLOCKED_NOTICE, "dolphin_input_blocked");
         assert_eq!((PAUSE_MSGTYPE, PAUSED_TITLE, RESUMED_TITLE), ("dolphin-pause", "dolphin-paused", "dolphin-resumed"));
     }
+
+    #[test]
+    fn a_pause_is_reported_to_the_portal_audit() {
+        assert_eq!(pause_audit_action(true), "pause");
+        assert_eq!(pause_audit_action(false), "resume");
+    }
+
 }

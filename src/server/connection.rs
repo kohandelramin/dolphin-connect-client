@@ -2762,6 +2762,8 @@ impl Connection {
             self.inner.id(),
             if paused { "paused" } else { "resumed" }
         );
+        // DD-46: the portal audits each pause and resume (src/dolphin_session_core.rs pause_audit_action).
+        self.post_conn_audit(json!({ "action": dc::pause_audit_action(paused) }));
         if paused {
             // The customer needs their own mouse, keyboard and screen during a pause.
             self.dolphin_release_block_input();
