@@ -167,6 +167,21 @@ class BuildWorkflowTest(unittest.TestCase):
     def test_every_exe_has_its_version_resource_checked(self):
         self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
 
+    def test_the_inner_x64_exe_carries_the_same_version_strings(self):
+        # Plan 19: Flutter writes "X.Y.Z+<run>" into both strings unless build_plan.py rewrites Runner.rc.
+        self.assertIn('python dolphin/build_plan.py pubspec --run "${{ github.run_number }}" --version "$DOLPHIN_VERSION"', BUILD)
+        x64 = whole_job(BUILD, "build-windows")
+        step = x64.split("name: Version resource (TB-4)", 1)[1].split("- uses:", 1)[0]
+        self.assertIn("$inner.VersionInfo.FileVersion -ne $env:DOLPHIN_FILE_VERSION", step)
+        self.assertIn("$inner.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION", step)
+        self.assertIn("$outer.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION", step)
+
+    def test_release_file_names_carry_the_version_for_every_build(self):
+        # The portal derives the download names from these (installer and portable names are the portal's).
+        self.assertIn('"out/${OUT_NAME}-${DOLPHIN_VERSION}-x64.exe"', BUILD)
+        self.assertIn('"out/DolphinConnect-${DOLPHIN_VERSION}-x86.exe"', BUILD)
+        self.assertIn('"DolphinConnect-$v-x64.exe" "DolphinConnect-$v-x86.exe" "DolphinConnect-Technician-$v-x64.exe"', BUILD)
+
     def test_every_app_folder_gets_the_vc_runtime_its_dlls_import_before_packing(self):
         # DD-21: a clean Windows 10 without the VC++ redistributable starts the app.
         for name, folder, arch, pack in (("build-windows", "./rustdesk", "x64", "- name: Portable exe and checksums"),

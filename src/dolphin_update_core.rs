@@ -335,6 +335,20 @@ mod tests {
     }
 
     #[test]
+    fn the_release_line_of_plan_19_orders_as_build_plan_makes_it() {
+        // dolphin/test_build_plan.py VersionAccuracyTest holds the same list: dev builds, then the release candidate,
+        // then the release, then the next line's dev builds (version.txt raised after a release).
+        let sorted = ["2.1.0-dev.9", "2.1.0-rc.1", "2.1.0", "2.1.1-dev.12", "2.1.1"];
+        for pair in sorted.windows(2) {
+            assert!(is_newer(pair[0], pair[1]), "{} < {}", pair[0], pair[1]);
+        }
+        assert!(is_newer("2.1.0-rc.9", "2.1.0-rc.10"));
+        // A release candidate updates itself to the release; a dev build never updates (updates_enabled).
+        assert!(updates_enabled("2.1.0-rc.1", "https://support.dolphindev.ir"));
+        assert!(!updates_enabled("2.1.0-dev.9", "https://support.dolphindev.ir"));
+    }
+
+    #[test]
     fn only_dolphin_versions_compare() {
         for bad in ["1.5.0-dc.4", "v2.0.0", "2.0", "02.0.0", "2.0.0-beta.1", "2.0.0-rc.01", "2.0.0 ", "", "2.0.0-rc", "2.0.0.1"] {
             assert!(parse_version(bad).is_none(), "{bad:?}");

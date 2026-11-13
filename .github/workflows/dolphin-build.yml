@@ -111,7 +111,7 @@ jobs:
         run: |
           pip install pillow==11.3.0
           python dolphin/gen_profile.py "${{ inputs.profile }}" "${{ matrix.variant }}" "$DOLPHIN_VERSION"
-          python dolphin/build_plan.py pubspec --run "${{ github.run_number }}"
+          python dolphin/build_plan.py pubspec --run "${{ github.run_number }}" --version "$DOLPHIN_VERSION"
           python dolphin/brand.py "${{ matrix.variant }}"
           python dolphin/rebrand.py
 
@@ -253,6 +253,9 @@ jobs:
           if ($outer.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION) { throw "outer ProductVersion '$($outer.VersionInfo.ProductVersion)', expected '$env:DOLPHIN_VERSION'" }
           $n = $env:DOLPHIN_FILE_VERSION.Split('.')
           if ($inner.VersionInfo.FileMajorPart -ne [int]$n[0] -or $inner.VersionInfo.FilePrivatePart -ne [int]$n[3]) { throw "inner exe FileVersion numbers are not $env:DOLPHIN_FILE_VERSION (pubspec version)" }
+          # Plan 19: the inner exe's strings are the packer's too (build_plan.py pubspec writes them into Runner.rc).
+          if ($inner.VersionInfo.FileVersion -ne $env:DOLPHIN_FILE_VERSION) { throw "inner FileVersion '$($inner.VersionInfo.FileVersion)', expected '$env:DOLPHIN_FILE_VERSION'" }
+          if ($inner.VersionInfo.ProductVersion -ne $env:DOLPHIN_VERSION) { throw "inner ProductVersion '$($inner.VersionInfo.ProductVersion)', expected '$env:DOLPHIN_VERSION'" }
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
