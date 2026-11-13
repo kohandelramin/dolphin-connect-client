@@ -142,3 +142,9 @@ Future<SecretBox> openBox(String name) async {
   final dir = await techDataDir();
   return SealedFileBox(File('${dir.path}${Platform.pathSeparator}$name'));
 }
+
+/// The sealed file of the sign-in (token, expiry, staff).
+const kSessionBoxName = 'session.bin';
+
+/// The sealed file of the offline PC list (TD-2).
+const kOfflineBoxName = 'pcs.bin';
