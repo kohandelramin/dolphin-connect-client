@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../common.dart';
@@ -14,7 +15,12 @@ import '../models/server_model.dart';
 import 'brand.dart';
 import 'callback.dart';
 import 'customer_requests.dart';
+import 'digits.dart';
+import 'first_run_view.dart';
+import 'home_helpers.dart';
+import 'home_status.dart';
 import 'home_view.dart';
+import 'network_status.dart';
 import 'panel_bridge.dart';
 import 'recent_sessions.dart';
 import 'tech_card.dart';
@@ -25,8 +31,10 @@ import 'window_sizes.dart';
 /// so admins change the numbers without a new release.
 const kDolphinSupportPhoneOption = 'dolphin-support-phone';
 
-/// The ID screen's content size; upstream adds the title bar (common.dart getIncomingOnlyHomeSize).
-const kDolphinHomeSize = Size(320, 400);
+/// The ID screen's content size; upstream adds the title bar (common.dart getIncomingOnlyHomeSize). Plan 18 Phase 2
+/// added the status bar, the network panel and the helpers (the rest scrolls); 520 + the title bar still fits a
+/// 1366 × 768 laptop.
+const kDolphinHomeSize = Size(340, 520);
 
 
 /// Customer build's main window: the ID screen, or the request section (the customer portal).
@@ -44,6 +52,10 @@ class _DolphinHomeState extends State<DolphinHome> {
   int? _connected;
   // BL-SVC: the service was stopped (tray «توقف سرویس» before 2.0.0-rc.5, or an uninstall); the home then says so.
   bool _stopped = false;
+  // DD-17: the first-run screen, until «بعدی» was pressed once (a local option).
+  bool _firstRun = false;
+  // DD-32: the ID differs from the one this app saw last; shown until closed.
+  bool _idChanged = false;
 
   @override
   void initState() {
@@ -57,6 +69,7 @@ class _DolphinHomeState extends State<DolphinHome> {
     // and the code stays hidden (codeHiddenFor(null)).
     _options = Timer.periodic(const Duration(seconds: 2), (_) => _readConnected());
     _readStopped();
+    _firstRun = firstRunShown(bind.mainGetLocalOption(key: kDolphinFirstRunLocal));
   }
 
   @override
@@ -68,12 +81,32 @@ class _DolphinHomeState extends State<DolphinHome> {
   Future<void> _readConnected() async {
     final n = connectedCount(await bind.mainGetConnectStatus());
     final stopped = await mainGetBoolOption(kOptionStopService);
+    final changed = _noteId(trimID(gFFI.serverModel.serverId.text));
     if (mounted) {
       setState(() {
         _connected = n;
         _stopped = stopped;
+        if (changed) _idChanged = true;
       });
     }
+  }
+
+  /// DD-32: compare the ID shown with the last one stored on this Windows account; true when it changed.
+  bool _noteId(String id) {
+    final seen = idSeen(stored: bind.mainGetLocalOption(key: kDolphinSeenIdLocal), current: id);
+    final store = seen.store;
+    if (store != null) bind.mainSetLocalOption(key: kDolphinSeenIdLocal, value: store);
+    return seen.changed;
+  }
+
+  void _copy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    showToast('کپی شد');
+  }
+
+  void _endFirstRun() {
+    bind.mainSetLocalOption(key: kDolphinFirstRunLocal, value: 'Y');
+    setState(() => _firstRun = false);
   }
 
   Future<void> _readStopped() async {
@@ -108,15 +141,14 @@ class _DolphinHomeState extends State<DolphinHome> {
 
   void _openCallback() => showDolphinCallback(context, _sendCallback);
 
-  /// Plan 14 (B5): who the portal has authorized for this PC, until they connect.
-  TechComing? _coming() {
+  /// Plan 14 (B5), DD-43: who the portal has authorized for this PC; the bar shows them on the way or connected.
+  TechComing? _tech() {
     String opt(String key) => bind.mainGetOptionSync(key: key);
-    return techComing(
+    return authorizedTech(
       techId: opt(kDolphinTechIdOption),
       techName: opt(kDolphinTechNameOption),
       until: int.tryParse(opt(kDolphinTechUntilOption)) ?? 0,
       nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      connected: _connected,
       photo: opt(kDolphinTechPhotoOption),
     );
   }
@@ -141,28 +173,43 @@ class _DolphinHomeState extends State<DolphinHome> {
         if (_requests) {
           return DolphinCustomerRequests(id: id, code: portalCode(model.approveMode, code), onBack: () => _show(false));
         }
+        // DD-44: the clipboard always gets Latin digits.
+        void copyId() => _copy(idForClipboard(id));
+        if (_firstRun) return DolphinFirstRunView(id: id, onCopy: copyId, onNext: _endFirstRun);
+        final state = serverStateFromStatus(model.connectStatus, serviceStopped: _stopped);
+        final links = DolphinLinks(DolphinBrand.site);
+        // DD-8: read from the synced options, like the portal's pushed ones; nothing here touches the network.
+        final ip = localIpFrom(bind.mainGetOptionSync(key: kLocalIpOption));
         return DolphinHomeView(
           id: id,
           code: code,
           codeSpoken: codeSpoken(model.approveMode),
-          onCopyCode: () {
-            Clipboard.setData(ClipboardData(text: code));
-            showToast('کپی شد');
-          },
-          state: serverStateFromStatus(model.connectStatus, serviceStopped: _stopped),
+          onCopyCode: () => _copy(code),
+          state: state,
           // Upstream's own action: clears `stop-service`, which on an installed app recreates and starts the Windows
           // service (UAC prompt); the 2 s read then shows the new state.
           onStartService: () => start_service(true),
           phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
           siteLabel: DolphinBrand.siteLabel,
-          onCopy: () {
-            Clipboard.setData(ClipboardData(text: id));
-            showToast('کپی شد');
-          },
+          onCopy: copyId,
           onRequests: () => _show(true),
           recent: parseRecentSessions(bind.mainGetOptionSync(key: kDolphinRecentSessionsOption)),
-          coming: _connected == null ? null : _coming(),
+          coming: _tech(),
+          connected: _connected,
           onCallback: callbackShown(bind.mainGetOptionSync(key: kDolphinCallbackOption)) ? _openCallback : null,
+          network: networkRows(
+            server: state,
+            serverAddress: bind.mainGetOptionSync(key: kRendezvousServerOption),
+            localIp: ip,
+            idChanged: _idChanged,
+          ),
+          idChanged: _idChanged,
+          onDismissIdNotice: () => setState(() => _idChanged = false),
+          onStartHere: () => launchUrl(Uri.parse(links.help)),
+          onCopyIp: ip.isEmpty ? null : () => _copy(ip),
+          onCopyDownload: () => _copy(links.download),
+          onCopyGuide: () => _copy(links.guide),
+          version: DolphinBrand.version,
         );
       }),
     );

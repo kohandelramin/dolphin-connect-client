@@ -74,7 +74,7 @@ void main() {
         onCopy: () => copied = true,
         phone: '021-12345678',
         siteLabel: 'support.dolphindev.ir')));
-    expect(find.text('123 456 789'), findsOneWidget);
+    expect(find.text('۱۲۳ ۴۵۶ ۷۸۹'), findsOneWidget); // DD-44: Persian digits in threes
     expect(find.textContaining('آماده'), findsOneWidget);
     expect(find.textContaining('۰۲۱-۱۲۳۴۵۶۷۸'), findsOneWidget); // Persian digits on customer screens (UX-16)
     await tester.tap(find.text('کپی شناسه'));

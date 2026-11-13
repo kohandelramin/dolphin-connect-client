@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/callback.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
+import 'package:flutter_hbb/dolphin/home_status.dart' show kBarComing;
 import 'package:flutter_hbb/dolphin/tech_card.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,7 +71,7 @@ void main() {
     await tester.tap(find.text(kCallbackLabel));
     expect(opened, isTrue);
     await tester.pumpWidget(home(coming: const TechComing('رحمت کهندل', null)));
-    expect(find.text('کارشناس دلفین در راه است'), findsOneWidget);
+    expect(find.text(kBarComing), findsOneWidget); // DD-43: the status bar replaces the card
     expect(find.textContaining('رحمت کهندل'), findsOneWidget);
     expect(find.text(kCallbackLabel), findsNothing);
   });

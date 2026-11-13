@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'callback.dart';
 import 'digits.dart';
+import 'home_status.dart';
+import 'home_widgets.dart';
+import 'network_status.dart';
 import 'recent_sessions.dart';
 import 'tech_card.dart';
 import 'theme.dart';
+
+export 'home_status.dart' show DolphinServerState, serverStateFromStatus, kServiceStoppedLabel;
 
 /// Under the one-time code in code mode: it goes into the portal, never over the phone.
 const kCodeForPortalLine = 'رمز را فقط در «درخواست‌ها و پیام‌ها» یا پورتال ثبت کنید؛ پشت تلفن نخوانید.';
@@ -15,23 +20,12 @@ const kCodeSpokenLine = 'این رمز را فقط به کارشناس دلفی�
 /// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
 const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به شما داده است؛ حساب ندارید؟ با پشتیبانی تماس بگیرید.';
 
-enum DolphinServerState { ready, connecting, offline, stopped }
-
-/// The rendezvous status the client reports: 1 connected, 0 connecting, -1 not ready. A stopped service (the
-/// `stop-service` option) wins: the app then never signs in to the server and the status would stay "connecting"
-/// for ever (BL-SVC, 2026-10-29).
-DolphinServerState serverStateFromStatus(int statusNum, {bool serviceStopped = false}) => serviceStopped
-    ? DolphinServerState.stopped
-    : statusNum > 0
-        ? DolphinServerState.ready
-        : statusNum == 0
-            ? DolphinServerState.connecting
-            : DolphinServerState.offline;
-
 /// What the stopped state says and its button.
-const kServiceStoppedLabel = 'سرویس دلفین خاموش است';
 const kServiceStoppedHint = 'تا سرویس روشن نشود کارشناس نمی‌تواند وصل شود؛ هر اتصال باز هم به اجازه‌ی شما نیاز دارد.';
 const kStartServiceLabel = 'روشن کردن سرویس';
+
+/// Under the ID while the server is reachable (the offline bar says what to do instead).
+const kWindowOpenLine = 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.';
 
 /// The numbers the portal pushed, or the one compiled in until the first heartbeat brings them.
 String supportPhone(String pushed, String compiled) => pushed.trim().isNotEmpty ? pushed.trim() : compiled;
@@ -47,7 +41,12 @@ String groupId(String id) {
   return out.toString();
 }
 
-/// The customer's main window (design 2026-10-26, option B; portal look 2026-10-27). Pure: everything comes in as values.
+/// DD-44: the ID as the customer reads it, «۱۲۳ ۴۵۶ ۷۸۹». The copy button puts Latin digits on the clipboard
+/// (digits.dart idForClipboard).
+String readableId(String id) => faDigits(groupId(id));
+
+/// The customer's main window (design 2026-10-26, option B; portal look 2026-10-27; Plan 18 Phase 2). Pure: everything
+/// comes in as values.
 class DolphinHomeView extends StatelessWidget {
   final String id;
   final DolphinServerState state;
@@ -71,11 +70,31 @@ class DolphinHomeView extends StatelessWidget {
   /// Turns the service back on (Windows asks for admin rights); the button shows only in the stopped state.
   final VoidCallback? onStartService;
 
-  /// Plan 14 (B5): the technician the portal has authorized, before they connect; null hides the card.
+  /// Plan 14 (B5), DD-43: the technician the portal has authorized for this PC; null for none. Before they connect
+  /// the bar says «کارشناس در راه است», while connected «کارشناس وصل است», with their photo and name.
   final TechComing? coming;
+
+  /// Authorised sessions the server reports; null until the first read (no technician bar before that).
+  final int? connected;
 
   /// Plan 14 (B6): opens «با من تماس بگیرید»; null hides the button (a PC not linked to an organization).
   final VoidCallback? onCallback;
+
+  /// DD-8: the network panel's lines (network_status.dart networkRows); empty hides the panel.
+  final List<NetRow> network;
+
+  /// DD-32: «شناسه‌ی شما عوض شد», closed with [onDismissIdNotice].
+  final bool idChanged;
+  final VoidCallback? onDismissIdNotice;
+
+  /// DD-32: the helper buttons; a null callback hides its button.
+  final VoidCallback? onStartHere;
+  final VoidCallback? onCopyIp;
+  final VoidCallback? onCopyDownload;
+  final VoidCallback? onCopyGuide;
+
+  /// DD-32: Dolphin's own version at the bottom of the window; '' hides it.
+  final String version;
 
   const DolphinHomeView(
       {super.key,
@@ -91,24 +110,34 @@ class DolphinHomeView extends StatelessWidget {
       this.recent = const [],
       this.onStartService,
       this.coming,
-      this.onCallback});
+      this.connected = 0,
+      this.onCallback,
+      this.network = const [],
+      this.idChanged = false,
+      this.onDismissIdNotice,
+      this.onStartHere,
+      this.onCopyIp,
+      this.onCopyDownload,
+      this.onCopyGuide,
+      this.version = ''});
 
   @override
   Widget build(BuildContext context) =>
       DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
 
   Widget _build(BuildContext context) {
-    final (label, fg, bg) = switch (state) {
-      DolphinServerState.ready => ('آماده؛ منتظر کارشناس', DolphinColors.aquaText, DolphinColors.aquaSoft),
-      DolphinServerState.connecting => ('در حال اتصال به سرور دلفین…', DolphinColors.muted, DolphinColors.azureSoft),
-      DolphinServerState.offline => ('به سرور دلفین وصل نیست', DolphinColors.dangerText, DolphinColors.dangerSoft),
-      DolphinServerState.stopped => (kServiceStoppedLabel, DolphinColors.dangerText, DolphinColors.dangerSoft),
-    };
+    final status = homeStatus(server: state, connected: connected, tech: coming);
     final down = state == DolphinServerState.offline || state == DolphinServerState.stopped;
     final onStartService = this.onStartService;
     final onRequests = this.onRequests;
-    final coming = this.coming;
     final onCallback = this.onCallback;
+    final helpers = DolphinHomeHelpers(
+        onStartHere: onStartHere, onCopyIp: onCopyIp, onCopyDownload: onCopyDownload, onCopyGuide: onCopyGuide);
+    final hint = switch (state) {
+      DolphinServerState.stopped => kServiceStoppedHint,
+      DolphinServerState.offline => '', // DD-33: the offline bar already says what to do.
+      _ => kWindowOpenLine,
+    };
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
@@ -120,16 +149,7 @@ class DolphinHomeView extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
                 child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(
-                            width: 8, height: 8, decoration: BoxDecoration(color: fg, shape: BoxShape.circle)),
-                        const SizedBox(width: 8),
-                        Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                      ]),
-                    ),
+                    DolphinStatusBar(status: status),
                     if (state == DolphinServerState.stopped && onStartService != null) ...[
                       const SizedBox(height: 10),
                       FilledButton.icon(
@@ -143,9 +163,9 @@ class DolphinHomeView extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (coming != null && !down) ...[
-                      const SizedBox(height: 12),
-                      DolphinTechCard(coming: coming),
+                    if (idChanged) ...[
+                      const SizedBox(height: 10),
+                      DolphinIdNotice(onDismiss: onDismissIdNotice),
                     ],
                     const SizedBox(height: 14),
                     Container(
@@ -162,27 +182,27 @@ class DolphinHomeView extends StatelessWidget {
                               textAlign: TextAlign.center,
                               style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                           const SizedBox(height: 10),
-                          Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: SelectableText(groupId(id),
-                                style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 2,
-                                    color: down
-                                        ? DolphinColors.muted
-                                        : DolphinColors.ink)),
+                          // DD-44: Persian digits in groups of three. Not selectable: the copy button is the way to
+                          // copy, and it gives the Latin digits the technician's field takes.
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(readableId(id),
+                                  style: TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 2,
+                                      color: down ? DolphinColors.muted : DolphinColors.ink)),
+                            ),
                           ),
                           const SizedBox(height: 10),
-                          OutlinedButton.icon(
-                            onPressed: onCopy,
-                            icon: const Icon(Icons.copy, size: 16),
-                            label: const Text('کپی شناسه'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: DolphinColors.azure,
-                              side: const BorderSide(color: DolphinColors.lineStrong),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: onCopy,
+                              icon: const Icon(Icons.copy, size: 18),
+                              label: const Text('کپی شناسه'),
                             ),
                           ),
                           if (code.isNotEmpty) ...[
@@ -212,17 +232,20 @@ class DolphinHomeView extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      state == DolphinServerState.stopped
-                          ? kServiceStoppedHint
-                          : state == DolphinServerState.offline
-                              ? 'اینترنت را بررسی کنید؛ برنامه خودش دوباره تلاش می‌کند.'
-                              : 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
-                    ),
-                    if (onCallback != null && coming == null && !down) ...[
+                    if (network.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      DolphinNetworkPanel(rows: network),
+                    ],
+                    if (hint.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        hint,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
+                      ),
+                    ],
+                    // As before: not while a technician is on the way, nor while the server is unreachable.
+                    if (onCallback != null && status.bar != HomeBar.coming && !down) ...[
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
@@ -291,6 +314,10 @@ class DolphinHomeView extends StatelessWidget {
                         style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
                       ),
                     ],
+                    if (!helpers.isEmpty) ...[
+                      const SizedBox(height: 14),
+                      helpers,
+                    ],
                   ],
                 ),
               ),
@@ -300,20 +327,28 @@ class DolphinHomeView extends StatelessWidget {
                   color: Colors.white,
                   border: Border(top: BorderSide(color: DolphinColors.line))),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                        phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین: ${faDigits(phone)}',
-                        overflow: TextOverflow.ellipsis,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                          phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین: ${faDigits(phone)}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                    ),
+                    Text(siteLabel,
+                        textDirection: TextDirection.ltr,
                         style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                  ],
+                ),
+                // DD-32: our own version (TB-4), so the customer can read it to the technician.
+                if (version.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted, fontSize: 12)),
                   ),
-                  Text(siteLabel,
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
-                ],
-              ),
+              ]),
             ),
           ],
         ),
