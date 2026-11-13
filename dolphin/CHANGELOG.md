@@ -3,7 +3,7 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased
+## Unreleased (next: 2.2.0, `dolphin/version.txt`; not built)
 
 ### Plan 19 wave 2: the customer app's new look (C1–C7, customer x64)
 
