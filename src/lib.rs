@@ -30,6 +30,8 @@ mod dolphin_update;
 mod dolphin_callback_core;
 mod dolphin_callback;
 mod dolphin_session_core;
+#[cfg(windows)]
+mod dolphin_install_core;
 mod dolphin_system_core;
 mod dolphin_panel_core;
 mod dolphin_panel;

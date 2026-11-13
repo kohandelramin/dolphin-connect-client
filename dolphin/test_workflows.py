@@ -139,7 +139,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs",
                     "src/dolphin_session_core.rs",
                     "src/dolphin_system_core.rs",
-                    "src/dolphin_panel_core.rs")
+                    "src/dolphin_panel_core.rs",
+                    "src/dolphin_install_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -177,8 +178,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 9)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 9)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 10)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 10)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -495,6 +496,32 @@ class PanelWiringTest(unittest.TestCase):
 
     def test_the_pane_has_its_tests(self):
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "side_panel_test.dart").is_file())
+
+
+class InstallWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-21): the leftover cleanup runs inside upstream's install script, proven by its text."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_install_script_removes_old_leftovers_after_the_uninstall_and_before_the_copy(self):
+        win = self.read("src", "platform", "windows.rs")
+        body = win.split("pub fn install_me(options: &str, path: String, silent: bool, debug: bool)", 1)[1]
+        body = body.split("\npub fn ", 1)[0]
+        script = body.split('let cmds = format!(', 1)[1]
+        self.assertLess(script.index("{uninstall_str}"), script.index("{dolphin_leftovers}"))
+        self.assertLess(script.index("{dolphin_leftovers}"), script.index('md \\"{path}\\"'))
+        self.assertLess(script.index("{dolphin_leftovers}"), script.index("reg add {subkey} /f\n"))
+        self.assertIn("dolphin_leftovers = dolphin_leftover_cleanup(&path, &cur_exe), // Dolphin Connect (DD-21)", body)
+        helper = win.split("fn dolphin_leftover_cleanup(target_dir: &str, cur_exe: &str) -> String {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("rules::leftover_cleanup(&rules::OldInstall {", helper)
+        self.assertIn("KEY_READ | flag", helper)  # reads the other view only; deleting is the elevated script's job
+        self.assertNotIn("delete_subkey", helper)
+        self.assertNotIn("remove_dir", helper)
+
+    def test_the_core_is_a_module_and_tested_in_ci(self):
+        self.assertIn("#[cfg(windows)]\nmod dolphin_install_core;", self.read("src", "lib.rs"))
+        self.assertIn("rustc --edition 2021 --test src/dolphin_install_core.rs", CHECK)
 
 if __name__ == "__main__":
     unittest.main()
