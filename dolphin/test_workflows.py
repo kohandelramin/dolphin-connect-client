@@ -574,6 +574,16 @@ class PrinterWiringTest(unittest.TestCase):
         self.assertIn("DolphinSwitch.remotePrinter: SwitchMode.hidden,", self.read("flutter", "lib", "dolphin", "switches.dart"))
         self.assertNotIn("remote-printer", core.split("pub fn switch_default(", 1)[1].split("\n}\n", 1)[0])
 
+    def test_sessions_leave_the_printer_service_alone_while_the_switch_is_hidden(self):
+        # Upstream subscribes every session to the printer poll; with the switch hidden (the default) nobody may print,
+        # so the poll thread is not started at all.
+        conn = self.read("src", "server", "connection.rs")
+        subs = conn.split("fn try_sub_monitor_services(&mut self)", 1)[1].split("s.add_monitor_connection(", 1)[0]
+        self.assertIn("crate::dolphin_system_core::printer_service_wanted(", subs)
+        self.assertIn("noperms.push(super::printer_service::NAME);", subs)
+        core = self.read("src", "dolphin_system_core.rs")
+        self.assertIn("pub fn printer_service_wanted(mode: SwitchMode) -> bool", core)
+
     def test_the_driver_ships_with_the_customer_app_only_pinned_by_sha256(self):
         text = whole_job(BUILD, "build-windows")
         step = text.split("- name: Remote printer driver (DD-41)\n", 1)[1].split("\n      - name:", 1)[0]

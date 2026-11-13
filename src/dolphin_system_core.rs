@@ -222,6 +222,13 @@ pub fn printer_forward(mode: SwitchMode, permitted: bool) -> bool {
     }
 }
 
+/// Whether a session subscribes to upstream's printer service, whose thread waits on the printer adapter in a loop
+/// (local only, no network). Hidden means no job can ever be sent, so the loop is not started at all.
+#[cfg_attr(not(feature = "flutter"), allow(dead_code))]
+pub fn printer_service_wanted(mode: SwitchMode) -> bool {
+    mode != SwitchMode::Hidden
+}
+
 // ---- DD-12: the fixed receive folder ----
 
 /// `<home>\Downloads\دریافتی دلفین`.
@@ -404,6 +411,14 @@ mod tests {
         assert!(printer_forward(SwitchMode::Forced, false));
         let raw = r#"{"remote-printer":"available"}"#;
         assert!(printer_forward(switch_mode(raw, SWITCH_REMOTE_PRINTER), true));
+    }
+
+    #[test]
+    fn sessions_start_the_printer_poll_only_when_printing_can_happen() {
+        assert!(!printer_service_wanted(switch_mode("", SWITCH_REMOTE_PRINTER)));
+        assert!(!printer_service_wanted(SwitchMode::Hidden));
+        assert!(printer_service_wanted(SwitchMode::Available));
+        assert!(printer_service_wanted(SwitchMode::Forced));
     }
 
     #[test]

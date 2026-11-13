@@ -2378,6 +2378,15 @@ impl Connection {
                 if !self.audio_enabled() {
                     noperms.push(super::audio_service::NAME);
                 }
+                // Dolphin Connect (DD-41): no printer poll in a session while the portal's `remote-printer` switch is
+                // hidden (the default); see src/dolphin_system_core.rs printer_service_wanted.
+                #[cfg(all(target_os = "windows", feature = "flutter"))]
+                if !crate::dolphin_system_core::printer_service_wanted(crate::dolphin_system_core::switch_mode(
+                    &Config::get_option(crate::dolphin_system_core::SWITCHES_OPTION),
+                    crate::dolphin_system_core::SWITCH_REMOTE_PRINTER,
+                )) {
+                    noperms.push(super::printer_service::NAME);
+                }
                 let mut s = s.write().unwrap();
                 #[cfg(not(any(target_os = "android", target_os = "ios")))]
                 let _h = try_start_record_cursor_pos();
