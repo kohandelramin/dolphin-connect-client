@@ -55,7 +55,7 @@ use hbb_common::{
     rand,
     rendezvous_proto::*,
     sha2::{Digest, Sha256},
-    socket_client::{connect_tcp, connect_tcp_local, ipv4_to_ipv6, new_direct_udp_for_unverified},
+    socket_client::ipv4_to_ipv6,
     sodiumoxide::{base64, crypto::sign},
     timeout,
     tokio::{
@@ -82,6 +82,8 @@ use scrap::{
     CodecFormat, ImageFormat, ImageRgb, ImageTexture,
 };
 
+// Dolphin Connect (DD-1): upstream's socket calls, with the sockets pinned to the physical adapter (src/dolphin_net.rs).
+use crate::dolphin_net::{connect_tcp, connect_tcp_local, new_direct_udp_for_unverified};
 #[cfg(not(target_os = "ios"))]
 use crate::clipboard::CLIPBOARD_INTERVAL;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]

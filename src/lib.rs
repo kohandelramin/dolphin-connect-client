@@ -49,6 +49,9 @@ mod dolphin_safe_mode_core;
 mod dolphin_safe_mode;
 mod dolphin_wake_core;
 mod dolphin_wake;
+// Dolphin Connect, Plan 18 Phase 6: DD-1 network-change listener and the physical adapter.
+mod dolphin_net_core;
+mod dolphin_net;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

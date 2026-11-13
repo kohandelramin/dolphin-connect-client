@@ -718,8 +718,9 @@ async fn test_nat_type_() -> ResultType<bool> {
     let mut local_addr = None;
     for i in 0..2 {
         let server = if i == 0 { &*server1 } else { &*server2 };
+        // Dolphin Connect (DD-1): the NAT is tested on the path the sockets take, the physical adapter.
         let mut socket =
-            socket_client::connect_tcp_local(server, local_addr, CONNECT_TIMEOUT).await?;
+            crate::dolphin_net::connect_tcp_local(server, local_addr, CONNECT_TIMEOUT).await?;
         if i == 0 {
             // reuse the local addr is required for nat test
             local_addr = Some(socket.local_addr());
@@ -1344,7 +1345,8 @@ async fn tcp_proxy_request(
 
     let overall_timeout = CONNECT_TIMEOUT + READ_TIMEOUT;
     timeout(overall_timeout, async {
-        let mut conn = socket_client::connect_tcp(&*tcp_addr, CONNECT_TIMEOUT).await?;
+        // Dolphin Connect (DD-1): pinned to the physical adapter like the other links to our server.
+        let mut conn = crate::dolphin_net::connect_tcp(&*tcp_addr, CONNECT_TIMEOUT).await?;
         let key = crate::get_key(true).await;
         secure_tcp_silent(&mut conn, &key).await?;
 

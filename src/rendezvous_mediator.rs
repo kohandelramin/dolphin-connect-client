@@ -20,7 +20,7 @@ use hbb_common::{
     protobuf::Message as _,
     rendezvous_proto::*,
     sleep,
-    socket_client::{self, connect_tcp, is_ipv4, new_direct_udp_for, new_udp_for},
+    socket_client::is_ipv4,
     tokio::{
         self, select,
         sync::{mpsc, Mutex},
@@ -36,6 +36,11 @@ use crate::{
     check_port,
     server::{check_zombie, new as new_server, ConnectionMeta, ServerPtr},
 };
+// Dolphin Connect (DD-1): upstream's socket calls, with the sockets pinned to the physical adapter (src/dolphin_net.rs).
+use crate::dolphin_net::{connect_tcp, new_direct_udp_for, new_udp_for};
+// Upstream's tests below call it directly, on loopback.
+#[cfg(test)]
+use hbb_common::socket_client;
 
 type Message = RendezvousMessage;
 
@@ -278,6 +283,8 @@ impl RendezvousMediator {
                 sleep(1.).await;
             }
         }
+        // Dolphin Connect (DD-1): this process registers, so a network change registers again at once.
+        crate::dolphin_net::mediator_started();
         crate::hbbs_http::sync::start();
         #[cfg(target_os = "windows")]
         if crate::platform::is_installed() && crate::is_server() {
@@ -463,7 +470,8 @@ impl RendezvousMediator {
                                 if last_dns_check.elapsed().as_millis() as i64 > DNS_INTERVAL {
                                     // in some case of network reconnect (dial IP network),
                                     // old UDP socket not work any more after network recover
-                                    if let Some((s, new_addr)) = socket_client::rebind_udp_for(&rz.host).await? {
+                                    // Dolphin Connect (DD-1): pinned, and a pin that went unanswered is held off.
+                                    if let Some((s, new_addr)) = crate::dolphin_net::rebind_udp_for(&rz.host).await? {
                                         socket = s;
                                         rz.addr = new_addr.clone();
                                         addr = new_addr;
@@ -1181,7 +1189,8 @@ impl RendezvousMediator {
             // Awaited rather than spawned so the mapping exists before `PunchHoleSent` goes out;
             // `local_addr` itself is shared, not exclusive - every socket here binds it with the
             // reuse flags `new_socket` sets.
-            allow_err!(socket_client::connect_tcp_local(peer_addr, Some(local_addr), 30).await);
+            // Dolphin Connect (DD-1): pinned like the link it reuses the address of.
+            allow_err!(crate::dolphin_net::connect_tcp_local(peer_addr, Some(local_addr), 30).await);
             socket
         };
         let mut msg_out = Message::new();
@@ -1568,7 +1577,8 @@ async fn punch_tcp_until_connected(
     // willing to take a connection through it.
     let until = Instant::now() + Duration::from_millis(CONNECT_TIMEOUT);
     let punch = punch_until(until, peer_addr, |ms| {
-        socket_client::connect_tcp_local(peer_addr, Some(local_addr), ms)
+        // Dolphin Connect (DD-1): pinned like the link it reuses the address of.
+        crate::dolphin_net::connect_tcp_local(peer_addr, Some(local_addr), ms)
     });
     let Some(listener) = listener else {
         if let Some(stream) = punch.await {

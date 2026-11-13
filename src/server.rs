@@ -402,7 +402,8 @@ async fn create_relay_connection_(
     ipv4: bool,
     meta: ConnectionMeta,
 ) -> ResultType<()> {
-    let mut stream = socket_client::connect_tcp(
+    // Dolphin Connect (DD-1): the relay connection, pinned to the physical adapter.
+    let mut stream = crate::dolphin_net::connect_tcp(
         socket_client::ipv4_to_ipv6(crate::check_port(relay_server, RELAY_PORT), ipv4),
         CONNECT_TIMEOUT,
     )

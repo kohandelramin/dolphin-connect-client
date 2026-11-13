@@ -129,6 +129,11 @@ winapi = { version = "0.3", features = [
 windows = { version = "0.61", features = [
     "Win32",
     "Win32_Foundation",
+    # Dolphin Connect (DD-1, Plan 18 Phase 6): route and address change notifications, the route and interface tables,
+    # and IP_UNICAST_IF (src/dolphin_net.rs). Features only: no new crate, Cargo.lock unchanged.
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",

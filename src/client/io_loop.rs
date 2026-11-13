@@ -269,6 +269,8 @@ impl<T: InvokeUiSession> Remote<T> {
                 let mut webrtc_suspect_since: Option<Instant> = None;
                 let mut last_rx_progress = peer.rx_progress();
                 let mut peer_gone = false;
+                // Dolphin Connect (DD-1): the network-change count this session last looked at.
+                let mut dolphin_net_seen = crate::dolphin_net::generation();
 
                 loop {
                     tokio::select! {
@@ -355,6 +357,13 @@ impl<T: InvokeUiSession> Remote<T> {
                                     .as_ref()
                                     .and_then(|k| k.peer_silent_for())
                                     .map_or(false, |silent| silent >= KCP_PEER_SILENCE_LIMIT);
+                            // Dolphin Connect (DD-1): after a network change, a link from an address this PC no longer
+                            // has (a VPN went off) is dead: end it now, so the quiet retry (ADR-0015) starts at once
+                            // instead of after the 30 s timeout. A link that kept its address goes on.
+                            if crate::dolphin_net::session_path_gone(peer.local_addr(), &mut dolphin_net_seen) {
+                                self.handler.msgbox("error", "Connection Error", "Reset by the peer", "");
+                                break;
+                            }
                             if peer_gone {
                                 log::info!("Peer stopped answering, reconnecting");
                                 #[cfg(feature = "flutter")]

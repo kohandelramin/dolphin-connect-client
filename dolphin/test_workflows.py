@@ -804,9 +804,7 @@ PORTAL_SWITCHES = {
     "safe-mode": ("technician", "hidden"),
 }
 # Keys with no reader in the customer app yet, and why.
-SWITCHES_NOT_READ = {
-    "direct-route": "DD-1, Plan 18 Phase 6: changes the network route (speed), built only after the owner's numbers",
-}
+SWITCHES_NOT_READ = {}
 
 
 class FeatureSwitchesTest(unittest.TestCase):
@@ -850,6 +848,7 @@ class FeatureSwitchesTest(unittest.TestCase):
             "remote-printer": [("src/server/connection.rs", "crate::dolphin_system_core::SWITCH_REMOTE_PRINTER"),
                                ("flutter/lib/dolphin/printer_hooks.dart", "mode(DolphinSwitch.remotePrinter)")],
             "wake-on-lan": [("src/dolphin_wake.rs", "rules::SWITCH_WAKE_ON_LAN")],
+            "direct-route": [("src/dolphin_net.rs", "net::SWITCH_DIRECT_ROUTE) != sys::SwitchMode::Hidden")],
         }
         customer = {k for k, (side, _) in PORTAL_SWITCHES.items() if side in ("customer", "both")}
         self.assertEqual(set(readers) | (customer & set(SWITCHES_NOT_READ)), customer)
@@ -1002,6 +1001,100 @@ class WakeWiringTest(unittest.TestCase):
             self.assertIn(f'pub const {const}: &str = "{value}";', core)
         self.assertIn("pub const PORT: u16 = 9;", core)
         self.assertIn("static const wakeOnLan = 'wake-on-lan';", self.read("flutter", "lib", "dolphin", "switches.dart"))
+
+
+class NetWiringTest(unittest.TestCase):
+    """Plan 18 Phase 6 (DD-1): the network-change listener and the physical adapter, hooked in upstream files and
+    proven by their text, since the crate needs vcpkg and Windows to build. libs/hbb_common stays upstream's."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def production(self, *parts):
+        return self.read(*parts).split("#[cfg(test)]\nmod tests", 1)[0]
+
+    def test_the_mediator_takes_its_sockets_from_dolphin_net(self):
+        rv = self.production("src", "rendezvous_mediator.rs")
+        self.assertIn("use crate::dolphin_net::{connect_tcp, new_direct_udp_for, new_udp_for};", rv)
+        self.assertIn("socket_client::is_ipv4,", rv)
+        for call in ("socket_client::connect_tcp", "socket_client::new_udp_for", "socket_client::rebind_udp_for",
+                     "socket_client::new_direct_udp_for", "socket_client::{self"):
+            self.assertNotIn(call, rv)
+        self.assertIn("crate::dolphin_net::rebind_udp_for(&rz.host).await?", rv)
+        self.assertEqual(rv.count("crate::dolphin_net::connect_tcp_local(peer_addr, Some(local_addr), "), 2)
+        # upstream's own tests still call upstream's socket directly, on loopback
+        self.assertIn("#[cfg(test)]\nuse hbb_common::socket_client;", rv)
+
+    def test_the_mediator_registers_again_on_a_change_only_where_it_runs(self):
+        start = self.read("src", "rendezvous_mediator.rs").split("pub async fn start_all() {", 1)[1]
+        outgoing = start.index("if config::is_outgoing_only() {")
+        hook = start.index("crate::dolphin_net::mediator_started();")
+        self.assertLess(outgoing, hook)
+        self.assertLess(hook, start.index("crate::hbbs_http::sync::start();"))
+        net = self.read("src", "dolphin_net.rs")
+        react = net.split("fn react() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("if enabled && MEDIATOR.load(Ordering::SeqCst) {", react)
+        self.assertIn("crate::RendezvousMediator::restart();", react)
+        self.assertIn("crate::test_nat_type();", react)
+
+    def test_the_relay_nat_test_and_http_fallback_are_pinned(self):
+        server = self.read("src", "server.rs").split("async fn create_relay_connection_(", 1)[1][:800]
+        self.assertIn("crate::dolphin_net::connect_tcp(", server)
+        common = self.read("src", "common.rs")
+        nat = common.split("async fn test_nat_type_() -> ResultType<bool> {", 1)[1][:1500]
+        self.assertIn("crate::dolphin_net::connect_tcp_local(server, local_addr, CONNECT_TIMEOUT)", nat)
+        self.assertNotIn("socket_client::connect_tcp", nat)
+        self.assertIn("crate::dolphin_net::connect_tcp(&*tcp_addr, CONNECT_TIMEOUT)", common)
+
+    def test_the_technician_takes_its_sockets_from_dolphin_net(self):
+        client = self.read("src", "client.rs")
+        head = client.split("pub use super::lang::*;", 1)[0]
+        self.assertIn("use crate::dolphin_net::{connect_tcp, connect_tcp_local, new_direct_udp_for_unverified};", head)
+        self.assertIn("socket_client::ipv4_to_ipv6,", head)
+        self.assertNotIn("socket_client::{connect_tcp", head)
+
+    def test_a_session_whose_address_went_reconnects_at_once(self):
+        io = self.read("src", "client", "io_loop.rs")
+        seen = io.index("let mut dolphin_net_seen = crate::dolphin_net::generation();")
+        loop = io.index("loop {", seen)
+        check = io.index("if crate::dolphin_net::session_path_gone(peer.local_addr(), &mut dolphin_net_seen) {")
+        self.assertLess(seen, loop)
+        self.assertLess(loop, check)
+        self.assertIn('self.handler.msgbox("error", "Connection Error", "Reset by the peer", "");\n',
+                      io[check:check + 300])
+        # the quiet retry takes it (ADR-0015): a Connection Error whose text is not one of the ends never retried
+        dart = self.read("flutter", "lib", "dolphin", "reconnect.dart")
+        ends = re.findall(r"^  '([^']+)',", dart.split("const _notTransient = [", 1)[1].split("];", 1)[0], re.M)
+        self.assertTrue(ends)
+        self.assertFalse([e for e in ends if e in "reset by the peer"])
+
+    def test_the_switch_turns_both_parts_off(self):
+        net = self.read("src", "dolphin_net.rs")
+        pinning = net.split("fn pinning() -> Option<net::Choices> {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("if !on() ||", pinning)
+        gone = net.split("pub fn session_path_gone(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("if !on() {", gone)
+        core = self.read("src", "dolphin_net_core.rs")
+        self.assertEqual(core.count('pub const SWITCH_DIRECT_ROUTE: &str = "direct-route";'), 1)
+        self.assertIn('"direct-route" => SwitchMode::Forced,', self.read("src", "dolphin_system_core.rs"))
+        switches = self.read("flutter", "lib", "dolphin", "switches.dart")
+        self.assertIn("DolphinSwitch.directRoute: SwitchMode.forced,", switches)
+
+    def test_the_option_and_the_notifications(self):
+        net = self.read("src", "dolphin_net.rs")
+        for name in ("NotifyRouteChange2(AF_UNSPEC", "NotifyUnicastIpAddressChange(AF_UNSPEC", "GetIpForwardTable2",
+                     "GetUnicastIpAddressTable", "GetIfTable2", "IP_UNICAST_IF", "IPV6_UNICAST_IF",
+                     "net::unicast_if_value(index, v6)"):
+            self.assertIn(name, net)
+        cargo = self.read("Cargo.toml")
+        for feature in ("Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"):
+            self.assertIn(f'"{feature}",', cargo)
+
+    def test_no_speed_setting_is_touched(self):
+        # Approved scope only: no codec, quality or relay/punch timing (DD-2 and DD-3 wait for the owner's numbers).
+        net = self.read("src", "dolphin_net.rs")
+        self.assertIsNone(re.search(r"codec|quality|PUNCH_|SEC30|CONNECT_TIMEOUT|keep_alive|REG_INTERVAL", net, re.I))
+        self.assertNotIn("libs/hbb_common", net.replace("`libs/hbb_common` stays upstream's", ""))
 
 
 if __name__ == "__main__":
