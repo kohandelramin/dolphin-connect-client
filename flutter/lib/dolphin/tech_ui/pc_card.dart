@@ -297,7 +297,7 @@ class _TechPcCardState extends State<TechPcCard> {
         decoration: techField(context, hint: 'یادداشت داخلی… (مشتری نمی‌بیند)'),
       ),
       const SizedBox(height: 6),
-      Row(children: [
+      Wrap(spacing: 6, runSpacing: 6, children: [
         TechButton('ثبت یادداشت',
             onPressed: c.busy
                 ? null
@@ -305,9 +305,7 @@ class _TechPcCardState extends State<TechPcCard> {
                     if (_note.text.trim().isEmpty) return;
                     if (await c.addNote(_note.text)) _note.clear();
                   }),
-        const SizedBox(width: 6),
         TechButton('پیام به مشتری', key: const ValueKey('tech-card-message'), onPressed: c.busy ? null : () => _message(context, c)),
-        const Spacer(),
         TechButton('پایان تماس',
             key: const ValueKey('tech-card-end'), kind: TechButtonKind.danger, onPressed: c.busy ? null : () => widget.onEndCall(ref)),
       ]),

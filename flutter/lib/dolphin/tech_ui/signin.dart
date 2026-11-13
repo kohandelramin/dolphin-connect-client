@@ -150,6 +150,11 @@ class _TechSignInViewState extends State<TechSignInView> {
                         const SizedBox(height: 16),
                         FilledButton(
                           key: const ValueKey('tech-signin-submit'),
+                          style: FilledButton.styleFrom(
+                              backgroundColor: t.primary,
+                              foregroundColor: t.onPrimary,
+                              disabledBackgroundColor: t.surfaceAlt,
+                              disabledForegroundColor: t.textMuted),
                           onPressed: busy ? null : _submit,
                           child: busy
                               ? SizedBox(

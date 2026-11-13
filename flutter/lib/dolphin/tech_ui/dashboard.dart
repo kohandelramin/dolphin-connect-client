@@ -451,7 +451,7 @@ class PcList extends StatelessWidget {
             Expanded(flex: 3, child: Text('برچسب', style: head)),
             Expanded(flex: 3, child: Text('آخرین تماس', style: head)),
             const SizedBox(width: 36),
-            const SizedBox(width: 168),
+            const SizedBox(width: 200),
           ]),
         ),
         Divider(height: 1, color: t.line),
@@ -515,7 +515,7 @@ class PcList extends StatelessWidget {
             Expanded(flex: 3, child: TechHint(last, maxLines: 1)),
             SizedBox(width: 36, child: _Star(pc: pc, onTap: () => actions.favorite(pc))),
             SizedBox(
-              width: 168,
+              width: 200,
               child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 ..._buttons(pc, state),
                 SizedBox(width: 32, child: PcMenu(pc: pc, actions: actions)),
