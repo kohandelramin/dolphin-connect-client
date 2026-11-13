@@ -67,6 +67,8 @@ jobs:
           "$RUNNER_TEMP/panel_core"
           rustc --edition 2021 --test src/dolphin_install_core.rs -o "$RUNNER_TEMP/install_core"
           "$RUNNER_TEMP/install_core"
+          rustc --edition 2021 --test src/dolphin_strategy_core.rs -o "$RUNNER_TEMP/strategy_core"
+          "$RUNNER_TEMP/strategy_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

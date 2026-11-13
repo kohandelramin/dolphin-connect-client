@@ -1,0 +1,13 @@
+{
+  "public_key": "ZuS26V7Tw2nnrbswkPHSPvunNt3d1x6Gi+LXDqo3PLc=",
+  "id": "123456789",
+  "version": 1794582781,
+  "options": {
+    "approve-mode": "password",
+    "dolphin-support-phone": "021-44280505",
+    "dolphin-tech-name": "علی رضایی",
+    "enable-block-input": "N"
+  },
+  "canonical": "dolphin-strategy-v1\n123456789\n1794582781\napprove-mode=\"password\"\ndolphin-support-phone=\"021-44280505\"\ndolphin-tech-name=\"علی رضایی\"\nenable-block-input=\"N\"\n",
+  "signature": "wRq8eXp0zWPoqa0nkqIQZDMrjHgYGMu08iZQ4VWMwWVvEHgF25YCt7/Fh88uHCKq7AfTlXN8R6HaWf+tfxZTAg=="
+}

@@ -249,6 +249,10 @@ async fn start_hbbs_sync_async() {
                 {
                     v["dolphin_share"] = json!(crate::dolphin_system::heartbeat_share());
                 }
+                // Dolphin Connect (DD-24): "bad" while the last strategy was refused, so the portal audits it.
+                if let Some(sig) = crate::dolphin_strategy::heartbeat_sig() {
+                    v["dolphin_sig"] = json!(sig);
+                }
                 let response = crate::post_request(url.clone(), v.to_string(), "").await;
                 if let Err(err) = &response {
                     hbb_common::throttled_log!(API_LOG_INTERVAL, warn, "Heartbeat failed: {err:?}");
@@ -273,18 +277,27 @@ async fn start_hbbs_sync_async() {
                                     SENDER.lock().unwrap().send(conns).ok();
                                 }
                         }
-                        if let Some(rsp_modified_at) = rsp.remove("modified_at") {
-                            if let Ok(rsp_modified_at) = serde_json::from_value::<i64>(rsp_modified_at) {
-                                if rsp_modified_at != modified_at {
-                                    LocalConfig::set_option("strategy_timestamp".to_string(), rsp_modified_at.to_string());
-                                }
+                        // Dolphin Connect (DD-24): the strategy is applied only when the portal's signature over this
+                        // ID and this modified_at verifies (src/dolphin_strategy.rs; no key compiled in: unchecked, as
+                        // upstream). A refused one keeps the previous options and the old modified_at, so the portal
+                        // sends it again, and the next heartbeats say dolphin_sig "bad".
+                        let rsp_modified_at = rsp
+                            .remove("modified_at")
+                            .and_then(|v| serde_json::from_value::<i64>(v).ok());
+                        let strategy = rsp
+                            .remove("strategy")
+                            .and_then(|v| serde_json::from_value::<StrategyOptions>(v).ok());
+                        let applied = strategy.as_ref().map(|s| {
+                            crate::dolphin_strategy::accept(&id, rsp_modified_at, &s.config_options)
+                        });
+                        if let Some(rsp_modified_at) = rsp_modified_at {
+                            if rsp_modified_at != modified_at && crate::dolphin_strategy::store_version(applied) {
+                                LocalConfig::set_option("strategy_timestamp".to_string(), rsp_modified_at.to_string());
                             }
                         }
-                        if let Some(strategy) = rsp.remove("strategy") {
-                            if let Ok(strategy) = serde_json::from_value::<StrategyOptions>(strategy) {
-                                log::info!("strategy updated");
-                                handle_config_options(strategy.config_options);
-                            }
+                        if let (Some(strategy), Some(true)) = (strategy, applied) {
+                            log::info!("strategy updated");
+                            handle_config_options(strategy.config_options);
                         }
                     }
                 }

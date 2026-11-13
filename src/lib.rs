@@ -37,6 +37,9 @@ mod dolphin_panel_core;
 mod dolphin_panel;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod dolphin_system;
+// Dolphin Connect, Plan 18 Phase 5: signed settings (DD-24).
+mod dolphin_strategy_core;
+mod dolphin_strategy;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

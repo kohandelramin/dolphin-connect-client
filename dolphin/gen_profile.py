@@ -20,7 +20,12 @@ import re
 import sys
 from urllib.parse import urlsplit
 
-PROFILE_KEYS = ("custom-rendezvous-server", "relay-server", "key", "api-server")
+# The server settings go into OVERRIDE_SETTINGS; the profile's other keys are compiled in as their own constants.
+SERVER_KEYS = ("custom-rendezvous-server", "relay-server", "key", "api-server")
+# DD-24: the portal's strategy-signing public key (base64 of the raw 32-byte Ed25519 key, app/scripts/gen-signing-key.ts
+# in the portal). Empty means the app applies pushed settings unchecked: dev builds only.
+STRATEGY_KEY = "strategy-public-key"
+PROFILE_KEYS = (*SERVER_KEYS, STRATEGY_KEY)
 SECTIONS = ("override", "default", "local-override", "local-default", "builtin", "hard")
 
 # Values no build may loosen: (section, key, value). Mirrors app/src/lib/engine/policy.ts in the portal
@@ -108,6 +113,12 @@ def validate_profile(profile, name):
             raise ValueError
     except ValueError:
         errors.append("key: the server's base64 ed25519 public key (id_ed25519.pub); empty until hbbs has run")
+    strategy_key = profile[STRATEGY_KEY]
+    try:
+        if not isinstance(strategy_key, str) or (strategy_key and len(base64.b64decode(strategy_key, validate=True)) != 32):
+            raise ValueError
+    except ValueError:
+        errors.append(f"{STRATEGY_KEY}: base64 of the raw 32-byte Ed25519 public key (the portal's gen-signing-key.ts), or empty")
     api = urlsplit(profile["api-server"])
     try:
         api.port  # raises ValueError for a port that is not a number or out of range
@@ -235,7 +246,7 @@ def _rust_map(name, values):
 
 
 def render_rust(settings, profile, name, variant, version):
-    override = {**settings["override"], **profile}
+    override = {**settings["override"], **{k: profile[k] for k in SERVER_KEYS}}
     chosen = settings["variants"][variant]
     hard = {**settings["hard"], **chosen.get("hard", {})}
     parts = [
@@ -250,6 +261,8 @@ def render_rust(settings, profile, name, variant, version):
         f"pub const DOLPHIN_VERSION: &str = {rust_str(version)};",
         f"pub const PORTAL_URL: &str = {rust_str(portal_url(profile))};",
         f"pub const SUPPORT_PHONE: &str = {rust_str(settings['brand']['support-phone'])};",
+        # DD-24: checked by src/dolphin_strategy.rs; empty = no check (dev).
+        f"pub const STRATEGY_PUBLIC_KEY: &str = {rust_str(profile.get(STRATEGY_KEY, ''))};",
         _rust_map("OVERRIDE_SETTINGS", override),
         _rust_map("DEFAULT_SETTINGS", settings["default"]),
         _rust_map("OVERRIDE_LOCAL_SETTINGS", settings["local-override"]),
@@ -327,6 +340,10 @@ def main(argv, root=pathlib.Path(__file__).resolve().parent.parent, env=None):
     errors = validate_settings(settings) + validate_profile(profile, name)
     if not errors and name == "production" and not settings["brand"]["support-phone"]:
         errors.append("brand.support-phone: required for production builds (shown in the customer window)")
+    # DD-24: a production app must refuse settings the portal did not sign. The owner makes the pair with the portal's
+    # app/scripts/gen-signing-key.ts: the private key goes to Coolify, the public key into dolphin/profiles/production.json.
+    if not errors and name == "production" and not profile[STRATEGY_KEY]:
+        errors.append(f"{STRATEGY_KEY}: required for production builds (the portal's app/scripts/gen-signing-key.ts, DD-24)")
     # D21. Never print the value or anything derived from it.
     fixed_value = env.get(FIXED_ENV, "")
     secret = None

@@ -17,6 +17,8 @@ PROFILE = {
     "relay-server": "remote.dolphindev.ir:21117",
     "key": KEY,
     "api-server": "https://support.dolphindev.ir/rd",
+    # DD-24: the throwaway key of dolphin/strategy-signature-vector.json (its private half was never kept).
+    "strategy-public-key": "ZuS26V7Tw2nnrbswkPHSPvunNt3d1x6Gi+LXDqo3PLc=",
 }
 # A fake fixed password (D21). The real one exists only as the fork's GitHub Actions secret.
 FAKE_FIXED = "fake-fixed-for-tests-only"
@@ -58,6 +60,55 @@ class ProfileTest(unittest.TestCase):
         missing = dict(PROFILE)
         del missing["key"]
         self.assertTrue(g.validate_profile(missing, "production"))
+
+
+class StrategyKeyTest(unittest.TestCase):
+    """DD-24: the portal's strategy-signing public key, compiled in; empty only outside production."""
+
+    def test_empty_or_a_raw_32_byte_key(self):
+        self.assertEqual(g.validate_profile({**PROFILE, "strategy-public-key": ""}, "dev"), [])
+        for bad in ("abc", "!" * 44, base64_of(31), base64_of(33), 7):
+            errors = g.validate_profile({**PROFILE, "strategy-public-key": bad}, "production")
+            self.assertTrue(any("strategy-public-key" in e for e in errors), bad)
+        missing = dict(PROFILE)
+        del missing["strategy-public-key"]
+        self.assertTrue(g.validate_profile(missing, "production"))
+
+    def test_it_is_a_constant_and_not_a_pushed_option(self):
+        rust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0")
+        self.assertIn(f'pub const STRATEGY_PUBLIC_KEY: &str = "{PROFILE["strategy-public-key"]}";', rust)
+        self.assertNotIn('("strategy-public-key"', rust)
+        empty = g.render_rust(SETTINGS, {**PROFILE, "strategy-public-key": ""}, "dev", "customer", "2.0.0")
+        self.assertIn('pub const STRATEGY_PUBLIC_KEY: &str = "";', empty)
+
+    def test_production_needs_the_key_and_dev_may_leave_it_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _root(tmp)
+            no_key = json.dumps({**PROFILE, "strategy-public-key": ""})
+            (root / "dolphin" / "profiles" / "production.json").write_text(no_key, encoding="utf-8")
+            (root / "dolphin" / "profiles" / "dev.json").write_text(no_key, encoding="utf-8")
+            self.assertEqual(g.main(["production", "customer", "2.0.0"], root, FAKE_ENV), 1)
+            self.assertEqual(g.main(["dev", "customer", "2.0.0-dev.1"], root, {}), 0)
+            self.assertIn('STRATEGY_PUBLIC_KEY: &str = "";', (root / "src" / "dolphin_generated.rs").read_text(encoding="utf-8"))
+
+    def test_the_committed_profiles(self):
+        # The production key is not made yet (the owner runs the portal's gen-signing-key.ts before the release build);
+        # dev talks to a local portal that signs nothing.
+        for name in ("dev", "production"):
+            profile = json.loads((HERE / "profiles" / f"{name}.json").read_text(encoding="utf-8"))
+            self.assertEqual(g.validate_profile(profile, name), [], name)
+            self.assertIn("strategy-public-key", profile)
+        self.assertEqual(json.loads((HERE / "profiles" / "dev.json").read_text(encoding="utf-8"))["strategy-public-key"], "")
+
+    def test_the_vector_key_is_the_test_key(self):
+        vector = json.loads((HERE / "strategy-signature-vector.json").read_text(encoding="utf-8"))
+        self.assertEqual(vector["public_key"], PROFILE["strategy-public-key"])
+        self.assertEqual(g.validate_profile({**PROFILE, "strategy-public-key": vector["public_key"]}, "production"), [])
+
+
+def base64_of(n):
+    import base64
+    return base64.b64encode(bytes(range(n))).decode()
 
 
 class SettingsTest(unittest.TestCase):

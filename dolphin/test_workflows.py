@@ -150,7 +150,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_session_core.rs",
                     "src/dolphin_system_core.rs",
                     "src/dolphin_panel_core.rs",
-                    "src/dolphin_install_core.rs")
+                    "src/dolphin_install_core.rs",
+                    "src/dolphin_strategy_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -188,8 +189,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 10)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 10)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 11)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 11)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -700,6 +701,53 @@ class AppNameWiringTest(unittest.TestCase):
         self.assertNotIn("DolphinBrand.nameFa", update)
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "app_name_test.dart").is_file())
         self.assertIn("lib/common.dart", ANALYZE)
+
+
+class SignedStrategyWiringTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-24): the heartbeat applies a strategy only when the portal's signature verifies."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_strategy_is_checked_before_it_is_applied(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        block = sync.split('.remove("modified_at")', 1)[1].split("fn heartbeat_url()", 1)[0]
+        self.assertIn("crate::dolphin_strategy::accept(&id, rsp_modified_at, &s.config_options)", block)
+        self.assertIn("if let (Some(strategy), Some(true)) = (strategy, applied) {", block)
+        self.assertLess(block.index("crate::dolphin_strategy::accept("), block.index("handle_config_options(strategy.config_options);"))
+        self.assertEqual(sync.count("handle_config_options(strategy.config_options);"), 1)
+        # A refused strategy keeps the old version, so the portal sends it again.
+        self.assertIn("rsp_modified_at != modified_at && crate::dolphin_strategy::store_version(applied)", block)
+        self.assertEqual(sync.count('LocalConfig::set_option("strategy_timestamp"'), 1)
+
+    def test_the_heartbeat_reports_a_refusal(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        body = sync.split('v["modified_at"] = json!(modified_at);', 1)[1].split("let response = crate::post_request(url.clone()", 1)[0]
+        self.assertIn("if let Some(sig) = crate::dolphin_strategy::heartbeat_sig() {", body)
+        self.assertIn('v["dolphin_sig"] = json!(sig);', body)
+        core = self.read("src", "dolphin_strategy_core.rs")
+        self.assertIn('Some("bad")', core.split("pub fn heartbeat_sig(", 1)[1][:200])
+
+    def test_the_key_and_the_signature_option_match_the_portal(self):
+        hook = self.read("src", "dolphin_strategy.rs")
+        self.assertIn("crate::dolphin::STRATEGY_PUBLIC_KEY", hook)
+        self.assertIn("sign::verify_detached(&sig, message, &pk)", hook)
+        core = self.read("src", "dolphin_strategy_core.rs")
+        self.assertIn('pub const SIGNATURE_OPTION: &str = "dolphin-signature";', core)
+        self.assertIn('const VERSION_LINE: &str = "dolphin-strategy-v1";', core)
+
+    def test_the_rust_test_carries_the_portal_vector(self):
+        import json
+        vector = json.loads(self.read("dolphin", "strategy-signature-vector.json"))
+        core = self.read("src", "dolphin_strategy_core.rs")
+        self.assertIn(f'const VECTOR_ID: &str = "{vector["id"]}";', core)
+        self.assertIn(f'const VECTOR_VERSION: i64 = {vector["version"]};', core)
+        self.assertIn(f'const VECTOR_PUBLIC_KEY: &str = "{vector["public_key"]}";', core)
+        self.assertIn(f'"{vector["signature"]}"', core)
+        canonical = vector["canonical"].replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        self.assertIn(f'const VECTOR_CANONICAL: &str = "{canonical}";', core)
+        for key, value in vector["options"].items():
+            self.assertIn(f'("{key}", "{value}")', core)
 
 
 if __name__ == "__main__":
