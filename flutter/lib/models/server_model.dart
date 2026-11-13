@@ -533,6 +533,10 @@ class ServerModel with ChangeNotifier {
         } else {
           if (_clients[index].authorized) {
             _clients[index].privacyMode = client.privacyMode;
+            // Dolphin Connect (DD-37, DD-46): the connection's word on blocked input and on a session that came back
+            // paused.
+            _clients[index].dolphinInputBlocked = client.dolphinInputBlocked;
+            _clients[index].dolphinPaused = client.dolphinPaused;
             notifyListeners();
             return;
           }
@@ -579,7 +583,9 @@ class ServerModel with ChangeNotifier {
       if (!hideCm) windowOnTop(null);
     });
     // Only do the hidden task when on Desktop.
-    if (client.authorized && isDesktop) {
+    // Dolphin Connect (DD-36): the customer's window never hides itself during a session (a fixed-password or one-time
+    // password login arrives authorized); it gets small in the corner instead, with «پایان» in sight.
+    if (client.authorized && isDesktop && !bind.isIncomingOnly()) {
       cmHiddenTimer = Timer(const Duration(seconds: 3), () {
         if (!hideCm) windowManager.minimize();
         cmHiddenTimer = null;
@@ -818,6 +824,10 @@ class Client {
   bool fromSwitch = false;
   bool inVoiceCall = false;
   bool incomingVoiceCall = false;
+  // Dolphin Connect (DD-37, DD-46): the technician blocked the customer's input; the customer paused the session
+  // (src/ui_cm_interface.rs Client, flutter/lib/dolphin/connection.dart).
+  bool dolphinInputBlocked = false;
+  bool dolphinPaused = false;
 
   RxInt unreadChatMessageCount = 0.obs;
 
@@ -847,6 +857,8 @@ class Client {
     fromSwitch = json['from_switch'];
     inVoiceCall = json['in_voice_call'];
     incomingVoiceCall = json['incoming_voice_call'];
+    dolphinInputBlocked = json['dolphin_input_blocked'] ?? false; // Dolphin Connect (DD-37)
+    dolphinPaused = json['dolphin_paused'] ?? false; // Dolphin Connect (DD-46)
   }
 
   Map<String, dynamic> toJson() {
@@ -872,6 +884,8 @@ class Client {
     data['from_switch'] = fromSwitch;
     data['in_voice_call'] = inVoiceCall;
     data['incoming_voice_call'] = incomingVoiceCall;
+    data['dolphin_input_blocked'] = dolphinInputBlocked;
+    data['dolphin_paused'] = dolphinPaused;
     return data;
   }
 

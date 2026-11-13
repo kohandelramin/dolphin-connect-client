@@ -59,6 +59,8 @@ jobs:
           "$RUNNER_TEMP/fixed_core"
           rustc --edition 2021 --test src/dolphin_callback_core.rs -o "$RUNNER_TEMP/callback_core"
           "$RUNNER_TEMP/callback_core"
+          rustc --edition 2021 --test src/dolphin_session_core.rs -o "$RUNNER_TEMP/session_core"
+          "$RUNNER_TEMP/session_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

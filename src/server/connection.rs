@@ -462,7 +462,18 @@ pub struct Connection {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     terminal_user_token: Option<TerminalUserToken>,
     terminal_generic_service: Option<Box<GenericService>>,
+    // Dolphin Connect (DD-46): the customer pressed «مکث» (src/dolphin_session_core.rs). Kept apart from the
+    // permissions, so «ادامه» gives back exactly what the customer had allowed.
+    dolphin_paused: bool,
+    // Dolphin Connect (DD-46, DD-37): this connection asked the input thread to block the customer's input.
+    dolphin_block_on: bool,
+    // Dolphin Connect (DD-46): the connection manager has had this connection's Login.
+    dolphin_cm_started: bool,
 }
+
+/// Dolphin Connect (DD-46): paused sessions by technician ID, shared by this server's connections.
+static DOLPHIN_PAUSES: std::sync::Mutex<crate::dolphin_session_core::PauseBook> =
+    std::sync::Mutex::new(crate::dolphin_session_core::PauseBook::new());
 
 impl ConnInner {
     pub fn new(id: i32, tx: Option<Sender>, tx_video: Option<Sender>) -> Self {
@@ -664,6 +675,9 @@ impl Connection {
             terminal_generic_service: None,
             conn_audit_primary_auth: ConnAuditPrimaryAuth::None,
             conn_audit_two_factor: ConnAuditTwoFactor::None,
+            dolphin_paused: false,
+            dolphin_block_on: false,
+            dolphin_cm_started: false,
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -712,7 +726,11 @@ impl Connection {
         conn.stream.set_send_timeout(SEND_TIMEOUT_VIDEO);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
-        std::thread::spawn(move || Self::handle_input(_rx_input, tx_cloned));
+        {
+            // Dolphin Connect (DD-37): the input thread tells the customer's window when blocking took effect.
+            let tx_cm = conn.tx_to_cm.clone();
+            std::thread::spawn(move || Self::handle_input(_rx_input, tx_cloned, tx_cm));
+        }
         let mut second_timer = crate::rustdesk_interval(time::interval(Duration::from_secs(1)));
 
         #[cfg(feature = "unix-file-copy-paste")]
@@ -803,9 +821,18 @@ impl Connection {
                         }
                         ipc::Data::SwitchPermission{name, enabled} => {
                             log::info!("Change permission {} -> {}", name, enabled);
-                            if &name == "keyboard" {
+                            if &name == crate::dolphin_session_core::PAUSE_SWITCH {
+                                // Dolphin Connect (DD-46): «مکث» / «ادامه» from the customer's window.
+                                conn.dolphin_set_paused(enabled).await;
+                            } else if &name == "keyboard" {
                                 conn.keyboard = enabled;
-                                conn.send_permission(Permission::Keyboard, enabled).await;
+                                // Dolphin Connect (DD-46): during a pause the technician keeps hearing "off".
+                                conn.send_permission(Permission::Keyboard, enabled && !conn.dolphin_paused).await;
+                                // Dolphin Connect (DD-37): taking keyboard and mouse away also gives the customer
+                                // back their own input, if the technician had blocked it.
+                                if !enabled {
+                                    conn.dolphin_release_block_input();
+                                }
                                 if let Some(s) = conn.server.upgrade() {
                                     s.write().unwrap().subscribe(
                                         super::clipboard_service::NAME,
@@ -818,11 +845,11 @@ impl Connection {
                                     );
                                     s.write().unwrap().subscribe(
                                         NAME_CURSOR,
-                                        conn.inner.clone(), enabled || conn.show_remote_cursor);
+                                        conn.inner.clone(), conn.peer_keyboard_enabled() || conn.show_remote_cursor);
                                 }
                             } else if &name == "clipboard" {
                                 conn.clipboard = enabled;
-                                conn.send_permission(Permission::Clipboard, enabled).await;
+                                conn.send_permission(Permission::Clipboard, enabled && !conn.dolphin_paused).await;
                                 if let Some(s) = conn.server.upgrade() {
                                     s.write().unwrap().subscribe(
                                         super::clipboard_service::NAME,
@@ -848,7 +875,7 @@ impl Connection {
                                 }
                             } else if &name == "file" {
                                 conn.file = enabled;
-                                conn.send_permission(Permission::File, enabled).await;
+                                conn.send_permission(Permission::File, enabled && !conn.dolphin_paused).await;
                                 #[cfg(feature = "unix-file-copy-paste")]
                                 if !enabled {
                                     conn.try_empty_file_clipboard();
@@ -923,6 +950,13 @@ impl Connection {
                             // The CM can send MonitorReady before this connection is authorized.
                             if !conn.authorized {
                                 log::debug!("Discarding file clipboard message before authorization");
+                                continue;
+                            }
+                            // Dolphin Connect (DD-46): no files leave the PC while the customer pauses.
+                            if !crate::dolphin_session_core::outbound_allowed(
+                                conn.dolphin_paused,
+                                crate::dolphin_session_core::Outbound::Clipboard,
+                            ) {
                                 continue;
                             }
                             match clip {
@@ -1078,6 +1112,17 @@ impl Connection {
                     }
                 }
                 Some((instant, value)) = rx_video.recv() => {
+                    // Dolphin Connect (DD-46): while the customer pauses, no frame leaves the PC. The frame counts as
+                    // fetched, so the capture loop does not wait on this connection; «ادامه» asks for a fresh key frame.
+                    if !crate::dolphin_session_core::outbound_allowed(
+                        conn.dolphin_paused,
+                        crate::dolphin_session_core::Outbound::Video,
+                    ) {
+                        if let Some(message::Union::VideoFrame(vf)) = &value.union {
+                            video_service::notify_video_frame_fetched(vf.display as usize, id, Some(instant.into()));
+                            continue;
+                        }
+                    }
                     if !conn.video_ack_required {
                         if let Some(message::Union::VideoFrame(vf)) = &value.union {
                             video_service::notify_video_frame_fetched(vf.display as usize, id, Some(instant.into()));
@@ -1100,6 +1145,21 @@ impl Connection {
                                 continue;
                             }
                             _ => {}
+                        }
+                    }
+                    // Dolphin Connect (DD-46): no sound, cursor position or clipboard during a pause.
+                    if conn.dolphin_paused {
+                        use crate::dolphin_session_core::{outbound_allowed, Outbound};
+                        let kind = match &msg.union {
+                            Some(message::Union::AudioFrame(_)) => Outbound::Audio,
+                            Some(message::Union::CursorPosition(_)) => Outbound::CursorPosition,
+                            Some(message::Union::Clipboard(_))
+                            | Some(message::Union::MultiClipboards(_))
+                            | Some(message::Union::Cliprdr(_)) => Outbound::Clipboard,
+                            _ => Outbound::Other,
+                        };
+                        if !outbound_allowed(true, kind) {
+                            continue;
                         }
                     }
                     match &msg.union {
@@ -1166,6 +1226,10 @@ impl Connection {
                     #[cfg(windows)]
                     conn.portable_check();
                     raii::AuthedConnID::check_wake_lock_on_setting_changed();
+                    // Dolphin Connect (DD-46): a pause is never inactivity (ADR-0013; the build has auto disconnect off).
+                    if conn.dolphin_paused {
+                        conn.update_auto_disconnect_timer();
+                    }
                     if let Some((instant, minute)) = conn.auto_disconnect_timer.as_ref() {
                         if instant.elapsed().as_secs() > minute * 60 {
                             conn.send_close_reason_no_retry("Connection failed due to inactivity").await;
@@ -1244,7 +1308,20 @@ impl Connection {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    fn handle_input(receiver: std_mpsc::Receiver<MessageInput>, tx: Sender) {
+    fn handle_input(
+        receiver: std_mpsc::Receiver<MessageInput>,
+        tx: Sender,
+        tx_cm: mpsc::UnboundedSender<ipc::Data>,
+    ) {
+        // Dolphin Connect (DD-37): the customer's window says «ماوس و صفحه‌کلید شما خاموش است» while this is on.
+        let tell_cm = |blocked: bool| {
+            tx_cm
+                .send(ipc::Data::SwitchPermission {
+                    name: crate::dolphin_session_core::INPUT_BLOCKED_NOTICE.to_owned(),
+                    enabled: blocked,
+                })
+                .ok();
+        };
         let mut block_input_mode = false;
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
@@ -1284,6 +1361,9 @@ impl Connection {
                     MessageInput::BlockOn => {
                         let (ok, msg) = crate::platform::block_input(true);
                         if ok {
+                            if !block_input_mode {
+                                tell_cm(true); // Dolphin Connect (DD-37)
+                            }
                             block_input_mode = true;
                         } else {
                             Self::send_block_input_error(
@@ -1296,6 +1376,9 @@ impl Connection {
                     MessageInput::BlockOff => {
                         let (ok, msg) = crate::platform::block_input(false);
                         if ok {
+                            if block_input_mode {
+                                tell_cm(false); // Dolphin Connect (DD-37)
+                            }
                             block_input_mode = false;
                         } else {
                             Self::send_block_input_error(
@@ -1315,6 +1398,10 @@ impl Connection {
                     }
                 }
             }
+        }
+        // Dolphin Connect (DD-37): Windows lets the input go when this thread ends.
+        if block_input_mode {
+            tell_cm(false);
         }
         #[cfg(target_os = "linux")]
         clear_remapped_keycode();
@@ -1896,6 +1983,17 @@ impl Connection {
         }
         self.authorized = true;
         self.unauthorized_id = None;
+        // Dolphin Connect (DD-46): the same technician coming back within 2 minutes of a paused session that dropped
+        // finds it still paused: no frame or input before the customer's «ادامه».
+        if self.is_remote()
+            && DOLPHIN_PAUSES
+                .lock()
+                .map(|mut b| b.starts_paused(&self.lr.my_id, crate::dolphin_session_core::mono_ms()))
+                .unwrap_or(false)
+        {
+            self.dolphin_paused = true;
+            log::info!("#{} Dolphin: the session starts paused (the customer paused it before a drop)", self.inner.id());
+        }
         // One-time means gone once it has let a peer in, not once that peer
         // leaves. This session's later logins come in on the password the
         // session remembers, so they are not affected.
@@ -2172,6 +2270,13 @@ impl Connection {
         let mut msg_out = Message::new();
         msg_out.set_login_response(res);
         self.send(msg_out).await;
+        if self.dolphin_paused {
+            // Dolphin Connect (DD-46): after the login response, so the technician's app has reset its own state.
+            self.dolphin_tell_peer_paused().await;
+            if self.dolphin_cm_started {
+                self.dolphin_tell_cm_paused();
+            }
+        }
         self.update_scoped_login_options().await;
         if let Some((dir, show_hidden)) = self.file_transfer.clone() {
             self.keyboard = false;
@@ -2315,11 +2420,13 @@ impl Connection {
     }
 
     fn peer_keyboard_enabled(&self) -> bool {
-        self.keyboard && !self.disable_keyboard
+        // Dolphin Connect (DD-46): no input during the customer's pause.
+        self.keyboard && !self.disable_keyboard && !self.dolphin_paused
     }
 
     fn clipboard_enabled(&self) -> bool {
-        self.clipboard && !self.disable_clipboard
+        // Dolphin Connect (DD-46): no clipboard either way during the customer's pause.
+        self.clipboard && !self.disable_clipboard && !self.dolphin_paused
     }
 
     #[inline]
@@ -2367,6 +2474,11 @@ impl Connection {
             privacy_mode: self.privacy_mode,
             from_switch: self.from_switch,
         });
+        // Dolphin Connect (DD-46): a session that came back paused shows «ادامه» in the customer's window.
+        self.dolphin_cm_started = true;
+        if authorized && self.dolphin_paused {
+            self.dolphin_tell_cm_paused();
+        }
     }
 
     #[inline]
@@ -2599,6 +2711,174 @@ impl Connection {
                     return true;
                 }
             }
+        }
+        false
+    }
+
+    /// Dolphin Connect (DD-46): «مکث» (`true`) and «ادامه» (`false`) from the customer's window
+    /// (src/dolphin_session_core.rs). Always applied: it is the customer's control, never the technician's. The
+    /// permissions the customer chose are kept as they are; only what the technician is told and what passes changes.
+    async fn dolphin_set_paused(&mut self, paused: bool) {
+        use crate::dolphin_session_core as dc;
+        if !self.is_remote() || paused == self.dolphin_paused {
+            return;
+        }
+        self.dolphin_paused = paused;
+        if let Ok(mut book) = DOLPHIN_PAUSES.lock() {
+            if paused {
+                book.paused(&self.lr.my_id);
+            } else {
+                book.resumed(&self.lr.my_id);
+            }
+        }
+        log::info!(
+            "#{} Dolphin: {} by the customer",
+            self.inner.id(),
+            if paused { "paused" } else { "resumed" }
+        );
+        if paused {
+            // The customer needs their own mouse, keyboard and screen during a pause.
+            self.dolphin_release_block_input();
+            self.dolphin_leave_privacy_mode().await;
+        }
+        if let Some(s) = self.server.upgrade() {
+            let mut s = s.write().unwrap();
+            s.subscribe(
+                super::clipboard_service::NAME,
+                self.inner.clone(),
+                self.can_sub_clipboard_service(),
+            );
+            #[cfg(feature = "unix-file-copy-paste")]
+            s.subscribe(
+                super::clipboard_service::FILE_NAME,
+                self.inner.clone(),
+                self.can_sub_file_clipboard_service(),
+            );
+            s.subscribe(
+                NAME_CURSOR,
+                self.inner.clone(),
+                self.peer_keyboard_enabled() || self.show_remote_cursor,
+            );
+        }
+        if paused {
+            self.dolphin_tell_peer_paused().await;
+        } else {
+            let (k, c, f) = dc::told_permissions(false, self.keyboard, self.clipboard, self.file);
+            self.send_permission(Permission::Keyboard, k).await;
+            self.send_permission(Permission::Clipboard, c).await;
+            self.send_permission(Permission::File, f).await;
+            self.dolphin_send_pause_box(false).await;
+            // The last frames before the pause were dropped: start again from a key frame.
+            self.refresh_video_display(None);
+        }
+    }
+
+    /// Dolphin Connect (DD-46): keyboard and mouse, clipboard and files read as off, and «مشتری مکث کرد».
+    async fn dolphin_tell_peer_paused(&mut self) {
+        let (k, c, f) =
+            crate::dolphin_session_core::told_permissions(true, self.keyboard, self.clipboard, self.file);
+        self.send_permission(Permission::Keyboard, k).await;
+        self.send_permission(Permission::Clipboard, c).await;
+        self.send_permission(Permission::File, f).await;
+        self.dolphin_send_pause_box(true).await;
+    }
+
+    /// Dolphin Connect (DD-46): the existing message box carries the pause; the Dolphin technician app shows it over
+    /// the picture (flutter/lib/dolphin/permissions.dart), an older one as a plain message.
+    async fn dolphin_send_pause_box(&mut self, paused: bool) {
+        use crate::dolphin_session_core as dc;
+        let mut msg_out = Message::new();
+        msg_out.set_message_box(MessageBox {
+            msgtype: dc::PAUSE_MSGTYPE.to_owned(),
+            title: if paused { dc::PAUSED_TITLE } else { dc::RESUMED_TITLE }.to_owned(),
+            text: if paused { dc::PAUSED_TEXT } else { dc::RESUMED_TEXT }.to_owned(),
+            link: "".to_owned(),
+            ..Default::default()
+        });
+        self.send(msg_out).await;
+    }
+
+    /// Dolphin Connect (DD-46): the customer's window shows the pause of a session that came back paused.
+    fn dolphin_tell_cm_paused(&mut self) {
+        let paused = self.dolphin_paused;
+        self.send_to_cm(ipc::Data::SwitchPermission {
+            name: crate::dolphin_session_core::PAUSE_SWITCH.to_owned(),
+            enabled: paused,
+        });
+    }
+
+    /// Dolphin Connect (DD-46, DD-37): lift the technician's "block user input", if this connection set it, and show
+    /// it as lifted on his toolbar. The input thread tells the customer's window.
+    fn dolphin_release_block_input(&mut self) {
+        if !self.dolphin_block_on {
+            return;
+        }
+        self.dolphin_block_on = false;
+        self.tx_input.send(MessageInput::BlockOff).ok();
+        if let Some(tx) = &self.inner.tx {
+            Self::send_block_input_error(
+                tx,
+                back_notification::BlockInputState::BlkOffSucceeded,
+                "".to_owned(),
+            );
+        }
+    }
+
+    /// Dolphin Connect (DD-46): leave privacy mode if this connection turned it on, as upstream does when the customer
+    /// takes the privacy-mode permission away.
+    async fn dolphin_leave_privacy_mode(&mut self) {
+        if !privacy_mode::is_in_privacy_mode()
+            || privacy_mode::get_privacy_mode_conn_id() != Some(self.inner.id())
+        {
+            return;
+        }
+        let impl_key = privacy_mode::get_cur_impl_key().unwrap_or_default();
+        let res = privacy_mode::turn_off_privacy(self.inner.id(), None);
+        let msg_out = match res {
+            Some(Ok(_)) => crate::common::make_privacy_mode_msg(
+                back_notification::PrivacyModeState::PrvOffByPeer,
+                impl_key,
+            ),
+            _ => Self::turn_off_privacy_result_to_msg(res, impl_key),
+        };
+        self.send(msg_out).await;
+    }
+
+    /// Dolphin Connect (DD-46): whether a message from the technician may act during a pause. A screenshot request
+    /// gets a refusal instead of a picture, so the technician's app does not wait for one.
+    async fn dolphin_inbound_allowed(&mut self, msg: &Message) -> bool {
+        use crate::dolphin_session_core::{inbound_allowed, Inbound, SCREENSHOT_REFUSED};
+        let kind = match &msg.union {
+            Some(message::Union::MouseEvent(_))
+            | Some(message::Union::PointerDeviceEvent(_))
+            | Some(message::Union::KeyEvent(_)) => Inbound::Input,
+            Some(message::Union::Clipboard(_)) | Some(message::Union::MultiClipboards(_)) => {
+                Inbound::Clipboard
+            }
+            Some(message::Union::Cliprdr(_)) | Some(message::Union::FileAction(_)) => Inbound::Files,
+            Some(message::Union::ScreenshotRequest(_)) => Inbound::Screenshot,
+            Some(message::Union::TerminalAction(_)) => Inbound::Control,
+            Some(message::Union::Misc(m)) => match &m.union {
+                Some(misc::Union::RestartRemoteDevice(_))
+                | Some(misc::Union::ElevationRequest(_))
+                | Some(misc::Union::SwitchSidesRequest(_))
+                | Some(misc::Union::ChangeResolution(_))
+                | Some(misc::Union::ChangeDisplayResolution(_))
+                | Some(misc::Union::ToggleVirtualDisplay(_)) => Inbound::Control,
+                _ => Inbound::Other,
+            },
+            _ => Inbound::Other,
+        };
+        if inbound_allowed(self.dolphin_paused, kind) {
+            return true;
+        }
+        if let Some(message::Union::ScreenshotRequest(request)) = &msg.union {
+            let mut response = ScreenshotResponse::new();
+            response.sid = request.sid.clone();
+            response.msg = SCREENSHOT_REFUSED.to_owned();
+            let mut msg_out = Message::new();
+            msg_out.set_screenshot_response(response);
+            self.send(msg_out).await;
         }
         false
     }
@@ -3202,6 +3482,10 @@ impl Connection {
             }
         } else if self.authorized {
             if self.port_forward_socket.is_some() {
+                return true;
+            }
+            // Dolphin Connect (DD-46): while the customer pauses, nothing the technician sends acts on the PC.
+            if self.dolphin_paused && !self.dolphin_inbound_allowed(&msg).await {
                 return true;
             }
             match msg.union {
@@ -5080,13 +5364,16 @@ impl Connection {
             }
         }
         if let Ok(q) = o.block_input.enum_value() {
-            if self.keyboard && self.block_input {
+            // Dolphin Connect (DD-46): not during a pause; the customer needs their own mouse and keyboard then.
+            if self.keyboard && self.block_input && !self.dolphin_paused {
                 match q {
                     BoolOption::Yes => {
                         self.tx_input.send(MessageInput::BlockOn).ok();
+                        self.dolphin_block_on = true;
                     }
                     BoolOption::No => {
                         self.tx_input.send(MessageInput::BlockOff).ok();
+                        self.dolphin_block_on = false;
                     }
                     _ => {}
                 }
@@ -5156,7 +5443,8 @@ impl Connection {
     }
 
     async fn turn_on_privacy(&mut self, impl_key: String) {
-        if !self.is_authed_remote_conn() || !self.privacy_mode {
+        // Dolphin Connect (DD-46): not during a pause; the customer must see their own screen then.
+        if !self.is_authed_remote_conn() || !self.privacy_mode || self.dolphin_paused {
             let msg_out = crate::common::make_privacy_mode_msg(
                 back_notification::PrivacyModeState::PrvOnFailedDenied,
                 impl_key,
@@ -5295,6 +5583,12 @@ impl Connection {
             return;
         }
         self.closed = true;
+        // Dolphin Connect (DD-46): a paused session that comes back within 2 minutes starts paused.
+        if self.dolphin_paused {
+            if let Ok(mut book) = DOLPHIN_PAUSES.lock() {
+                book.ended(&self.lr.my_id, crate::dolphin_session_core::mono_ms());
+            }
+        }
         // If voice A,B -> C, and A,B has voice call
         // B disconnects, C will reset the voice call input.
         //

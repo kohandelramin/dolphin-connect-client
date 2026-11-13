@@ -62,6 +62,36 @@ Flutter only (`flutter/lib/dolphin/`); no change to connections or networking. W
 پنجره شماره‌ی نسخه، و دکمه‌های «از اینجا شروع کنید» و کپی لینک‌ها آمده است. اولین بار پس از نصب، یک صفحه‌ی کوتاه شناسه را
 نشان می‌دهد.
 
+### Plan 18 Phase 2: the customer's window during a session (DD-36, DD-37, DD-45, DD-46)
+
+Customer x64 (Flutter) and the technician app. The x86 (Sciter) window is unchanged. Not compiled here: the std-only
+Rust (`src/dolphin_session_core.rs`) ran with rustc 1.75; the crate, the Dart analysis and the widget tests run in CI.
+
+- DD-36: during a session the window keeps upstream's width and top-right corner and gets shorter (300 × 380, was
+  300 × 490); the prompt and the ended screen get the full size back. «پایان» is pinned at the bottom, never scrolled
+  away. The customer build no longer minimizes the window 3 s after a password login (upstream's hide timer).
+- DD-45: keyboard and mouse, clipboard and files each have their own switch for the whole session; the technician's
+  strip shows the change at once. Switching something off, pausing and resuming pass even when the
+  `enable-perm-change-in-accept-window` policy is off. Turning keyboard and mouse off also lifts the technician's
+  block of the customer's input.
+- DD-37: «ماوس و صفحه‌کلید شما خاموش است» with who and since when («… خاموش کرد، ۳ دقیقه پیش»), shown as soon as the
+  input thread has blocked the input (`dolphin_input_blocked` over the existing CM permission message).
+- DD-46: «مکث» / «ادامه» for a remote-control session. During a pause the connection drops every video frame (counted
+  as fetched, so capture does not stall), sound, cursor position and clipboard before they leave the PC, and applies
+  nothing the technician sends that acts on the PC (input, clipboard, files, screenshot, terminal, restart,
+  elevation, resolution, virtual display, block input, privacy mode); a block of input or privacy mode set by this
+  connection is lifted. The technician hears "off" for keyboard, clipboard and files and gets «مشتری مکث کرد» over the
+  picture (a `MessageBox` with type `dolphin-pause`, which an older technician app shows as a plain message). Pings go
+  on, so the session is not cut (ADR-0013). «ادامه» restores what the customer had allowed and asks for a key frame.
+  A paused session that drops and comes back within 2 minutes starts paused. No new network message.
+- Not audited in the portal yet: the portal's `audit/conn` accepts only `new` and `close`; the app logs the pause
+  (`Dolphin: paused by the customer`). A portal change would record it.
+- Spelling: «ماوس و صفحه‌کلید» (was «موس») in the prompt, the session window and the technician's strip.
+
+**یادداشت فارسی:** پنجره‌ی جلسه کوچک‌تر شد و دکمه‌ی «پایان» همیشه دیده می‌شود. هر اجازه (ماوس و صفحه‌کلید، کپی و
+چسباندن، انتقال فایل) را در جلسه می‌شود خاموش و روشن کرد. با «مکث» کارشناس تا «ادامه» تصویری نمی‌بیند و کنترلی ندارد؛
+مثلاً هنگام نوشتن رمز بانک. اگر کارشناس ماوس و صفحه‌کلید شما را خاموش کند، پنجره همان لحظه می‌گوید.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.

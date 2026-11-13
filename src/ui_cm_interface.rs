@@ -149,6 +149,10 @@ pub struct Client {
     pub from_switch: bool,
     pub in_voice_call: bool,
     pub incoming_voice_call: bool,
+    /// Dolphin Connect (DD-37): the technician's "block user input" is in effect (src/dolphin_session_core.rs).
+    pub dolphin_input_blocked: bool,
+    /// Dolphin Connect (DD-46): the customer paused this session.
+    pub dolphin_paused: bool,
     #[serde(skip)]
     #[cfg(not(any(target_os = "ios")))]
     tx: UnboundedSender<Data>,
@@ -261,6 +265,8 @@ impl<T: InvokeUiCM> ConnectionManager<T> {
             tx,
             in_voice_call: false,
             incoming_voice_call: false,
+            dolphin_input_blocked: false,
+            dolphin_paused: false,
         };
         CLIENTS
             .write()
@@ -410,9 +416,15 @@ pub fn switch_permission(id: i32, name: String, enabled: bool) {
     let is_keyboard_permission = name == "keyboard";
     #[cfg(not(target_os = "android"))]
     let is_keyboard_permission = false;
-    if !option2bool(
-        OPTION_ENABLE_PERM_CHANGE_IN_ACCEPT_WINDOW,
-        &crate::get_builtin_option(OPTION_ENABLE_PERM_CHANGE_IN_ACCEPT_WINDOW),
+    // Dolphin Connect (DD-45, DD-46): switching something off, pausing and resuming are the customer's own control and
+    // pass whatever the policy says (src/dolphin_session_core.rs `cm_switch_allowed`).
+    if !crate::dolphin_session_core::cm_switch_allowed(
+        option2bool(
+            OPTION_ENABLE_PERM_CHANGE_IN_ACCEPT_WINDOW,
+            &crate::get_builtin_option(OPTION_ENABLE_PERM_CHANGE_IN_ACCEPT_WINDOW),
+        ),
+        &name,
+        enabled,
     ) && !is_keyboard_permission
     {
         log::info!(
@@ -422,6 +434,12 @@ pub fn switch_permission(id: i32, name: String, enabled: bool) {
             enabled
         );
         return;
+    }
+    // Dolphin Connect (DD-46): the window's own record follows, so a later refresh of this client keeps the pause.
+    if name == crate::dolphin_session_core::PAUSE_SWITCH {
+        if let Some(client) = CLIENTS.write().unwrap().get_mut(&id) {
+            client.dolphin_paused = enabled;
+        }
     }
     if let Some(client) = CLIENTS.read().unwrap().get(&id) {
         allow_err!(client.tx.send(Data::SwitchPermission { name, enabled }));
@@ -591,6 +609,26 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                     self.cm.new_message(self.conn_id, text);
                                 }
                                 Data::SwitchPermission { name, enabled } => {
+                                    // Dolphin Connect (DD-37, DD-46): the connection says the technician blocked the
+                                    // customer's input, or that a session came back paused; the window shows it.
+                                    if name == crate::dolphin_session_core::INPUT_BLOCKED_NOTICE
+                                        || name == crate::dolphin_session_core::PAUSE_SWITCH
+                                    {
+                                        let client = {
+                                            let mut clients = CLIENTS.write().unwrap();
+                                            clients.get_mut(&self.conn_id).map(|c| {
+                                                if name == crate::dolphin_session_core::PAUSE_SWITCH {
+                                                    c.dolphin_paused = enabled;
+                                                } else {
+                                                    c.dolphin_input_blocked = enabled;
+                                                }
+                                                c.clone()
+                                            })
+                                        };
+                                        if let Some(client) = client {
+                                            self.cm.ui_handler.add_connection(&client);
+                                        }
+                                    }
                                     // Keep this branch scoped to privacy mode rollback.
                                     // Other CM permission toggles are updated optimistically by the UI itself.
                                     // The backend currently sends SwitchPermission back to CM only when

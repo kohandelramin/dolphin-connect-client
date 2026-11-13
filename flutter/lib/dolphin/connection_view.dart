@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'digits.dart';
 import 'reconnect.dart';
+import 'session_controls.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 import 'verify.dart';
@@ -108,7 +109,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
                 runSpacing: 6,
                 alignment: WrapAlignment.center,
                 children: [
-                  _toggle('موس و صفحه‌کلید', keyboard, (v) => keyboard = v),
+                  _toggle('ماوس و صفحه‌کلید', keyboard, (v) => keyboard = v),
                   _toggle('کپی و چسباندن', clipboard, (v) => clipboard = v),
                   _toggle('انتقال فایل', file, (v) => file = v),
                 ]),
@@ -152,8 +153,10 @@ String sessionClock(Duration d) {
   return faDigits(h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}');
 }
 
-/// While a technician is connected: who, for how long, what he may do, and the End button. Every permission stays
-/// in the customer's hands for the whole session (SECURITY.md control 1; UX-13).
+/// While a technician is connected: who, for how long, what he may do, «مکث» and the End button. Every permission stays
+/// in the customer's hands for the whole session (SECURITY.md control 1; UX-13, DD-45): each has its own switch, and the
+/// technician's strip shows the change at once. Made for the small window in the corner (DD-36,
+/// [kDolphinSessionWindowSize]): the content scrolls and «پایان» stays pinned at the bottom, always visible.
 class DolphinSessionView extends StatelessWidget {
   final String technician;
   final Duration elapsed;
@@ -163,6 +166,15 @@ class DolphinSessionView extends StatelessWidget {
 
   /// D23: the same technician came back within 2 minutes of a drop; the badge says «دوباره وصل شد».
   final bool resumed;
+
+  /// DD-46: the customer paused; the technician gets no picture and no input reaches the PC.
+  final bool paused;
+
+  /// Null hides «مکث» (a file-transfer tab has no picture to stop).
+  final ValueChanged<bool>? onPause;
+
+  /// DD-37: who blocked the customer's mouse and keyboard and since when ([inputOffDetail]); null while not blocked.
+  final String? inputOff;
 
   /// `permission` is `keyboard`, `clipboard` or `file` (bind.cmSwitchPermission names).
   final void Function(String permission, bool enabled) onToggle;
@@ -176,15 +188,42 @@ class DolphinSessionView extends StatelessWidget {
       required this.clipboard,
       required this.file,
       this.resumed = false,
+      this.paused = false,
+      this.onPause,
+      this.inputOff,
       required this.onToggle,
       required this.onEnd});
 
-  Widget _chip(String label, String name, bool value) => FilterChip(
-        label: Text(label),
-        selected: value,
-        onSelected: (v) => onToggle(name, v),
-        selectedColor: DolphinColors.azureTint,
-        checkmarkColor: DolphinColors.azure,
+  bool _value(String name) => switch (name) { 'keyboard' => keyboard, 'clipboard' => clipboard, _ => file };
+
+  Widget _switch(String name, String label) => SwitchListTile(
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        title: Text(label, style: const TextStyle(fontSize: 13.5, color: DolphinColors.ink)),
+        value: _value(name),
+        onChanged: (v) => onToggle(name, v),
+      );
+
+  Widget _notice({required Color ground, required Color titleColor, required IconData icon, required String title,
+          required List<String> lines}) =>
+      Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(DolphinRadii.field)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, size: 18, color: titleColor),
+            const SizedBox(width: 6),
+            Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: titleColor))),
+          ]),
+          for (final l in lines)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(l, style: const TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
+            ),
+        ]),
       );
 
   @override
@@ -192,42 +231,80 @@ class DolphinSessionView extends StatelessWidget {
       DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
 
   Widget _build(BuildContext context) {
+    final onPause = this.onPause;
+    final inputOff = this.inputOff;
+    final badge = paused ? '❚❚ $kDolphinPausedTitle' : (resumed ? '● $kDolphinReconnected' : '● در جلسه');
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
-              child: Text(resumed ? '● $kDolphinReconnected' : '● در جلسه',
-                  style: const TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 10),
-            Text(technician, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            Text(sessionClock(elapsed), textDirection: TextDirection.ltr, style: const TextStyle(color: DolphinColors.muted)),
-            const SizedBox(height: 10),
-            Wrap(spacing: 6, runSpacing: 6, alignment: WrapAlignment.center, children: [
-              _chip('موس و صفحه‌کلید', 'keyboard', keyboard),
-              _chip('کپی و چسباندن', 'clipboard', clipboard),
-              _chip('انتقال فایل', 'file', file),
+      child: Column(children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
+                  child: Text(badge,
+                      style: const TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700, fontSize: 12)),
+                ),
+                const Spacer(),
+                Text(sessionClock(elapsed),
+                    textDirection: TextDirection.ltr, style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+              ]),
+              const SizedBox(height: 6),
+              Text(technician,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+              if (inputOff != null)
+                _notice(
+                    ground: DolphinColors.dangerSoft,
+                    titleColor: DolphinColors.dangerText,
+                    icon: Icons.mouse_outlined,
+                    title: kDolphinInputOffTitle,
+                    lines: [inputOff, kDolphinInputOffHint]),
+              if (paused)
+                _notice(
+                    ground: DolphinColors.azureSoft,
+                    titleColor: DolphinColors.azure,
+                    icon: Icons.pause_circle_outline,
+                    title: kDolphinPausedTitle,
+                    lines: const [kDolphinPausedNote]),
+              const SizedBox(height: 4),
+              for (final (name, label) in kDolphinPermissionLabels) _switch(name, label),
+              Text(onPause != null && !paused ? kDolphinPauseHint : 'هر کدام را خاموش کنید، کارشناس دیگر نمی‌تواند از آن استفاده کند.',
+                  style: const TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
             ]),
-            const SizedBox(height: 6),
-            const Text('هر کدام را خاموش کنید، کارشناس دیگر نمی‌تواند از آن استفاده کند.',
-                textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+          child: Row(children: [
+            if (onPause != null) ...[
+              Expanded(
+                child: paused
+                    ? FilledButton.icon(
+                        onPressed: () => onPause(false),
+                        icon: const Icon(Icons.play_arrow, size: 18),
+                        label: const Text(kDolphinResumeLabel))
+                    : OutlinedButton.icon(
+                        onPressed: () => onPause(true),
+                        icon: const Icon(Icons.pause, size: 18),
+                        label: const Text(kDolphinPauseLabel)),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
               child: FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: DolphinColors.danger),
                 onPressed: onEnd,
                 child: const Text('پایان'),
               ),
             ),
-          ],
+          ]),
         ),
-      ),
+      ]),
     );
   }
 }
