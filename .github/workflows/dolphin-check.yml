@@ -63,6 +63,8 @@ jobs:
           "$RUNNER_TEMP/session_core"
           rustc --edition 2021 --test src/dolphin_system_core.rs -o "$RUNNER_TEMP/system_core"
           "$RUNNER_TEMP/system_core"
+          rustc --edition 2021 --test src/dolphin_panel_core.rs -o "$RUNNER_TEMP/panel_core"
+          "$RUNNER_TEMP/panel_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

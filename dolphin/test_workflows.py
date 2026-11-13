@@ -130,7 +130,8 @@ class BuildWorkflowTest(unittest.TestCase):
         std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs",
                     "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs",
                     "src/dolphin_session_core.rs",
-                    "src/dolphin_system_core.rs")
+                    "src/dolphin_system_core.rs",
+                    "src/dolphin_panel_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -151,8 +152,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 8)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 8)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 9)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 9)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
