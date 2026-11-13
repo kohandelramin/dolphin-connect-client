@@ -3,7 +3,7 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased (next build; no app build until the owner says)
+## 2.1.0-rc.1 (built 2026-11-13 on the owner's word; a release candidate, not pinned by the portal until tested)
 
 All three apps. Owner decisions D21 and D23 (2026-11-10). Not compiled on the maintainer's PC (no Rust or Flutter
 there): the Python tests ran; the std-only Rust, the Dart analysis and the widget tests run in CI at the next push.
