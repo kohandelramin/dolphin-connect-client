@@ -117,6 +117,45 @@ FA_OVERLAY = {
     "Closed manually by web console": "پورتال دلفین این اتصال را قطع کرد؛ از «رایانه‌ها» «اتصال» را بزنید",
     "Closed manually by the peer": "مشتری اتصال را بست",
 }
+# DD-13: what a technician or customer reads when a connection or a file transfer fails: what happened and what to do.
+# Applied like FA_OVERLAY (each key must be in src/lang/fa.rs exactly once). OS errors that arrive as Windows' own text
+# are not keys; flutter/lib/dolphin/plain_errors.dart handles those.
+FA_ERRORS = {
+    "Connection Error": "اتصال برقرار نشد",
+    "Login Error": "ورود انجام نشد",
+    "Timeout": "پاسخی نیامد؛ اینترنت یا VPN هر دو طرف را بررسی کنید و دوباره وصل شوید",
+    "Remote desktop is offline": "رایانه‌ی مشتری خاموش است یا دلفین کانکت روی آن باز نیست؛ از مشتری بخواهید برنامه را باز کند",
+    "ID does not exist": "این شماره در سرور دلفین نیست؛ شماره را دوباره از مشتری بپرسید",
+    "Wrong Password": "رمز درست نیست؛ رمز یک‌بارمصرف را دوباره از مشتری بپرسید",
+    "Reset by the peer": "ارتباط از طرف مقابل قطع شد؛ دوباره وصل شوید",
+    "No permission of file transfer": "مشتری اجازه‌ی انتقال فایل را نداده است؛ از او بخواهید آن را در پنجره‌ی اتصال روشن کند",
+    "Key mismatch": "کلید سرور با این برنامه نمی‌خواند؛ وصل نشوید و با پشتیبانی فنی دلفین تماس بگیرید",
+    "Network error": "خطای شبکه؛ اینترنت را بررسی کنید و دوباره تلاش کنید",
+    "Failed to make direct connection to remote desktop": "اتصال مستقیم به رایانه‌ی مشتری انجام نشد",
+    "Failed to connect to rendezvous server": "به سرور دلفین وصل نشد؛ اینترنت یا VPN را بررسی کنید",
+    "Failed to connect via rendezvous server": "از راه سرور دلفین وصل نشد؛ اینترنت یا VPN را بررسی کنید",
+    "Please try later": "کمی بعد دوباره تلاش کنید",
+    "Please try 1 minute later": "یک دقیقه‌ی دیگر دوباره تلاش کنید",
+    "Too frequent": "تلاش‌ها پشت سر هم بود؛ کمی صبر کنید و دوباره تلاش کنید",
+    "Connection not allowed": "این اتصال مجاز نیست؛ از «رایانه‌ها» در پورتال دلفین «اتصال» را بزنید",
+    "Connection in progress. Please wait.": "در حال اتصال؛ لطفاً صبر کنید",
+    "Not available": "در دسترس نیست",
+    "Disconnected": "ارتباط قطع شد",
+    "Connection failed due to inactivity": "اتصال چون مدتی کاری انجام نشد بسته شد؛ دوباره وصل شوید",
+    "Already exists": "با همین نام وجود دارد",
+}
+# Keys upstream's fa.rs does not have (so no overlay can reach them): appended to it. Each must be missing from fa.rs,
+# so an upstream translation of the same key fails the build and moves here to FA_ERRORS.
+FA_ADD = {
+    # src/server/connection.rs, allow-only-conn-window-open: the customer closed the app («بستن کامل», ADR-0016).
+    "The main window is not open": "دلفین کانکت روی رایانه‌ی مشتری بسته است؛ از مشتری بخواهید برنامه را باز کند",
+    # src/dolphin_system_core.rs SHARE_OFF_LOGIN_ERROR (DD-34).
+    "dolphin_share_stopped": "مشتری اشتراک را متوقف کرده است؛ از او بخواهید در دلفین کانکت «شروع اشتراک» را بزند",
+    # src/dolphin_system_core.rs RECEIVE_ONLY_ERROR (DD-12).
+    "dolphin_receive_folder_only": "در این رایانه فایل‌ها فقط در پوشه‌ی «دریافتی دلفین» ذخیره می‌شوند؛ همان پوشه را باز کنید",
+    "Too many wrong attempts": "رمز چند بار اشتباه وارد شد؛ یک دقیقه صبر کنید و رمز تازه را از مشتری بپرسید",
+}
+FA_END = "\n    ].iter().cloned().collect();"
 LATIN_START = re.compile(r"^(?:[A-Za-z]|\.\.\.)")
 PERSIAN_END = re.compile(r"[\u0600-\u06FF][^A-Za-z\u0600-\u06FF]*$")
 
@@ -127,7 +166,7 @@ def _rust_str(s):
 
 def apply_fa_overlay(text, overlay=None):
     """Replace the Persian value of each overlay key; report keys that are missing or not unique."""
-    overlay = FA_OVERLAY if overlay is None else overlay
+    overlay = {**FA_OVERLAY, **FA_ERRORS} if overlay is None else overlay
     problems = []
     for key, value in overlay.items():
         pattern = re.compile(r'\("' + re.escape(_rust_str(key)) + r'",\s*"(?:[^"\\]|\\.)*"\)')
@@ -138,6 +177,24 @@ def apply_fa_overlay(text, overlay=None):
         replacement = f'("{_rust_str(key)}", "{_rust_str(value)}")'
         text = pattern.sub(lambda _m: replacement, text, count=1)
     return text, problems
+
+
+def apply_fa_additions(text, additions=None):
+    """Append keys fa.rs lacks before the end of its table; report keys it already has, or a table end not found once."""
+    additions = FA_ADD if additions is None else additions
+    if not additions:
+        return text, []
+    problems = []
+    for key in additions:
+        if f'("{_rust_str(key)}",' in text:
+            problems.append(f"src/lang/fa.rs: {key!r} is there already; move it to FA_ERRORS")
+    if text.count(FA_END) != 1:
+        problems.append("src/lang/fa.rs: the end of the table was not found exactly once")
+    if problems:
+        return text, problems
+    head, tail = text.split(FA_END)
+    lines = "".join(f'\n        ("{_rust_str(k)}", "{_rust_str(v)}"),' for k, v in additions.items())
+    return f"{head.rstrip().rstrip(',')},{lines}{FA_END}{tail}", []
 
 
 def bidi_problems(text):
@@ -261,7 +318,10 @@ def _theme_text(root):
     return (path if path.exists() else THEME_DART).read_text(encoding="utf-8")
 
 
-def main(root=ROOT, overlay=None):
+def main(root=ROOT, overlay=None, additions=None):
+    # Tests that pass their own overlay get no additions unless they ask: their fa.rs is a fragment.
+    if additions is None:
+        additions = FA_ADD if overlay is None else {}
     rust_problems = rewrite_rust(root)
     if any((root / rel).exists() for rel in X86_COLOURS):
         for needed in ("msgError",):
@@ -275,6 +335,8 @@ def main(root=ROOT, overlay=None):
     fa = root / "src" / "lang" / "fa.rs"
     if fa.exists():
         text, overlay_problems = apply_fa_overlay(fa.read_text(encoding="utf-8"), overlay)
+        text, add_problems = apply_fa_additions(text, additions)
+        overlay_problems += add_problems
         if overlay_problems:
             print("\n".join(overlay_problems), file=sys.stderr)
             return 1

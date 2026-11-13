@@ -129,7 +129,8 @@ class BuildWorkflowTest(unittest.TestCase):
     def test_std_only_rust_files_are_tested_in_ci(self):
         std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs",
                     "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs",
-                    "src/dolphin_session_core.rs")
+                    "src/dolphin_session_core.rs",
+                    "src/dolphin_system_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -150,8 +151,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 7)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 7)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 8)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 8)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -308,6 +309,58 @@ class QuietReconnectWiringTest(unittest.TestCase):
         self.assertIn("resumed: _resumed,", conn)
         self.assertEqual(conn.count("_lastLive.remove(c.peerId);"), 2)  # «پایان» and «رد» forget it
 
+
+
+class SystemWiringTest(unittest.TestCase):
+    """Plan 18 Phase 2 (DD-12, DD-13, DD-34, DD-35, DD-47): the hooks in upstream files, proven by their text, since
+    neither the Rust crate nor Flutter is built here."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_stopped_sharing_is_refused_before_the_hash_and_any_login(self):
+        conn = self.read("src", "server", "connection.rs")
+        body = conn.split("async fn on_open(&mut self, addr: SocketAddr) -> bool {", 1)[1]
+        check = body.index("if crate::dolphin_system::sharing_stopped() {")
+        self.assertLess(body.index('"The main window is not open"'), check)
+        self.assertLess(check, body.index("msg_out.set_hash(self.hash.clone());"))
+        self.assertIn("crate::dolphin_system::login_dir(ft.dir)", conn)
+
+    def test_the_heartbeat_reports_sharing(self):
+        self.assertIn('v["dolphin_share"] = json!(crate::dolphin_system::heartbeat_share());',
+                      self.read("src", "hbbs_http", "sync.rs"))
+
+    def test_the_cm_opens_and_guards_the_receive_folder(self):
+        cm = self.read("src", "ui_cm_interface.rs")
+        self.assertIn("crate::dolphin_system::cm_home().await", cm)
+        self.assertIn("dolphin_read_dir_home().await", cm.split("async fn read_dir(", 1)[1][:300])
+        handle = cm.split("async fn handle_fs(", 1)[1]
+        self.assertLess(handle.index("crate::dolphin_system::cm_refused_write(&fs).await"), handle.index("match fs {"))
+
+    def test_the_customer_build_gets_its_own_tray(self):
+        tray = self.read("src", "tray.rs")
+        handoff = tray.index("return crate::dolphin_system::run_customer_tray(icon_rgba, icon_width, icon_height);")
+        self.assertLess(tray.index("try_lock_tray_single_instance()"), handoff)
+
+    def test_the_main_window_close_asks_first(self):
+        tab = self.read("flutter", "lib", "desktop", "widgets", "tabbar_widget.dart")
+        body = tab.split("void onWindowClose() async {", 1)[1]
+        hook = body.index("await dolphinHandleMainWindowClose(context)")
+        self.assertLess(hook, body.index("await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);"))
+        self.assertIn("tabType == DesktopTabType.main", body[:hook])
+
+    def test_the_home_has_the_share_strip_and_errors_are_plain(self):
+        self.assertIn("const DolphinShareControl()", self.read("flutter", "lib", "dolphin", "home.dart"))
+        common = self.read("flutter", "lib", "common.dart")
+        self.assertIn("final plain = dolphinPlainError(text);", common.split("Widget msgboxContent(", 1)[1][:400])
+        files = self.read("flutter", "lib", "models", "file_model.dart")
+        self.assertIn("dolphinPlainError(err)", files.split("class JobProgress {", 1)[1].split("String display() {", 1)[1][:500])
+
+    def test_ci_analyzes_the_hooked_upstream_files(self):
+        for f in ("lib/models/file_model.dart", "lib/common.dart", "lib/desktop/widgets/tabbar_widget.dart"):
+            self.assertIn(f, ANALYZE)
+        for t in ("presence_test.dart", "share_test.dart", "plain_errors_test.dart", "receive_folder_test.dart"):
+            self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
 
 if __name__ == "__main__":
     unittest.main()

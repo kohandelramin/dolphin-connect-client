@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/common/widgets/dialog.dart';
+import 'package:flutter_hbb/dolphin/plain_errors.dart'; // Dolphin Connect: plain Persian job errors (DD-13)
 import 'package:flutter_hbb/utils/event_loop.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -1774,6 +1775,13 @@ class JobProgress {
   }
 
   String display() {
+    // Dolphin Connect (DD-13): why a job failed, in plain Persian (an OS error, or a key such as
+    // dolphin_receive_folder_only), instead of only «خطا».
+    if (state == JobState.error && err.isNotEmpty) {
+      final translated = translate(err);
+      final plain = dolphinPlainError(err) ?? (translated != err ? translated : null);
+      if (plain != null) return plain;
+    }
     if (type == JobType.transfer) {
       if (state == JobState.done && err == "cancel") {
         return translate("Cancel");

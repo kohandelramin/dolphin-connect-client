@@ -1599,6 +1599,14 @@ impl Connection {
                 return false;
             }
         }
+        // Dolphin Connect (DD-34): the customer stopped sharing («توقف اشتراک»). Refused here, before the hash and any
+        // login, so no password (the fixed one included), code or Accept can get through, and a dropped session cannot
+        // be taken back. Every incoming connection, direct or relayed, passes here (`Connection::start`).
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        if crate::dolphin_system::sharing_stopped() {
+            self.send_login_error(crate::dolphin_system::SHARE_OFF_LOGIN_ERROR).await;
+            return false;
+        }
         self.ip = addr.ip().to_string();
         let mut msg_out = Message::new();
         msg_out.set_hash(self.hash.clone());
@@ -3197,7 +3205,13 @@ impl Connection {
                         sleep(1.).await;
                         return false;
                     }
-                    self.file_transfer = Some((ft.dir, ft.show_hidden));
+                    // Dolphin Connect (DD-12): with the receive folder forced, the technician's last folder for this
+                    // PC is ignored and the file manager opens in «دریافتی دلفین» (src/dolphin_system.rs).
+                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                    let ft_dir = crate::dolphin_system::login_dir(ft.dir);
+                    #[cfg(any(target_os = "android", target_os = "ios"))]
+                    let ft_dir = ft.dir;
+                    self.file_transfer = Some((ft_dir, ft.show_hidden));
                 }
                 Some(login_request::Union::ViewCamera(_vc)) => {
                     if !Self::permission(keys::OPTION_ENABLE_CAMERA, &self.control_permissions) {

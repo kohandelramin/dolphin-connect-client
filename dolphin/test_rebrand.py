@@ -108,6 +108,58 @@ class OverlayLiteralTest(unittest.TestCase):
         self.assertEqual(len(keys), len(r.FA_OVERLAY))
 
 
+class ErrorTextsTest(unittest.TestCase):
+    """DD-13: every overlaid or added error key has a plain Persian value, and reaches fa.rs."""
+
+    PERSIAN = re.compile(r"[؀-ۿ]")
+
+    def test_every_error_key_has_a_persian_value(self):
+        for table in (r.FA_ERRORS, r.FA_ADD):
+            for key, value in table.items():
+                self.assertTrue(value.strip(), key)
+                self.assertRegex(value, self.PERSIAN, key)
+                self.assertEqual(r.bidi_problems(f'("{key}", "{value}"),'), [], key)
+                self.assertNotIn("RustDesk", value, key)
+                self.assertNotEqual(value, key, key)
+
+    def test_no_key_is_in_two_tables(self):
+        self.assertEqual(set(r.FA_OVERLAY) & set(r.FA_ERRORS), set())
+        self.assertEqual(set(r.FA_ADD) & (set(r.FA_OVERLAY) | set(r.FA_ERRORS)), set())
+
+    def test_errors_overlay_existing_keys_and_additions_are_new(self):
+        fa = (r.ROOT / "src" / "lang" / "fa.rs").read_text(encoding="utf-8")
+        self.assertEqual(r.apply_fa_overlay(fa, r.FA_ERRORS)[1], [])
+        text, problems = r.apply_fa_overlay(fa)  # the build's overlay: FA_OVERLAY and FA_ERRORS together
+        self.assertEqual(problems, [])
+        for key in r.FA_ADD:
+            self.assertNotIn(f'("{key}",', fa, key)
+        text, problems = r.apply_fa_additions(text)
+        self.assertEqual(problems, [])
+        for key, value in {**r.FA_ERRORS, **r.FA_ADD}.items():
+            self.assertEqual(text.count(f'("{r._rust_str(key)}", "{r._rust_str(value)}")'), 1, key)
+        self.assertEqual(r.bidi_problems(r.rewrite_lang(text, "fa")), [])
+
+    def test_the_apps_own_error_keys_have_persian(self):
+        core = (r.ROOT / "src" / "dolphin_system_core.rs").read_text(encoding="utf-8")
+        keys = re.findall(r'pub const (?:SHARE_OFF_LOGIN_ERROR|RECEIVE_ONLY_ERROR): &str = "([^"]+)";', core)
+        self.assertEqual(len(keys), 2)
+        for key in keys + ["The main window is not open"]:
+            self.assertIn(key, r.FA_ADD)
+
+    def test_additions_go_before_the_end_of_the_table(self):
+        fa = 'x = [\n        ("a", "b")\n    ].iter().cloned().collect();\n}'
+        out, problems = r.apply_fa_additions(fa, {"k": "مقدار"})
+        self.assertEqual(problems, [])
+        self.assertIn('("a", "b"),\n        ("k", "مقدار"),\n    ].iter()', out)
+
+    def test_an_addition_upstream_already_has_or_a_missing_end_fails(self):
+        _, problems = r.apply_fa_additions('[("k", "x"),\n    ].iter().cloned().collect();', {"k": "مقدار"})
+        self.assertEqual(len(problems), 1)
+        _, problems = r.apply_fa_additions('("a", "b"),', {"k": "مقدار"})
+        self.assertEqual(len(problems), 1)
+        self.assertEqual(r.apply_fa_additions('anything', {}), ('anything', []))
+
+
 class ScanTest(unittest.TestCase):
     def _tree(self, tmp):
         root = pathlib.Path(tmp)
@@ -232,3 +284,19 @@ class PaletteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SystemNamesTest(unittest.TestCase):
+    def test_the_receive_folder_has_one_name_in_rust_and_dart(self):
+        core = (r.ROOT / "src" / "dolphin_system_core.rs").read_text(encoding="utf-8")
+        dart = (r.ROOT / "flutter" / "lib" / "dolphin" / "receive_folder.dart").read_text(encoding="utf-8")
+        rust_name = re.search(r'pub const RECEIVE_FOLDER_NAME: &str = "([^"]+)";', core).group(1)
+        dart_name = re.search(r"const kReceiveFolderName = '([^']+)';", dart).group(1)
+        self.assertEqual(rust_name, dart_name)
+        self.assertEqual(rust_name, "دریافتی دلفین")
+
+    def test_the_share_option_has_one_name_in_rust_and_dart(self):
+        core = (r.ROOT / "src" / "dolphin_system_core.rs").read_text(encoding="utf-8")
+        dart = (r.ROOT / "flutter" / "lib" / "dolphin" / "share.dart").read_text(encoding="utf-8")
+        rust_name = re.search(r'pub const SHARE_OFF_OPTION: &str = "([^"]+)";', core).group(1)
+        self.assertIn(f"const kDolphinShareOffOption = '{rust_name}';", dart)

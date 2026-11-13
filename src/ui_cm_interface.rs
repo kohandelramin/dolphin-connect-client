@@ -1078,6 +1078,15 @@ async fn handle_fs(
             }
         }
     }
+    // Dolphin Connect (DD-12): with «دریافتی دلفین» forced, new files and folders land only inside it.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if let Some((id, file_num)) = crate::dolphin_system::cm_refused_write(&fs).await {
+        send_raw(
+            fs::new_error(id, crate::dolphin_system::RECEIVE_ONLY_ERROR, file_num),
+            tx,
+        );
+        return;
+    }
     match fs {
         ipc::FS::ReadEmptyDirs {
             dir,
@@ -1638,11 +1647,22 @@ async fn read_empty_dirs(dir: &str, include_hidden: bool, tx: &UnboundedSender<D
     }
 }
 
+// Dolphin Connect (DD-12): the technician's first folder (and the file manager's "home") is «دریافتی دلفین».
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+async fn dolphin_read_dir_home() -> std::path::PathBuf {
+    crate::dolphin_system::cm_home().await
+}
+
+#[cfg(target_os = "android")]
+async fn dolphin_read_dir_home() -> std::path::PathBuf {
+    Config::get_home()
+}
+
 #[cfg(not(any(target_os = "ios")))]
 async fn read_dir(dir: &str, include_hidden: bool, tx: &UnboundedSender<Data>) {
     let path = {
         if dir.is_empty() {
-            Config::get_home()
+            dolphin_read_dir_home().await
         } else {
             fs::get_path(dir)
         }

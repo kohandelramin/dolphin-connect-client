@@ -23,6 +23,7 @@ import 'home_view.dart';
 import 'network_status.dart';
 import 'panel_bridge.dart';
 import 'recent_sessions.dart';
+import 'share.dart';
 import 'tech_card.dart';
 import 'verify.dart';
 import 'window_sizes.dart';
@@ -158,8 +159,14 @@ class _DolphinHomeState extends State<DolphinHome> {
     _fitWindow();
   }
 
+  // Dolphin Connect (DD-34): «شروع / توقف اشتراک» above the ID screen (share.dart; nothing when the portal hides it).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Column(children: [
+        if (!_requests) const DolphinShareControl(),
+        Expanded(child: _buildHome(context)),
+      ]);
+
+  Widget _buildHome(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: gFFI.serverModel,
       child: Consumer<ServerModel>(builder: (context, model, _) {
