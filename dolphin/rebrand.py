@@ -146,6 +146,8 @@ FA_OVERLAY = {
     "remote-printing-disallowed-tile-tip": "چاپ از راه دور بسته است",
     "remote-printing-disallowed-text-tip": "مشتری برگه‌ای فرستاد، اما چاپ از راه دور برای این رایانه روشن نیست؛ مدیر دلفین می‌تواند آن را در «تنظیمات» پورتال برای سازمان مشتری روشن کند.",
     "Enable remote printer": "چاپ روی چاپگر کارشناس",
+    # Plan 19 (RO-4): what the technician reads when the portal's `one-way-transfer` switch refuses a download.
+    "one-way-file-transfer-tip": "سازمان این مشتری فقط فرستادن فایل به رایانه‌ی او را اجازه داده است؛ برداشتن، تغییر نام یا پاک کردن فایل روی رایانه‌ی مشتری بسته است.",
 }
 # DD-13: what a technician or customer reads when a connection or a file transfer fails: what happened and what to do.
 # Applied like FA_OVERLAY (each key must be in src/lang/fa.rs exactly once). OS errors that arrive as Windows' own text
