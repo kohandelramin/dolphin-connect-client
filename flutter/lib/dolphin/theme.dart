@@ -14,6 +14,9 @@ class DolphinColors {
   static const danger = Color(0xFFE11D48);
   static const dangerText = Color(0xFFBE123C);
   static const dangerSoft = Color(0xFFFFF0F3);
+  static const amberText = Color(0xFF92400E); // the portal's amber text, for notices (6.59:1 on amberSoft)
+  static const amberSoft = Color(0xFFFEF6E0);
+  static const fieldEdge = Color(0xFF728AA6); // the portal's «در دسترس نیست» dot (StatusDot); a fill, never text
   static const ground = Color(0xFFF6F9FF);
   static const muted = Color(0xFF52637A);
   static const line = Color(0xFFE2E9F3);
