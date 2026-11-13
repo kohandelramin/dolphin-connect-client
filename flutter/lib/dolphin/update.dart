@@ -15,7 +15,7 @@ import 'update_view.dart';
 
 const kDolphinUpdateSize = Size(500, 440); // Plan 19: the popup card with room around it
 
-/// Plan 19: the technician app's answer from this start, shown once as a popup over its home (technician_home.dart).
+/// Plan 19: the technician app's answer from this start, shown once as a popup over its home (tech_ui/technician_app.dart).
 DolphinUpdateCheck? dolphinPendingTechUpdate;
 
 /// TB-20, Plan 19: runs at every start, before the main window opens, and asks the portal for the newest build
@@ -188,10 +188,12 @@ class _DolphinUpdateCheckButtonState extends State<DolphinUpdateCheckButton> {
       DolphinUpdateCheckView(phase: _result.phase, version: _result.version, onCheck: _check, onUpdate: _update);
 }
 
-/// Plan 19: the technician app's start-up popup, once per start. «به‌روزرسانی» opens where the technician file is
-/// (the panel's «حساب من», staff sign-in, D13; wave 2 downloads it through the app API instead); «بعداً» closes it
-/// and nothing is stored, so the next start asks again.
-Future<void> showPendingTechUpdate(BuildContext context) async {
+/// Plan 19: the technician app's start-up popup, once per start. «به‌روزرسانی» runs [onUpdate] (the native app
+/// downloads the build through the app API and installs it, tech_ui/technician_app.dart); without one, or when it
+/// returns false (not signed in), it opens where the technician file is (the panel's «حساب من», staff sign-in, D13).
+/// «بعداً» closes it and nothing is stored, so the next start asks again.
+Future<void> showPendingTechUpdate(BuildContext context,
+    {Future<bool> Function(BuildContext context, DolphinUpdateCheck check)? onUpdate}) async {
   final check = dolphinPendingTechUpdate;
   dolphinPendingTechUpdate = null;
   if (check == null) return;
@@ -209,8 +211,9 @@ Future<void> showPendingTechUpdate(BuildContext context) async {
           child: DolphinTechUpdatePopupView(
             check: check,
             currentVersion: DolphinBrand.version,
-            onUpdate: () {
+            onUpdate: () async {
               close();
+              if (onUpdate != null && context.mounted && await onUpdate(context, check)) return;
               launchUrl(Uri.parse(check.downloadPage.isNotEmpty ? check.downloadPage : '${DolphinBrand.portalUrl}/staff/me'));
             },
             onLater: close,

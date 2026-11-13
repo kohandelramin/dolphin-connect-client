@@ -478,6 +478,55 @@ fn write_verified(body: &mut impl Read, part: &Path, offer: &rules::Offer, watch
     rules::verify(offer, received, &rules::hex(&hasher.finalize()))
 }
 
+/// Plan 19: the technician app downloads its own new build through the app API (staff sign-in, D13: never from the
+/// public page) and hands the file over with the version, size and SHA-256 the portal's `/config` gave. The file is
+/// copied into the staging folder, checked against those values exactly like a TB-20 download, and made the offer, so
+/// `apply_or_fail` installs it the same way. Anything wrong ends as `failed` with its reason (the screens show it).
+/// `{"path": "...", "version": "...", "sha256": "...", "size": N}`; the technician build only.
+pub fn stage_local(json: &str) {
+    if let Err(reason) = stage_local_checked(json) {
+        log::error!("Dolphin update: the technician file was refused: {}", reason);
+        set_failed(reason);
+    }
+}
+
+fn stage_local_checked(json: &str) -> Result<(), &'static str> {
+    if !config::is_outgoing_only() || !staging_usable() {
+        return Err("write");
+    }
+    {
+        let p = PROGRESS.lock().unwrap();
+        if p.state == "downloading" || p.state == "applying" {
+            return Err("write");
+        }
+    }
+    let v: Value = serde_json::from_str(json).map_err(|_| "write")?;
+    let source = PathBuf::from(v["path"].as_str().ok_or("write")?);
+    let version = v["version"].as_str().unwrap_or("");
+    let sha256 = v["sha256"].as_str().unwrap_or("").to_ascii_lowercase();
+    let size = v["size"].as_u64().unwrap_or(0);
+    let build = rules::build_name(true, cfg!(target_arch = "x86"));
+    let name = format!("/download/dolphin-connect-{build}-{version}.exe");
+    let offer = rules::check_offer(build, build, version, &sha256, size, Some(&name)).map_err(|_| "hash")?;
+    if !rules::is_newer(crate::dolphin::DOLPHIN_VERSION, &offer.version) {
+        return Err("hash");
+    }
+    let staged = staged_file(&offer).ok_or("write")?;
+    std::fs::create_dir_all(staging_dir()).map_err(|_| "write")?;
+    std::fs::copy(&source, &staged).map_err(|_| "write")?;
+    std::fs::remove_file(&source).ok();
+    let checked = hash_file(&staged).map_err(|_| "write").and_then(|(n, h)| rules::verify(&offer, n, &h));
+    if let Err(e) = checked {
+        std::fs::remove_file(&staged).ok();
+        return Err(e);
+    }
+    *OFFER.lock().unwrap() = Some(offer);
+    *PROGRESS.lock().unwrap() = Progress { state: "ready", received: size, total: size, reason: "" };
+    // I3: the connection count starts now, so it has settled before `apply_or_fail` reads it.
+    start_status_sync();
+    Ok(())
+}
+
 /// Swaps the verified file in and starts it. Returns only on failure, which the screens then show.
 pub fn apply_or_fail() {
     if !wait_for_no_session() {

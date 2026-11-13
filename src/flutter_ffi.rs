@@ -2816,6 +2816,11 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::dolphin_update::apply_or_fail();
         return;
     }
+    // Plan 19: the technician app hands over the build it downloaded through the app API (src/dolphin_update.rs).
+    if _key == "dolphin-update-stage" {
+        crate::dolphin_update::stage_local(&_value);
+        return;
+    }
     if _key == "dolphin-callback-send" {
         crate::dolphin_callback::start(_value);
         return;
