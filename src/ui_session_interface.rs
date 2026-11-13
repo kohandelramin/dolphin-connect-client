@@ -780,6 +780,16 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::Message(msg_out));
     }
 
+    /// Dolphin Connect (DD-50, DD-6): a paste or a keyboard-language request for this session's PC only, as the
+    /// existing `Misc::PluginRequest` (src/dolphin_panel_core.rs). False: not one of ours, nothing sent.
+    pub fn dolphin_panel_request(&self, key: &str, value: &str) -> bool {
+        let Some((id, content)) = crate::dolphin_panel_core::client_request(key, value) else {
+            return false;
+        };
+        self.send(Data::Message(crate::dolphin_panel::plugin_request_message(id, content)));
+        true
+    }
+
     pub fn send_chat(&self, text: String) {
         let mut misc = Misc::new();
         misc.set_chat_message(ChatMessage {

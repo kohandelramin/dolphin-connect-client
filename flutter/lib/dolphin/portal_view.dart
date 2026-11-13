@@ -13,6 +13,10 @@ import 'theme.dart';
 class DolphinPortalLink {
   Future<void> Function(String message)? _send;
   bool Function()? _onPortal;
+  bool Function()? _loaded;
+
+  /// A portal page has finished loading (the side pane waits for it before it hands over a screenshot, DD-51).
+  bool get loaded => (_onPortal?.call() ?? false) && (_loaded?.call() ?? false);
 
   /// Sends [message] to the page; false while the page is not loaded (or WebView2 is missing).
   Future<bool> send(String message) async {
@@ -44,6 +48,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
   bool _ready = false;
   bool _noWebView = false;
   String _url = '';
+  bool _loaded = false;
 
   // DD-15: the staff sign-in expired mid-use (signin_expired.dart); the last panel page, to return to after it.
   bool _expired = false;
@@ -77,9 +82,11 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       }));
       if (_staff) _subs.add(_web.loadingState.listen(_onLoaded)); // DD-15
       _subs.add(_web.webMessage.listen(_onMessage));
+      _subs.add(_web.loadingState.listen((state) => _loaded = state == LoadingState.navigationCompleted));
       await _web.loadUrl(_home);
       widget.link?._send = _web.postWebMessage;
       widget.link?._onPortal = () => _onPortal;
+      widget.link?._loaded = () => _loaded;
       if (mounted) setState(() => _ready = true);
     } catch (_) {
       if (mounted) setState(() => _noWebView = true);
@@ -126,6 +133,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
     }
     widget.link?._send = null;
     widget.link?._onPortal = null;
+    widget.link?._loaded = null;
     _web.dispose();
     super.dispose();
   }

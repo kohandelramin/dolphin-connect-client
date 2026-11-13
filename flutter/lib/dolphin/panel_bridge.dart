@@ -30,7 +30,16 @@ class PanelMessage {
         id = '',
         code = '',
         ok = false;
+
+  /// `dolphin-paste` (DD-50) from the side pane: [text] for the PC whose RustDesk ID is [id].
+  const PanelMessage.paste(this.text, this.id)
+      : type = 'dolphin-paste',
+        code = '',
+        ok = false;
 }
+
+/// A ready-made text is at most 2000 characters (app/src/lib/app-bridge.ts `pasteMessage`; src/dolphin_panel_core.rs).
+const kPasteMaxLength = 2000;
 
 /// The Windows notice for a new request is one short line; longer text is cut.
 const kNewRequestMaxLength = 120;
@@ -74,6 +83,16 @@ PanelMessage? parsePanelMessage(dynamic raw) {
         ok, t.length > kCallResultMaxLength ? t.substring(0, kCallResultMaxLength) : t, (callId as String?) ?? '');
   }
   final id = data['id'];
+  // Plan 18 Phase 3 (DD-50): the side pane's «چسباندن». Tab and line breaks stay; other control characters, an empty
+  // or a too long text are refused (the customer's PC checks the same, src/dolphin_panel_core.rs).
+  if (type == 'dolphin-paste') {
+    final text = data['text'];
+    if (id is! String || text is! String) return null;
+    final clean = id.replaceAll(RegExp(r'\s'), '');
+    if (!panelIdPattern.hasMatch(clean) || text.trim().isEmpty || text.runes.length > kPasteMaxLength) return null;
+    if (RegExp(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]').hasMatch(text)) return null;
+    return PanelMessage.paste(text, clean);
+  }
   if (type == 'dolphin-connect' && id is String) {
     final clean = id.replaceAll(' ', '');
     if (!panelIdPattern.hasMatch(clean)) return null;

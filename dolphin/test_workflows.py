@@ -130,7 +130,8 @@ class BuildWorkflowTest(unittest.TestCase):
         std_only = ("dolphin/version_resource.rs", "src/dolphin_update_core.rs", "libs/portable/src/dolphin_wait.rs",
                     "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs",
                     "src/dolphin_session_core.rs",
-                    "src/dolphin_system_core.rs")
+                    "src/dolphin_system_core.rs",
+                    "src/dolphin_panel_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -151,8 +152,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 8)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 8)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 9)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 9)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -426,6 +427,49 @@ class ChatFilesWiringTest(unittest.TestCase):
         for t in ("chat_test.dart", "file_transfer_test.dart", "request_outcome_test.dart", "signin_expired_test.dart"):
             self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
 
+class PanelWiringTest(unittest.TestCase):
+    """Plan 18 Phase 3 (DD-49, DD-50, DD-51, DD-6): the side pane's hooks in upstream files, proven by their text,
+    since neither the Rust crate nor the Windows runner is built here."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_pc_handles_our_plugin_requests_as_input(self):
+        conn = self.read("src", "server", "connection.rs")
+        self.assertIn("self.dolphin_panel_request(&p.id, &p.content);", conn)
+        gate = conn.split("async fn dolphin_inbound_allowed(", 1)[1].split("if inbound_allowed(", 1)[0]
+        self.assertIn("Some(misc::Union::PluginRequest(_)) => Inbound::Input,", gate)
+        body = conn.split("fn dolphin_panel_request(&mut self, id: &str, content: &[u8]) {", 1)[1][:900]
+        self.assertIn("if !self.is_authed_remote_conn() || self.view_camera {", body)
+        self.assertIn("let input = self.peer_keyboard_enabled();", body)
+        self.assertIn("let clipboard = self.clipboard_enabled();", body)
+        self.assertIn("std::thread::spawn(move ||", body, "never on the connection's own loop")
+
+    def test_the_technician_sends_them_to_one_session_only(self):
+        ffi = self.read("src", "flutter_ffi.rs")
+        body = ffi.split("pub fn session_set_common(session_id: SessionID, key: String, value: String) {", 1)[1][:600]
+        self.assertIn("sessions::get_session_by_session_id(&session_id)", body)
+        self.assertIn("if s.dolphin_panel_request(&key, &value) {", body)
+        self.assertIn("pub fn dolphin_panel_request(&self, key: &str, value: &str) -> bool {",
+                      self.read("src", "ui_session_interface.rs"))
+        lib = self.read("src", "lib.rs")
+        self.assertIn("mod dolphin_panel_core;", lib)
+        self.assertIn("mod dolphin_panel;", lib)
+
+    def test_remote_windows_can_host_the_pane(self):
+        runner = self.read("flutter", "windows", "runner", "flutter_window.cpp")
+        created = runner.split("DesktopMultiWindowSetWindowCreatedCallback(", 1)[1].split("});", 1)[0]
+        self.assertIn("WebviewWindowsPluginRegisterWithRegistrar(", created)
+        page = self.read("flutter", "lib", "desktop", "pages", "remote_page.dart")
+        self.assertIn("body: DolphinSessionSide(ffi: _ffi, peerId: widget.id, child: Obx(() {", page)
+        model = self.read("flutter", "lib", "models", "model.dart")
+        self.assertIn("if (dolphinMsgBoxHook?.call(type, title, text) == true) return;", model)
+        shot = model.split("_handleScreenshot(", 2)[2][:400]
+        self.assertIn("if (dolphinScreenshotHook?.call(evt) == true) return;", shot)
+        self.assertIn("size.width - leftToEdge - rightToEdge - dolphinRightInset;", model)
+
+    def test_the_pane_has_its_tests(self):
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "side_panel_test.dart").is_file())
 
 if __name__ == "__main__":
     unittest.main()

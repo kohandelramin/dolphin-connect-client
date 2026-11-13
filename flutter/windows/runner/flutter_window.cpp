@@ -3,6 +3,8 @@
 #include <desktop_multi_window/desktop_multi_window_plugin.h>
 #include <texture_rgba_renderer/texture_rgba_renderer_plugin_c_api.h>
 #include <flutter_gpu_texture_renderer/flutter_gpu_texture_renderer_plugin_c_api.h>
+// Dolphin Connect (DD-49): the side pane's WebView2 in remote windows.
+#include <webview_windows/webview_windows_plugin.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -153,6 +155,11 @@ bool FlutterWindow::OnCreate() {
         registry->GetRegistrarForPlugin("TextureRgbaRendererPlugin"));
     FlutterGpuTextureRendererPluginCApiRegisterWithRegistrar(
         registry->GetRegistrarForPlugin("FlutterGpuTextureRendererPluginCApi"));
+    // Dolphin Connect (DD-49): the side pane beside the remote picture is a WebView2. Each window's own
+    // plugin instance opens the same default user-data folder (%LOCALAPPDATA%/flutter_webview_windows/<exe
+    // name>) with the same options, so it shares the main window's browser process and the staff sign-in.
+    WebviewWindowsPluginRegisterWithRegistrar(
+        registry->GetRegistrarForPlugin("WebviewWindowsPlugin"));
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 

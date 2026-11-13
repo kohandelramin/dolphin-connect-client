@@ -2873,6 +2873,8 @@ impl Connection {
                 | Some(misc::Union::ChangeResolution(_))
                 | Some(misc::Union::ChangeDisplayResolution(_))
                 | Some(misc::Union::ToggleVirtualDisplay(_)) => Inbound::Control,
+                // Dolphin Connect (DD-50, DD-6): a paste or a keyboard-language change acts like typing.
+                Some(misc::Union::PluginRequest(_)) => Inbound::Input,
                 _ => Inbound::Other,
             },
             _ => Inbound::Other,
@@ -2889,6 +2891,27 @@ impl Connection {
             self.send(msg_out).await;
         }
         false
+    }
+
+    /// Dolphin Connect (DD-50, DD-6): a paste or a keyboard-language change asked by the technician's side pane or
+    /// toolbar, only for an authorised remote session (not a camera view), checked against the customer's keyboard and
+    /// clipboard switches and the pause at the moment it comes (src/dolphin_panel_core.rs). The work runs on its own
+    /// thread (a paste waits for the clipboard), so the connection's loop and the picture never wait for it; the answer
+    /// is a `MessageBox` the technician's app shows as one line. Anything else in a `PluginRequest` is ignored, as before.
+    fn dolphin_panel_request(&mut self, id: &str, content: &[u8]) {
+        let Some(request) = crate::dolphin_panel_core::request(id, content) else {
+            return;
+        };
+        if !self.is_authed_remote_conn() || self.view_camera {
+            return;
+        }
+        let input = self.peer_keyboard_enabled();
+        let clipboard = self.clipboard_enabled();
+        let mut inner = self.inner.clone();
+        std::thread::spawn(move || {
+            let outcome = crate::dolphin_panel::apply(request, input, clipboard);
+            inner.send(Arc::new(crate::dolphin_panel::result_message(outcome)));
+        });
     }
 
     /// Dolphin Connect (owner decision D21). `None`: not the fixed password, upstream decides as before. `Some(true)`:
@@ -4210,6 +4233,10 @@ impl Connection {
                         self.send_to_cm(ipc::Data::ChatMessage { text: c.text });
                         self.chat_unanswered = true;
                         self.update_auto_disconnect_timer();
+                    }
+                    // Dolphin Connect (DD-50, DD-6): the technician's paste or keyboard language (src/dolphin_panel.rs).
+                    Some(misc::Union::PluginRequest(p)) => {
+                        self.dolphin_panel_request(&p.id, &p.content);
                     }
                     Some(misc::Union::Option(o)) => {
                         if self.authed_conn_type() == Some(AuthConnType::Remote) {
