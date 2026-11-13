@@ -340,6 +340,32 @@ pub fn tray_should_exit(installed: bool, window_open: bool) -> bool {
 pub const TRAY_OPEN: &str = "باز کردن";
 pub const TRAY_QUIT: &str = "بستن کامل";
 
+/// The PNG frame of an .ico drawn for `want` pixels (offset, length): the exact size, else the next larger, else the
+/// largest. The tray asks Windows for its icon size (16 px at 100 %, 20 at 125 %, 24 at 150 %) so the hand-drawn small
+/// frames are shown instead of the 256 px one shrunk. Only PNG frames (dolphin/brand.py writes nothing else).
+#[cfg_attr(not(all(windows, feature = "flutter")), allow(dead_code))]
+pub fn ico_frame(ico: &[u8], want: u32) -> Option<(usize, usize)> {
+    const PNG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    if ico.len() < 6 || ico[0..4] != [0, 0, 1, 0] {
+        return None;
+    }
+    let count = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+    let mut frames = Vec::new();
+    for i in 0..count {
+        let e = 6 + 16 * i;
+        let Some(entry) = ico.get(e..e + 16) else { break };
+        let side = if entry[0] == 0 { 256 } else { entry[0] as u32 };
+        let len = u32::from_le_bytes([entry[8], entry[9], entry[10], entry[11]]) as usize;
+        let off = u32::from_le_bytes([entry[12], entry[13], entry[14], entry[15]]) as usize;
+        match ico.get(off..off.saturating_add(len)) {
+            Some(data) if data.len() >= 8 && data[..8] == PNG => frames.push((side, off, len)),
+            _ => {}
+        }
+    }
+    let exact_or_larger = frames.iter().filter(|f| f.0 >= want).min_by_key(|f| f.0);
+    exact_or_larger.or_else(|| frames.iter().max_by_key(|f| f.0)).map(|f| (f.1, f.2))
+}
+
 /// Paints a dot with a white ring in the icon's lower-left corner (RGBA, row-major). The lower-left, because Windows
 /// draws nothing there and the mark's own shape sits top-right. Sizes from 16 px up.
 pub fn badge(rgba: &mut [u8], width: u32, height: u32, colour: [u8; 3]) {
@@ -493,4 +519,36 @@ mod tests {
         badge(&mut short, 16, 16, [9, 9, 9]); // a wrong buffer is left alone
         assert!(short.iter().all(|b| *b == 0));
     }
+    fn toy_ico(sizes: &[u32]) -> Vec<u8> {
+        // header + entries + one tiny "PNG" per frame (signature + the size byte), as Pillow writes them
+        let mut out = vec![0, 0, 1, 0, sizes.len() as u8, 0];
+        let mut offset = 6 + 16 * sizes.len() as u32;
+        let mut data = Vec::new();
+        for &s in sizes {
+            let frame: Vec<u8> = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, s as u8].to_vec();
+            out.extend_from_slice(&[(s % 256) as u8, (s % 256) as u8, 0, 0, 1, 0, 32, 0]);
+            out.extend_from_slice(&(frame.len() as u32).to_le_bytes());
+            out.extend_from_slice(&offset.to_le_bytes());
+            offset += frame.len() as u32;
+            data.extend(frame);
+        }
+        out.extend(data);
+        out
+    }
+
+    #[test]
+    fn the_tray_takes_the_frame_drawn_for_its_size() {
+        let ico = toy_ico(&[16, 20, 24, 32, 256]);
+        let pick = |want| ico_frame(&ico, want).map(|(o, l)| ico[o + l - 1]);
+        assert_eq!(pick(16), Some(16)); // 100 % scaling
+        assert_eq!(pick(20), Some(20)); // 125 %
+        assert_eq!(pick(24), Some(24)); // 150 %
+        assert_eq!(pick(28), Some(32)); // no exact frame: the next larger one
+        assert_eq!(pick(300), Some(0)); // larger than all: the largest (256 is stored as 0)
+        assert_eq!(ico_frame(&[1, 2, 3], 16), None);
+        let mut broken = ico.clone();
+        broken[6 + 8..6 + 12].copy_from_slice(&9999u32.to_le_bytes()); // a frame past the end
+        assert_eq!(ico_frame(&broken, 16).map(|(o, l)| broken[o + l - 1]), Some(20));
+    }
+
 }

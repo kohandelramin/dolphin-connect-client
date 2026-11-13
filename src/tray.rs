@@ -62,7 +62,8 @@ fn make_tray() -> hbb_common::ResultType<()> {
     // «بستن کامل» (src/dolphin_system.rs).
     #[cfg(all(windows, feature = "flutter"))]
     if hbb_common::config::is_incoming_only() {
-        return crate::dolphin_system::run_customer_tray(icon_rgba, icon_width, icon_height);
+        let (rgba, w, h) = crate::dolphin_system::tray_icon_rgba(icon).unwrap_or((icon_rgba, icon_width, icon_height));
+        return crate::dolphin_system::run_customer_tray(rgba, w, h);
     }
     let icon = tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .context("Failed to open icon")?;

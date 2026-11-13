@@ -376,7 +376,7 @@ class SystemWiringTest(unittest.TestCase):
 
     def test_the_customer_build_gets_its_own_tray(self):
         tray = self.read("src", "tray.rs")
-        handoff = tray.index("return crate::dolphin_system::run_customer_tray(icon_rgba, icon_width, icon_height);")
+        handoff = tray.index("return crate::dolphin_system::run_customer_tray(rgba, w, h);")
         self.assertLess(tray.index("try_lock_tray_single_instance()"), handoff)
 
     def test_the_main_window_close_asks_first(self):
@@ -562,6 +562,18 @@ class UpdateCheckWiringTest(unittest.TestCase):
         settings = self.read("flutter", "lib", "desktop", "pages", "desktop_setting_page.dart")
         self.assertIn("Widget build(BuildContext context) => const DolphinAbout(); // Dolphin Connect", settings)
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "update_check_test.dart").is_file())
+
+
+class TrayIconSizeTest(unittest.TestCase):
+    """The customer tray shows the .ico frame drawn for the tray's size, not the 256 px one shrunk by Windows."""
+
+    def test_the_customer_tray_picks_the_frame_for_the_system_size(self):
+        tray = ROOT.joinpath("src", "tray.rs").read_text(encoding="utf-8")
+        branch = tray.split("if hbb_common::config::is_incoming_only() {", 1)[1].split("}", 1)[0]
+        self.assertIn("crate::dolphin_system::tray_icon_rgba(icon)", branch)
+        system = ROOT.joinpath("src", "dolphin_system.rs").read_text(encoding="utf-8")
+        self.assertIn("SM_CXSMICON", system)
+        self.assertIn("rules::ico_frame(", system)
 
 
 class PrinterWiringTest(unittest.TestCase):

@@ -288,6 +288,17 @@ async fn watch_state(sender: std::sync::mpsc::Sender<Option<rules::TrayState>>) 
     }
 }
 
+/// The tray icon at the size Windows draws it (SM_CXSMICON follows the display scaling), from the .ico's own frame for
+/// that size (rules::ico_frame). None leaves upstream's decoded image.
+#[cfg(all(windows, feature = "flutter"))]
+pub fn tray_icon_rgba(ico: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
+    let want = unsafe { winapi::um::winuser::GetSystemMetrics(winapi::um::winuser::SM_CXSMICON) };
+    let (off, len) = rules::ico_frame(ico, want.max(16) as u32)?;
+    let image = image::load_from_memory(&ico[off..off + len]).ok()?.into_rgba8();
+    let (width, height) = image.dimensions();
+    Some((image.into_raw(), width, height))
+}
+
 /// The customer app's tray, in place of upstream's (src/tray.rs hands over after its single-instance check): a dot
 /// in the state's colour, the state as the tooltip, «باز کردن» and «بستن کامل». Hidden while nobody could connect.
 #[cfg(all(windows, feature = "flutter"))]
