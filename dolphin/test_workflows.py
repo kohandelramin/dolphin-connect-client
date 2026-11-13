@@ -717,7 +717,8 @@ class AppNameWiringTest(unittest.TestCase):
         self.assertIn('res.set("ProductName", &name)', build)
 
     def test_the_dart_views_use_the_generated_names(self):
-        self.assertIn("Text(DolphinBrand.technicianNameFa,", self.read("flutter", "lib", "dolphin", "technician_header.dart"))
+        # Plan 19: the native technician window's header (tech_ui/header.dart) replaced technician_header.dart.
+        self.assertIn("Text(DolphinBrand.technicianNameFa,", self.read("flutter", "lib", "dolphin", "tech_ui", "header.dart"))
         self.assertIn("this.name = DolphinBrand.appNameFa", self.read("flutter", "lib", "dolphin", "about.dart"))
         update = self.read("flutter", "lib", "dolphin", "update.dart")
         self.assertEqual(update.count("DolphinBrand.appNameFa"), 2)
@@ -1454,11 +1455,14 @@ class StartUpdatePopupWiringTest(unittest.TestCase):
         self.assertIn("dolphinPendingTechUpdate = check;", update)
 
     def test_the_technician_home_shows_the_popup_after_its_first_frame(self):
-        home = self.read("flutter", "lib", "dolphin", "technician_home.dart")
-        self.assertIn("if (mounted) showPendingTechUpdate(context);", home)
+        # Plan 19: the native technician window (tech_ui/technician_app.dart) replaced technician_home.dart; its
+        # «به‌روزرسانی» downloads through the app API when signed in.
+        home = self.read("flutter", "lib", "dolphin", "tech_ui", "technician_app.dart")
+        self.assertIn("if (mounted) showPendingTechUpdate(context, onUpdate: _update);", home)
+        self.assertIn("addPostFrameCallback", home)
         # «بعداً» stores nothing: the pending answer lives in memory for this start only
         update = self.read("flutter", "lib", "dolphin", "update.dart")
-        body = update.split("Future<void> showPendingTechUpdate(BuildContext context) async {", 1)[1]
+        body = update.split("Future<void> showPendingTechUpdate(BuildContext context,", 1)[1]
         self.assertNotIn("mainSetLocalOption", body)
         self.assertNotIn("mainSetOption", body)
 
