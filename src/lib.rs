@@ -37,9 +37,13 @@ mod dolphin_panel_core;
 mod dolphin_panel;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod dolphin_system;
-// Dolphin Connect, Plan 18 Phase 5: signed settings (DD-24).
+// Dolphin Connect, Plan 18 Phase 5: signed settings (DD-24), the ID kept across a reinstall (DD-5).
 mod dolphin_strategy_core;
 mod dolphin_strategy;
+#[cfg(windows)]
+mod dolphin_identity_core;
+#[cfg(windows)]
+mod dolphin_identity;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

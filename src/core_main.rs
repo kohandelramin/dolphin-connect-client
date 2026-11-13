@@ -425,6 +425,9 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             #[cfg(windows)]
             crate::privacy_mode::restore_reg_connectivity(true, false);
+            // Dolphin Connect (DD-5): the backed-up ID and key pair, before the server registers with them.
+            #[cfg(windows)]
+            crate::dolphin_identity::start();
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 crate::start_server(true, false);

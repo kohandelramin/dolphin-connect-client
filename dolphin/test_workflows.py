@@ -151,7 +151,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_system_core.rs",
                     "src/dolphin_panel_core.rs",
                     "src/dolphin_install_core.rs",
-                    "src/dolphin_strategy_core.rs")
+                    "src/dolphin_strategy_core.rs",
+                    "src/dolphin_identity_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -189,8 +190,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 11)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 11)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 12)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 12)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -748,6 +749,43 @@ class SignedStrategyWiringTest(unittest.TestCase):
         self.assertIn(f'const VECTOR_CANONICAL: &str = "{canonical}";', core)
         for key, value in vector["options"].items():
             self.assertIn(f'("{key}", "{value}")', core)
+
+
+class IdentityWiringTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-5): the installed server restores its ID and key pair on the same hardware."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_server_process_restores_before_it_registers(self):
+        core_main = self.read("src", "core_main.rs")
+        branch = core_main.split('} else if args[0] == "--server" {', 1)[1].split("return None;", 1)[0]
+        self.assertIn("#[cfg(windows)]\n            crate::dolphin_identity::start();", branch)
+        self.assertLess(branch.index("crate::dolphin_identity::start();"), branch.index("crate::start_server(true, false);"))
+
+    def test_only_the_installed_system_server_touches_the_backup(self):
+        hook = self.read("src", "dolphin_identity.rs")
+        start = hook.split("pub fn start() {", 1)[1][:400]
+        self.assertIn("if !crate::platform::is_installed() || !crate::is_server() || !crate::platform::is_root() {", start)
+        self.assertIn("CRYPTPROTECT_LOCAL_MACHINE", hook)
+        self.assertIn('const SDDL: &str = "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)";', hook)
+        self.assertIn("owned_by_system_or_admins(&path)", hook.split("fn read_backup(", 1)[1][:500])
+        # No MachineGuid: a cloned disk copies it.
+        self.assertNotIn("MachineGuid", hook.replace("not Windows' MachineGuid", ""))
+        self.assertIn('u32::from_be_bytes(*b"RSMB")', hook)
+
+    def test_hbb_common_is_used_through_its_public_api_only(self):
+        hook = self.read("src", "dolphin_identity.rs")
+        for call in ("Config::get()", "Config::set(cfg)", "Config::update_id()", "Config::get_cached_pk()"):
+            self.assertIn(call, hook)
+        self.assertNotIn("libs/hbb_common", hook.replace("`libs/hbb_common` stays upstream's", ""))
+
+    def test_no_key_bytes_reach_a_log(self):
+        hook = self.read("src", "dolphin_identity.rs")
+        for line in hook.splitlines():
+            if "log::" in line:
+                self.assertNotRegex(line, r"\bsk\b|\.pk\b|sealed|plain|key_pair", line)
+        self.assertIn("finish_non_exhaustive()", self.read("src", "dolphin_identity_core.rs"))
 
 
 if __name__ == "__main__":
