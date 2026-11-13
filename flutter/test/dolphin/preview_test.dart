@@ -77,24 +77,24 @@ void main() {
     Directory(_dir!).createSync(recursive: true);
 
     await _shot(tester, '01-home-ready', homeTall, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44200250', siteLabel: 'support.dolphindev.ir',
+        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
         network: net, recent: recent, version: '2.1.0', onStartHere: () {}, onCopyIp: () {}, onCopyDownload: () {}, onCopyGuide: () {},
         onRequests: () {}, onCallback: () {}));
     await _shot(tester, '02-home-tech-coming', home, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44200250', siteLabel: 'support.dolphindev.ir',
+        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
         coming: const TechComing('علی رضایی', null), network: net, version: '2.1.0'));
     await _shot(tester, '03-home-connected', home, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44200250', siteLabel: 'support.dolphindev.ir',
+        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
         connected: 1, network: net, version: '2.1.0'));
     await _shot(tester, '04-home-offline-id-changed', home, DolphinHomeView(
-        id: '987654321', state: DolphinServerState.offline, onCopy: () {}, phone: '021-44200250', siteLabel: 'support.dolphindev.ir',
+        id: '987654321', state: DolphinServerState.offline, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
         idChanged: true, onDismissIdNotice: () {}, network: [const NetRow('سرور دلفین', 'وصل نیست', tone: NetTone.bad)], version: '2.1.0'));
     await _shot(tester, '05-first-run', home, DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () {}));
     await _shot(tester, '06-share-stopped', const Size(340, 140), DolphinShareView(stopped: true, onToggle: () {}));
     await _shot(tester, '07-close-question', const Size(360, 300), DolphinCloseDialogView(onChoose: (_, __) {}, onCancel: () {}));
     await _shot(tester, '08-accept-verified', const Size(300, 490), DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.verified, 'علی رضایی'), peerName: 'علی رضایی', onAccept: (_, __, ___) {}, onDeny: () {},
-        phone: '021-44200250'));
+        phone: '021-44280505'));
     await _shot(tester, '09-session', session, DolphinSessionView(
         technician: 'علی رضایی', elapsed: const Duration(minutes: 7, seconds: 12), keyboard: true, clipboard: true, file: true,
         onPause: (_) {}, onToggle: (_, __) {}, onEnd: () {}));

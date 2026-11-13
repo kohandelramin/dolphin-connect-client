@@ -214,7 +214,7 @@ class VersionTest(unittest.TestCase):
         rust = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.0.0-rc.1")
         self.assertIn('pub const DOLPHIN_VERSION: &str = "2.0.0-rc.1";', rust)
         self.assertIn('pub const PORTAL_URL: &str = "https://support.dolphindev.ir";', rust)
-        self.assertIn('pub const SUPPORT_PHONE: &str = "021-44200250";', rust)
+        self.assertIn('pub const SUPPORT_PHONE: &str = "021-44280505";', rust)
         self.assertIn("static const String version = '2.0.0-rc.1';", g.render_brand_dart(SETTINGS, PROFILE, "2.0.0-rc.1"))
         self.assertEqual(g.portal_url({**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}), "http://127.0.0.1:3010")
 
