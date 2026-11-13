@@ -34,6 +34,38 @@ there): the Python tests ran; the std-only Rust, the Dart analysis and the widge
 فقط وقتی پورتال دلفین همان کارشناس را برای همین رایانه فرستاده باشد. دکمه‌ی «پایان» مثل همیشه کار می‌کند. اگر اتصال
 (مثلاً با روشن و خاموش شدن VPN) قطع شود، برنامه‌ی کارشناس تا دو دقیقه خودش دوباره وصل می‌شود.
 
+### Plan 18 Phase 2: tray, sharing, receive folder, plain errors (customer x64, technician x64)
+
+Portal ADR-0016 (owner 2026-11-13). Not compiled here (no vcpkg or LLVM for the crate, no Flutter): the Python tests
+and the std-only `src/dolphin_system_core.rs` tests ran; the crate, the Dart analysis and the widget tests run in CI.
+
+- DD-35, ADR-0016: closing the customer window asks «در دسترس بماند (کنار ساعت)» or «بستن کامل», with «انتخاب را به
+  خاطر بسپار». Staying hides the window and keeps the process, so `allow-only-conn-window-open` (a process check,
+  `check_process("")`) still counts it as open and the authorized technician connects under the same rules. «بستن
+  کامل» is upstream's close, which ends the app: nobody can connect. The portal's `stay-in-tray` switch: «پنهان»
+  always quits without asking, «اجباری» always stays. Nothing starts with Windows: an installed app's tray, started at
+  sign-in by upstream's shortcut, stays hidden until the window is opened.
+- DD-47: the customer app's own tray: a dot on the icon, green ready, blue connected, grey no internet or sharing
+  stopped, the state as the tooltip; a click or «باز کردن» opens the window, «بستن کامل» ends it. Hidden while
+  nobody could connect. A portable app gets a tray when it hides into it; that tray ends with the app.
+- DD-34 «شروع / توقف اشتراک»: a strip on the home screen. Stopped, the PC refuses every connection before any login
+  (fixed password, one-time code, Accept and taking back a dropped session included); the technician reads «مشتری
+  اشتراک را متوقف کرده است…». Each start of the app shares again. The heartbeat sends `dolphin_share` (`on` or
+  `stopped`). The portal's `share-toggle` switch «پنهان» removes the strip and the effect.
+- DD-12: files from the technician land by default in `Downloads\دریافتی دلفین` (made when first needed): the
+  technician's file manager opens there when it has no folder saved for the PC. The portal's `receive-folder` switch:
+  «اجباری» always opens there and refuses new files and folders anywhere else, «پنهان» is upstream (the home folder).
+- DD-13: plain Persian, with what to do, for connection and file-transfer errors: new wording for upstream keys
+  (`dolphin/rebrand.py` FA_ERRORS), keys upstream lacks (FA_ADD, e.g. «دلفین کانکت روی رایانه‌ی مشتری بسته است»),
+  and Windows file and socket errors by code (access denied, file in use, disk full, connection lost, timeout…). A
+  failed file job now says why instead of only «خطا».
+- Portal change needed (not in this repo): read `dolphin_share` from the heartbeat (`on` / `stopped`) and show
+  «اشتراک متوقف» on «رایانه‌ها».
+
+**یادداشت فارسی:** با بستن پنجره، برنامه می‌پرسد «در دسترس بماند (کنار ساعت)» یا «بستن کامل». در حالت اول نماد دلفین
+کنار ساعت می‌ماند و رنگش وضعیت را نشان می‌دهد. با «توقف اشتراک» هیچ کس، حتی کارشناس دلفین، نمی‌تواند وصل شود تا
+«شروع اشتراک» را بزنید. فایل‌هایی که کارشناس می‌فرستد در پوشه‌ی «دریافتی دلفین» در Downloads ذخیره می‌شوند.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
