@@ -782,8 +782,11 @@ impl<T: InvokeUiSession> Session<T> {
 
     /// Dolphin Connect (DD-50, DD-6): a paste or a keyboard-language request for this session's PC only, as the
     /// existing `Misc::PluginRequest` (src/dolphin_panel_core.rs). False: not one of ours, nothing sent.
+    /// DD-11: the toolbar's Safe Mode restart and its return go the same way (src/dolphin_safe_mode_core.rs).
     pub fn dolphin_panel_request(&self, key: &str, value: &str) -> bool {
-        let Some((id, content)) = crate::dolphin_panel_core::client_request(key, value) else {
+        let Some((id, content)) = crate::dolphin_panel_core::client_request(key, value)
+            .or_else(|| crate::dolphin_safe_mode_core::client_request(key, value))
+        else {
             return false;
         };
         self.send(Data::Message(crate::dolphin_panel::plugin_request_message(id, content)));

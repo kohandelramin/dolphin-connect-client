@@ -153,6 +153,8 @@ pub struct Client {
     pub dolphin_input_blocked: bool,
     /// Dolphin Connect (DD-46): the customer paused this session.
     pub dolphin_paused: bool,
+    /// Dolphin Connect (DD-11): "safe" or "normal" while the restart notice shows, "" otherwise.
+    pub dolphin_restart: String,
     #[serde(skip)]
     #[cfg(not(any(target_os = "ios")))]
     tx: UnboundedSender<Data>,
@@ -267,6 +269,7 @@ impl<T: InvokeUiCM> ConnectionManager<T> {
             incoming_voice_call: false,
             dolphin_input_blocked: false,
             dolphin_paused: false,
+            dolphin_restart: String::new(),
         };
         CLIENTS
             .write()
@@ -434,6 +437,12 @@ pub fn switch_permission(id: i32, name: String, enabled: bool) {
             enabled
         );
         return;
+    }
+    // Dolphin Connect (DD-11): «لغو» ends the notice in the window's own record too.
+    if name == crate::dolphin_safe_mode_core::CM_CANCEL {
+        if let Some(client) = CLIENTS.write().unwrap().get_mut(&id) {
+            client.dolphin_restart.clear();
+        }
     }
     // Dolphin Connect (DD-46): the window's own record follows, so a later refresh of this client keeps the pause.
     if name == crate::dolphin_session_core::PAUSE_SWITCH {
@@ -609,6 +618,20 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                     self.cm.new_message(self.conn_id, text);
                                 }
                                 Data::SwitchPermission { name, enabled } => {
+                                    // Dolphin Connect (DD-11): the connection shows or hides the restart notice.
+                                    if let Some(kind) = crate::dolphin_safe_mode_core::Kind::from_cm_notice(&name) {
+                                        let client = {
+                                            let mut clients = CLIENTS.write().unwrap();
+                                            clients.get_mut(&self.conn_id).map(|c| {
+                                                c.dolphin_restart =
+                                                    if enabled { kind.code().to_owned() } else { String::new() };
+                                                c.clone()
+                                            })
+                                        };
+                                        if let Some(client) = client {
+                                            self.cm.ui_handler.add_connection(&client);
+                                        }
+                                    }
                                     // Dolphin Connect (DD-37, DD-46): the connection says the technician blocked the
                                     // customer's input, or that a session came back paused; the window shows it.
                                     if name == crate::dolphin_session_core::INPUT_BLOCKED_NOTICE

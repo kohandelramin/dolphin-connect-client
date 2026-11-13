@@ -14,6 +14,7 @@ import 'connection_view.dart';
 import 'home.dart';
 import 'home_view.dart';
 import 'reconnect.dart';
+import 'safe_mode.dart';
 import 'session_controls.dart';
 import 'tech_card.dart';
 import 'verify.dart';
@@ -54,6 +55,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   late final bool _resumed;
   // DD-37: when the technician's block of the customer's input was first seen.
   DateTime? _inputOffSince;
+  // DD-11: when the restart notice was first seen; null while there is none.
+  DateTime? _restartSeenAt;
 
   @override
   void initState() {
@@ -71,6 +74,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         }
         if (widget.client.disconnected) _endedAt ??= DateTime.now();
         _inputOffSince = inputOffSince(_inputOffSince, widget.client.dolphinInputBlocked, DateTime.now());
+        _noteRestart();
       });
       _keepCompact();
     });
@@ -80,6 +84,18 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  /// DD-11: the notice starts its count when first seen and brings the window forward, so the customer reads it.
+  void _noteRestart() {
+    if (restartKindFrom(widget.client.dolphinRestart) == null) {
+      _restartSeenAt = null;
+      return;
+    }
+    if (_restartSeenAt != null) return;
+    _restartSeenAt = DateTime.now();
+    windowManager.show();
+    windowManager.focus();
   }
 
   TechVerdict _verdict({bool decided = false}) {
@@ -225,6 +241,21 @@ class _DolphinConnectionState extends State<DolphinConnection> {
           _endedByCustomer.add(c.id);
           _lastLive.remove(c.peerId);
           bind.cmCloseConnection(connId: c.id);
+        },
+      );
+    }
+    // DD-11: the technician asked for a Safe Mode or normal restart; «لغو» tells him (src/server/connection.rs).
+    final restart = restartKindFrom(c.dolphinRestart);
+    if (restart != null) {
+      return DolphinRestartNoticeView(
+        kind: restart,
+        secondsLeft: restartSecondsLeft(_restartSeenAt ?? DateTime.now(), DateTime.now()),
+        onCancel: () {
+          bind.cmSwitchPermission(connId: c.id, name: kDolphinRestartCancel, enabled: false);
+          setState(() {
+            c.dolphinRestart = '';
+            _restartSeenAt = null;
+          });
         },
       );
     }

@@ -67,6 +67,8 @@ jobs:
           "$RUNNER_TEMP/panel_core"
           rustc --edition 2021 --test src/dolphin_install_core.rs -o "$RUNNER_TEMP/install_core"
           "$RUNNER_TEMP/install_core"
+          rustc --edition 2021 --test src/dolphin_safe_mode_core.rs -o "$RUNNER_TEMP/safe_mode_core"
+          "$RUNNER_TEMP/safe_mode_core"
           rustc --edition 2021 --test src/dolphin_wake_core.rs -o "$RUNNER_TEMP/wake_core"
           "$RUNNER_TEMP/wake_core"
 

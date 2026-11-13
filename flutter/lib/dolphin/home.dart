@@ -29,6 +29,7 @@ import 'log_files.dart';
 import 'network_status.dart';
 import 'panel_bridge.dart';
 import 'recent_sessions.dart';
+import 'safe_mode_hooks.dart';
 import 'screenshot.dart';
 import 'share.dart';
 import 'support_upload.dart';
@@ -327,8 +328,10 @@ class _DolphinHomeState extends State<DolphinHome> {
   }
 
   // Dolphin Connect (DD-34): «شروع / توقف اشتراک» above the ID screen (share.dart; nothing when the portal hides it).
+  // DD-11: in Safe Mode, «حالت امن» with «بازگشت به حالت عادی» (safe_mode_hooks.dart; nothing on a normal boot).
   @override
   Widget build(BuildContext context) => Column(children: [
+        if (!_requests) const DolphinSafeModeHome(),
         if (!_requests) const DolphinShareControl(),
         Expanded(child: _buildHome(context)),
       ]);

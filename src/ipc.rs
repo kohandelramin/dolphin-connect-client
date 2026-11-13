@@ -1030,14 +1030,21 @@ async fn handle(data: Data, stream: &mut Connection) {
                 let v = Config::get_options();
                 allow_err!(stream.send(&Data::Options(Some(v))).await);
             }
-            Some(value) => {
+            Some(mut value) => {
+                // Dolphin Connect (DD-11): the customer's «بازگشت به حالت عادی» from the main window rides on this
+                // message; taken out before the options are stored and answered here (src/dolphin_safe_mode.rs).
+                let dolphin_return = crate::dolphin_safe_mode::ipc_take_return(&mut value);
                 let _chk = CheckIfRestart::new();
                 let _nat = CheckTestNatType::new();
                 if let Some(v) = value.get("privacy-mode-impl-key") {
                     crate::privacy_mode::switch(v);
                 }
                 Config::set_options(value);
-                allow_err!(stream.send(&Data::Options(None)).await);
+                if let Some(answer) = dolphin_return {
+                    allow_err!(stream.send(&Data::Options(Some(answer))).await);
+                } else {
+                    allow_err!(stream.send(&Data::Options(None)).await);
+                }
             }
         },
         Data::NatType(_) => {

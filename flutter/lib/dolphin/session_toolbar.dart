@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'digits.dart';
+import 'safe_mode.dart';
 import 'tech_theme.dart';
 
 /// DD-28: the Persian quick bar at the start of the technician's session toolbar. Upstream's menus stay after it; this
@@ -79,6 +80,8 @@ class DolphinBarText {
   static const screens = 'صفحه‌های مشتری';
   static const noPicture = 'تصویر نمی‌آید یا صفحه قفل است؟';
   static const collapse = 'جمع کردن نوار';
+  static const safeMode = 'ری‌استارت در حالت امن';
+  static const safeModeReturn = 'بازگشت به حالت عادی (رایانه در حالت امن است)';
   static const notReady = '(به‌زودی)';
 }
 
@@ -206,6 +209,11 @@ class DolphinSessionBar extends StatelessWidget {
   final VoidCallback? onKeyboardLayout;
   // ---- end of p3-panel's buttons
 
+  /// DD-11: «ری‌استارت در حالت امن» or «بازگشت به حالت عادی», as the customer's PC offers (safe_mode.dart
+  /// safeModeEntry); null hides the button.
+  final DolphinRestartKind? safeMode;
+  final ValueChanged<DolphinRestartKind>? onSafeMode;
+
   const DolphinSessionBar({
     super.key,
     required this.state,
@@ -221,6 +229,8 @@ class DolphinSessionBar extends StatelessWidget {
     this.screensMenu,
     this.onScreenshot,
     this.onKeyboardLayout,
+    this.safeMode,
+    this.onSafeMode,
   });
 
   static String _soon(String t, Object? wired) => wired == null ? '$t ${DolphinBarText.notReady}' : t;
@@ -232,6 +242,12 @@ class DolphinSessionBar extends StatelessWidget {
       DolphinBarButton(label: 'Ctrl+Alt+Del', tooltip: DolphinBarText.ctrlAltDel, onPressed: onCtrlAltDel),
       DolphinBarButton(icon: Icons.lock_outline, tooltip: DolphinBarText.lock, onPressed: onLock),
       DolphinBarButton(icon: Icons.folder_outlined, tooltip: DolphinBarText.files, onPressed: onFiles),
+      if (safeMode != null && onSafeMode != null)
+        DolphinBarButton(
+            key: const ValueKey('dolphin-bar-safe-mode'),
+            icon: safeMode == DolphinRestartKind.safe ? Icons.health_and_safety_outlined : Icons.settings_backup_restore,
+            tooltip: safeMode == DolphinRestartKind.safe ? DolphinBarText.safeMode : DolphinBarText.safeModeReturn,
+            onPressed: () => onSafeMode!(safeMode!)),
       // ---- p3-panel (DD-51, DD-6)
       DolphinBarButton(
           icon: Icons.photo_camera_outlined,

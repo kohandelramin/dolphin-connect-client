@@ -38,6 +38,8 @@ mod dolphin_panel;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod dolphin_system;
 // Dolphin Connect, Plan 18 Phase 5: DD-11 Safe Mode restart and return, DD-10 Wake-on-LAN.
+mod dolphin_safe_mode_core;
+mod dolphin_safe_mode;
 mod dolphin_wake_core;
 mod dolphin_wake;
 #[cfg(not(any(target_os = "ios")))]

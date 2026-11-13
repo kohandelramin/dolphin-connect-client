@@ -47,6 +47,7 @@ import 'package:flutter_hbb/dolphin/reconnect.dart'; // Dolphin Connect (D23)
 import 'package:flutter_hbb/dolphin/permissions.dart'; // Dolphin Connect (DD-46)
 import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart'; // Dolphin Connect (DD-16)
 import 'package:flutter_hbb/dolphin/request_outcome.dart'; // Dolphin Connect (DD-14)
+import 'package:flutter_hbb/dolphin/safe_mode_hooks.dart'; // Dolphin Connect (DD-11)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -948,6 +949,8 @@ class FfiModel with ChangeNotifier {
       notifyListeners();
       return;
     }
+    // Dolphin Connect (DD-11): the PC's answer to «ری‌استارت در حالت امن» / «بازگشت به حالت عادی», in a dialog.
+    if (dolphinSafeModeMsgBox(parent.target, type, title, text)) return;
     // Dolphin Connect (DD-6, DD-50): the PC's answer to a paste or a keyboard change, one line over the picture.
     if (dolphinMsgBoxHook?.call(type, title, text) == true) return;
 
