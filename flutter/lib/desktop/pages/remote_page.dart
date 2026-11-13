@@ -24,6 +24,7 @@ import '../widgets/kb_layout_type_chooser.dart';
 import '../widgets/tabbar_widget.dart';
 import 'macos_full_screen_focus_recovery.dart';
 import '../../dolphin/permissions.dart'; // Dolphin Connect: what the customer allows (UX-13)
+import '../../dolphin/side_pane.dart'; // Dolphin Connect: the side pane (Plan 18 Phase 3)
 
 import 'package:flutter_hbb/native/custom_cursor.dart'
     if (dart.library.html) 'package:flutter_hbb/web/custom_cursor.dart';
@@ -793,7 +794,8 @@ class _RemotePageState extends State<RemotePage>
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,
-      body: Obx(() {
+      // Dolphin Connect (DD-49, DD-50, DD-51, DD-6): the side pane and its strip, technician build only.
+      body: DolphinSessionSide(ffi: _ffi, peerId: widget.id, child: Obx(() {
         final imageReady = _ffi.ffiModel.pi.isSet.isTrue &&
             _ffi.ffiModel.waitForFirstImage.isFalse;
         if (imageReady) {
@@ -818,7 +820,7 @@ class _RemotePageState extends State<RemotePage>
           // The toolbar's block state won't work properly when reconnecting, but that's okay.
           return bodyWidget();
         }
-      }),
+      })),
     );
   }
 

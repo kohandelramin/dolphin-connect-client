@@ -129,6 +129,10 @@ class FfiModel with ChangeNotifier {
   Timer? _dolphinRetryTimer;
   // Dolphin Connect (DD-46): the customer paused (flutter/lib/dolphin/permissions.dart); shown over the picture.
   bool dolphinPaused = false;
+  // Dolphin Connect (Plan 18 Phase 3, DD-6/DD-50/DD-51): set by the side pane (flutter/lib/dolphin/side_pane.dart).
+  // True: the hook took the message box or the screenshot, upstream does nothing more with it.
+  bool Function(dynamic type, dynamic title, dynamic text)? dolphinMsgBoxHook;
+  bool Function(Map<String, dynamic> evt)? dolphinScreenshotHook;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
   bool _viewOnly = false;
@@ -487,6 +491,8 @@ class FfiModel with ChangeNotifier {
       Map<String, dynamic> evt, SessionID sessionId, String peerId) {
     timerScreenshot?.cancel();
     timerScreenshot = null;
+    // Dolphin Connect (DD-51): a screenshot the side pane asked for goes to the open call, not to a dialog.
+    if (dolphinScreenshotHook?.call(evt) == true) return;
     final msg = evt['msg'] ?? '';
     final msgBoxType = 'custom-nook-nocancel-hasclose';
     final msgBoxTitle = 'Take screenshot';
@@ -925,6 +931,8 @@ class FfiModel with ChangeNotifier {
       notifyListeners();
       return;
     }
+    // Dolphin Connect (DD-6, DD-50): the PC's answer to a paste or a keyboard change, one line over the picture.
+    if (dolphinMsgBoxHook?.call(type, title, text) == true) return;
 
     if (type == 're-input-password') {
       wrongPasswordDialog(sessionId, dialogManager, type, title, text);
@@ -2399,11 +2407,15 @@ class CanvasModel with ChangeNotifier {
   static double get bottomToEdge =>
       isDesktop ? windowBorderWidth + kDragToResizeAreaPadding.bottom : 0;
 
+  /// Dolphin Connect (DD-49): the width of the side pane beside the picture, on the window's right
+  /// (flutter/lib/dolphin/side_pane.dart). The picture keeps its left origin, so pointer mapping is unchanged.
+  double dolphinRightInset = 0;
+
   Size getSize() {
     final mediaData = MediaQueryData.fromView(ui.window);
     final size = mediaData.size;
     // If minimized, w or h may be negative here.
-    double w = size.width - leftToEdge - rightToEdge;
+    double w = size.width - leftToEdge - rightToEdge - dolphinRightInset;
     double h = size.height - topToEdge - bottomToEdge;
     if (isMobile) {
       // Account for horizontal safe area insets on both orientations.
