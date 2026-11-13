@@ -82,7 +82,7 @@ class DolphinHomeView extends StatelessWidget {
   /// Plan 14 (B6): opens «با من تماس بگیرید»; null hides the button (a PC not linked to an organization).
   final VoidCallback? onCallback;
 
-  /// DD-8: the network panel's lines (network_status.dart networkRows); empty hides the panel.
+  /// DD-8: the network box's two lines (network_status.dart networkRows: state and IP); empty hides the box.
   final List<NetRow> network;
 
   /// DD-32: «شناسه‌ی شما عوض شد», closed with [onDismissIdNotice].

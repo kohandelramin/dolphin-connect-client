@@ -184,33 +184,43 @@ void main() {
     });
   });
 
-  group('DD-8 network panel', () {
-    test('lines for the server, its address, this PC\'s IP and a changed ID', () {
-      final rows = networkRows(
+  group('DD-8 network box (owner 2026-11-13: the state and this PC\'s IP, nothing else)', () {
+    test('two lines: «وضعیت شبکه» and «IP رایانه», for every state', () {
+      final rows = networkRows(server: DolphinServerState.ready, localIp: '192.168.1.20');
+      expect(rows.map((r) => '$r'), ['وضعیت شبکه: متصل', 'IP رایانه: ۱۹۲.۱۶۸.۱.۲۰']);
+      expect(rows.map((r) => r.kind), [NetKind.status, NetKind.address]);
+      expect(rows.first.tone, NetTone.good);
+      expect(rows.last.ltr, isTrue);
+      for (final (state, text, tone) in [
+        (DolphinServerState.connecting, 'در حال اتصال…', NetTone.neutral),
+        (DolphinServerState.offline, 'وصل نیست', NetTone.bad),
+        (DolphinServerState.stopped, 'سرویس خاموش است', NetTone.bad),
+      ]) {
+        final r = networkRows(server: state, localIp: '');
+        expect(r.map((x) => '$x'), ['وضعیت شبکه: $text', 'IP رایانه: نامشخص'], reason: '$state');
+        expect(r.first.tone, tone, reason: '$state');
+      }
+    });
+
+    test('the diagnostic report still has the server and its address; the box never does', () {
+      final rows = diagnosticNetworkRows(
           server: DolphinServerState.ready, serverAddress: 'remote.dolphindev.ir', localIp: '192.168.1.20');
       expect(rows.map((r) => '$r'), [
         'سرور دلفین: وصل و ثبت‌شده',
         'نشانی سرور: remote.dolphindev.ir',
         'IP این رایانه: ۱۹۲.۱۶۸.۱.۲۰',
       ]);
-      expect(rows.first.tone, NetTone.good);
-      expect(networkRows(server: DolphinServerState.offline, serverAddress: '', localIp: '').map((r) => '$r'),
+      expect(diagnosticNetworkRows(server: DolphinServerState.offline, serverAddress: '', localIp: '').map((r) => '$r'),
           ['سرور دلفین: وصل نیست']);
-      expect(networkRows(server: DolphinServerState.offline, serverAddress: '', localIp: '').first.tone, NetTone.bad);
       expect(
-          networkRows(server: DolphinServerState.ready, serverAddress: '', localIp: '', idChanged: true).last.value,
+          diagnosticNetworkRows(server: DolphinServerState.ready, serverAddress: '', localIp: '', idChanged: true)
+              .last
+              .value,
           'تازه عوض شد');
-    });
-
-    test('later phases add their lines; nothing about VPN today', () {
-      final rows = networkRows(server: DolphinServerState.ready, serverAddress: 'remote.dolphindev.ir', localIp: '');
-      expect(rows.any((r) => r.label.contains('VPN') || r.value.contains('VPN')), isFalse);
-      final more = networkRows(
-          server: DolphinServerState.ready,
-          serverAddress: '',
-          localIp: '',
-          extra: const [NetRow('آزمایش', 'بله')]);
+      final more = diagnosticNetworkRows(
+          server: DolphinServerState.ready, serverAddress: '', localIp: '', extra: const [NetRow('آزمایش', 'بله')]);
       expect(more.last.label, 'آزمایش');
+      expect(rows.any((r) => r.label.contains('VPN') || r.value.contains('VPN')), isFalse);
     });
 
     test('only a real local IP is shown', () {
@@ -232,18 +242,53 @@ void main() {
       expect(serverLabel(''), '');
     });
 
-    testWidgets('the panel shows under the ID with its lines', (tester) async {
-      await tester.pumpWidget(_app(_home(
-          network: networkRows(
-              server: DolphinServerState.ready, serverAddress: 'remote.dolphindev.ir', localIp: '192.168.1.20'))));
-      expect(find.text('وضعیت شبکه'), findsOneWidget);
-      expect(find.text('وصل و ثبت‌شده'), findsOneWidget);
-      expect(find.text('remote.dolphindev.ir'), findsOneWidget);
-      expect(find.text('۱۹۲.۱۶۸.۱.۲۰'), findsOneWidget);
+    testWidgets('the box shows exactly the two lines under the ID, no server name or address', (tester) async {
+      await tester.pumpWidget(_app(_home(network: networkRows(server: DolphinServerState.ready, localIp: '192.168.1.20'))));
+      final box = find.byType(DolphinNetworkPanel);
+      expect(box, findsOneWidget);
+      final texts = tester.widgetList<Text>(find.descendant(of: box, matching: find.byType(Text))).map((t) => t.data);
+      expect(texts, ['وضعیت شبکه:', 'متصل', 'IP رایانه:', '۱۹۲.۱۶۸.۱.۲۰']);
+      expect(find.descendant(of: box, matching: find.textContaining('dolphindev')), findsNothing);
+      expect(find.descendant(of: box, matching: find.textContaining('سرور')), findsNothing);
       expect(find.textContaining('VPN'), findsNothing);
-      expect(tester.getTopLeft(find.text('وضعیت شبکه')).dy, greaterThan(tester.getTopLeft(find.text('کپی شناسه')).dy));
+      // No title above the lines: «وضعیت شبکه» is said once, in the first line.
+      expect(find.textContaining('وضعیت شبکه'), findsOneWidget);
+      expect(tester.getTopLeft(box).dy, greaterThan(tester.getTopLeft(find.text('کپی شناسه')).dy));
       await tester.pumpWidget(_app(_home()));
-      expect(find.text('وضعیت شبکه'), findsNothing);
+      expect(find.byType(DolphinNetworkPanel), findsNothing);
+    });
+
+    testWidgets('connected: a Wi-Fi icon with a soft aqua glow; otherwise Wi-Fi off in red or grey, no glow',
+        (tester) async {
+      BoxDecoration? glowOf() {
+        final f = find.byKey(const ValueKey('dolphin-net-glow'));
+        return f.evaluate().isEmpty ? null : tester.widget<Container>(f).decoration as BoxDecoration?;
+      }
+
+      Icon statusIcon() => tester.widget<Icon>(find.descendant(
+          of: find.byKey(const ValueKey('dolphin-net-status-icon')), matching: find.byType(Icon)));
+
+      await tester.pumpWidget(_app(_home(network: networkRows(server: DolphinServerState.ready, localIp: ''))));
+      expect(statusIcon().icon, Icons.wifi);
+      expect(statusIcon().color, DolphinColors.aqua);
+      expect(glowOf()!.boxShadow, isNotEmpty);
+      expect(glowOf()!.boxShadow!.first.color.value & 0x00FFFFFF, DolphinColors.aqua.value & 0x00FFFFFF);
+      for (final (state, color) in [
+        (DolphinServerState.offline, DolphinColors.dangerText),
+        (DolphinServerState.stopped, DolphinColors.dangerText),
+        (DolphinServerState.connecting, DolphinColors.muted),
+      ]) {
+        await tester.pumpWidget(_app(_home(state: state, network: networkRows(server: state, localIp: ''))));
+        expect(statusIcon().icon, Icons.wifi_off, reason: '$state');
+        expect(statusIcon().color, color, reason: '$state');
+        expect(glowOf(), isNull, reason: '$state');
+      }
+    });
+
+    testWidgets('the glow does not move: nothing keeps animating', (tester) async {
+      await tester.pumpWidget(_app(_home(network: networkRows(server: DolphinServerState.ready, localIp: '10.0.0.5'))));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.hasRunningAnimations, isFalse);
     });
   });
 
@@ -332,18 +377,13 @@ void main() {
 
   group('DR-1 on a dark Windows', () {
     testWidgets('every new part of the home is readable', (tester) async {
-      final rows = networkRows(
-          server: DolphinServerState.ready,
-          serverAddress: 'remote.dolphindev.ir',
-          localIp: '192.168.1.20',
-          idChanged: true);
+      final rows = networkRows(server: DolphinServerState.ready, localIp: '192.168.1.20');
       for (final view in [
         _home(network: rows, idChanged: true, onDismissIdNotice: () {}, version: '2.1.0', onStartHere: () {},
             onCopyIp: () {}, onCopyDownload: () {}, onCopyGuide: () {}),
         _home(coming: _rahmat),
         _home(coming: _rahmat, connected: 1, state: DolphinServerState.offline),
-        _home(state: DolphinServerState.offline, network: networkRows(
-            server: DolphinServerState.offline, serverAddress: '', localIp: '')),
+        _home(state: DolphinServerState.offline, network: networkRows(server: DolphinServerState.offline, localIp: '')),
         _home(state: DolphinServerState.connecting),
       ]) {
         await tester.pumpWidget(darkApp(view));

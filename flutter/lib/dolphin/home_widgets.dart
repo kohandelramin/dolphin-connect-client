@@ -112,7 +112,10 @@ class DolphinIdNotice extends StatelessWidget {
   }
 }
 
-/// DD-8: the network panel under the ID, short lines a customer reads out on the phone.
+/// DD-8: the network box under the ID, two short lines a customer reads out on the phone (owner 2026-11-13):
+/// «وضعیت شبکه: متصل» with a Wi-Fi icon that glows softly while connected, and «IP رایانه: …». No title above them:
+/// the first line already says «وضعیت شبکه». The glow is still (no animation), so there is nothing to reduce for
+/// people who turn animations off.
 class DolphinNetworkPanel extends StatelessWidget {
   final List<NetRow> rows;
   const DolphinNetworkPanel({super.key, required this.rows});
@@ -123,30 +126,62 @@ class DolphinNetworkPanel extends StatelessWidget {
         NetTone.bad => DolphinColors.dangerText,
       };
 
+  static const _iconBox = 26.0;
+
+  static Widget _icon(NetRow r) {
+    switch (r.kind) {
+      case NetKind.status:
+        if (r.tone == NetTone.good) {
+          return Container(
+            key: const ValueKey('dolphin-net-glow'),
+            width: _iconBox,
+            height: _iconBox,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: DolphinColors.aquaSoft,
+              boxShadow: [BoxShadow(color: DolphinColors.aqua.withOpacity(0.35), blurRadius: 10, spreadRadius: 1)],
+            ),
+            child: const Icon(Icons.wifi, size: 16, color: DolphinColors.aqua),
+          );
+        }
+        return SizedBox(
+          width: _iconBox,
+          height: _iconBox,
+          child: Icon(Icons.wifi_off,
+              size: 16, color: r.tone == NetTone.bad ? DolphinColors.dangerText : DolphinColors.muted),
+        );
+      case NetKind.address:
+        return const SizedBox(
+            width: _iconBox, height: _iconBox, child: Icon(Icons.computer_outlined, size: 16, color: DolphinColors.muted));
+      case NetKind.plain:
+        return const SizedBox.shrink();
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(DolphinRadii.card),
           border: Border.all(color: DolphinColors.line),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('وضعیت شبکه', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-          const SizedBox(height: 4),
-          for (final r in rows)
+          for (final (i, r) in rows.indexed)
             Padding(
-              padding: const EdgeInsets.only(top: 3),
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
               child: Row(children: [
-                Text(r.label, style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
-                const SizedBox(width: 8),
-                Expanded(
+                KeyedSubtree(
+                    key: r.kind == NetKind.status ? const ValueKey('dolphin-net-status-icon') : null, child: _icon(r)),
+                if (r.kind != NetKind.plain) const SizedBox(width: 10),
+                Text('${r.label}:', style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                const SizedBox(width: 6),
+                Flexible(
                   child: Text(r.value,
-                      textAlign: TextAlign.end,
                       textDirection: r.ltr ? TextDirection.ltr : null,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colorOf(r.tone), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      style: TextStyle(color: colorOf(r.tone), fontSize: 12.5, fontWeight: FontWeight.w700)),
                 ),
               ]),
             ),

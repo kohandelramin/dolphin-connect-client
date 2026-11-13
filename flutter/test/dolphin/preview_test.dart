@@ -9,6 +9,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hbb/dolphin/about.dart';
+import 'package:flutter_hbb/dolphin/call_status.dart';
 import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
@@ -18,6 +20,7 @@ import 'package:flutter_hbb/dolphin/session_toolbar.dart';
 import 'package:flutter_hbb/dolphin/side_pane.dart';
 import 'package:flutter_hbb/dolphin/signin_expired.dart';
 import 'package:flutter_hbb/dolphin/tech_theme.dart';
+import 'package:flutter_hbb/dolphin/technician_header.dart';
 import 'package:flutter_hbb/dolphin/first_run_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/network_status.dart';
@@ -90,15 +93,14 @@ void main() {
   const homeTall = Size(340, 900);
   const session = Size(300, 380);
   final now = DateTime.now();
-  final net = [
-    const NetRow('سرور دلفین', 'وصل', tone: NetTone.good),
-    const NetRow('نشانی سرور', 'remote.dolphindev.ir', ltr: true),
-    const NetRow('IP این رایانه', '192.168.1.24', ltr: true),
-  ];
+  // The customer's network box: the state and this PC's IP only (owner 2026-11-13).
+  final net = networkRows(server: DolphinServerState.ready, localIp: '192.168.1.24');
   final recent = [RecentSession(now.subtract(const Duration(hours: 3)), 12, 'علی رضایی')];
 
   testWidgets('write previews', (tester) async {
     await _loadFonts();
+    // The network box's soft glow is a real blurred shadow (tests draw shadows solid by default).
+    debugDisableShadows = false;
     Directory(_dir!).createSync(recursive: true);
 
     await _shot(tester, '01-home-ready', homeTall, DolphinHomeView(
@@ -113,7 +115,7 @@ void main() {
         connected: 1, network: net, version: '2.1.0'));
     await _shot(tester, '04-home-offline-id-changed', home, DolphinHomeView(
         id: '987654321', state: DolphinServerState.offline, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
-        idChanged: true, onDismissIdNotice: () {}, network: [const NetRow('سرور دلفین', 'وصل نیست', tone: NetTone.bad)], version: '2.1.0'));
+        idChanged: true, onDismissIdNotice: () {}, network: networkRows(server: DolphinServerState.offline, localIp: ''), version: '2.1.0'));
     await _shot(tester, '05-first-run', home, DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () {}));
     await _shot(tester, '06-share-stopped', const Size(340, 140), DolphinShareView(stopped: true, onToggle: () {}));
     await _shot(tester, '07-close-question', const Size(360, 300), DolphinCloseDialogView(onChoose: (_, __) {}, onCancel: () {}));
@@ -127,6 +129,8 @@ void main() {
         technician: 'علی رضایی', elapsed: const Duration(minutes: 9), keyboard: false, clipboard: true, file: false, paused: true,
         inputOff: 'علی رضایی خاموش کرد، ۳ دقیقه پیش', onPause: (_) {}, onToggle: (_, __) {}, onEnd: () {}));
     await _shot(tester, '11-ended', session, DolphinEndedView(reason: DolphinEndReason.values.first, onClose: () {}));
+    await tester.pumpWidget(const SizedBox());
+    debugDisableShadows = true;
   }, skip: _dir == null);
 
   // Plan 18 Phase 3: the technician's pieces, light and dark (DD-53).
@@ -150,6 +154,15 @@ void main() {
       await _shot(tester, '22-no-picture-$tag', const Size(440, 300),
           Center(child: DolphinNoPictureHelp(canCtrlAltDel: true, installed: true, onCtrlAltDel: noop, onWait: noop, onDisconnect: noop)),
           theme: theme);
+      // The technician window's top row with the app's own name (owner 2026-11-13).
+      final manual = TextEditingController();
+      final call = DolphinCallWait(const Duration(seconds: 8));
+      await _shot(tester, '28-tech-header-$tag', const Size(1000, 64), DolphinTechnicianHeader(
+          myId: '287654321', manual: manual, call: call, onConnect: noop, themeMode: ThemeMode.system, onThemeMode: (_) {}),
+          theme: theme);
+      await tester.pumpWidget(const SizedBox());
+      call.dispose();
+      manual.dispose();
     }
     final t = DateTime(2026, 11, 13, 10, 30);
     await _shot(tester, '23-chat', const Size(360, 320), DolphinChatFrame(empty: false, child: ListView(padding: const EdgeInsets.all(8), children: [
@@ -217,7 +230,7 @@ void main() {
         kind: UploadKind.screenshot, phase: UploadPhase.ready, note: TextEditingController(), png: png, onSend: noop, onClose: noop)));
     await _shot(tester, '33-service-stopped', home, DolphinHomeView(
         id: '123456789', state: DolphinServerState.stopped, onCopy: noop, onStartService: noop, phone: '021-44280505',
-        siteLabel: 'support.dolphindev.ir', network: [const NetRow('سرور دلفین', 'سرویس خاموش است', tone: NetTone.bad)],
+        siteLabel: 'support.dolphindev.ir', network: networkRows(server: DolphinServerState.stopped, localIp: '192.168.1.24'),
         version: '2.1.0'));
     await _shot(tester, '34-virtual-display', home, DolphinHomeView(
         id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
@@ -238,8 +251,7 @@ void main() {
     Widget about(Widget row) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('دلفین کانکت', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const Text('نسخه‌ی ۲.۰.۰', style: TextStyle(color: DolphinColors.muted)),
+          const DolphinAboutHeading(version: '2.0.0'),
           const SizedBox(height: 8),
           row,
         ]));

@@ -13,7 +13,11 @@ const kLocalIpOption = 'local-ip-addr';
 
 enum NetTone { good, neutral, bad }
 
-/// One line of the network panel (DD-8): «سرور: وصل», read out on the phone.
+/// What a line is, so the box can draw its icon: the connection state (Wi-Fi, glowing when connected), an address, or
+/// a plain line (the diagnostic report's).
+enum NetKind { status, address, plain }
+
+/// One line of the network box (DD-8): «وضعیت شبکه: متصل», read out on the phone.
 class NetRow {
   final String label;
   final String value;
@@ -21,7 +25,8 @@ class NetRow {
 
   /// Addresses read left to right.
   final bool ltr;
-  const NetRow(this.label, this.value, {this.tone = NetTone.neutral, this.ltr = false});
+  final NetKind kind;
+  const NetRow(this.label, this.value, {this.tone = NetTone.neutral, this.ltr = false, this.kind = NetKind.plain});
 
   @override
   String toString() => '$label: $value';
@@ -49,13 +54,33 @@ String serverLabel(String raw) {
   return _isIp(s) ? faDigits(s) : s;
 }
 
-/// The network panel's lines, under the ID (DD-8). [idChanged] is the visible trace of an ID clash: on a clash the
-/// server answers UUID_MISMATCH and the client picks a new ID by itself (src/rendezvous_mediator.rs
-/// handle_uuid_mismatch), without telling the window, so the panel can only say that the ID changed.
+/// The customer's network box under the ID (DD-8). Owner 2026-11-13: only the connection state and this PC's IP; no
+/// server name, address or relay (the diagnostic report keeps those, [diagnosticNetworkRows]).
+const kNetStatusLabel = 'وضعیت شبکه';
+const kNetIpLabel = 'IP رایانه';
+const kNetIpUnknown = 'نامشخص';
+
+List<NetRow> networkRows({required DolphinServerState server, required String localIp}) {
+  final (value, tone) = switch (server) {
+    DolphinServerState.ready => ('متصل', NetTone.good),
+    DolphinServerState.connecting => ('در حال اتصال…', NetTone.neutral),
+    DolphinServerState.offline => ('وصل نیست', NetTone.bad),
+    DolphinServerState.stopped => ('سرویس خاموش است', NetTone.bad),
+  };
+  final ip = localIpFrom(localIp);
+  return [
+    NetRow(kNetStatusLabel, value, tone: tone, kind: NetKind.status),
+    NetRow(kNetIpLabel, ip.isEmpty ? kNetIpUnknown : faDigits(ip), ltr: ip.isNotEmpty, kind: NetKind.address),
+  ];
+}
+
+/// The network lines of the diagnostic report (DD-7, DD-38): the server, its address, this PC's IP and a changed ID.
+/// [idChanged] is the visible trace of an ID clash: on a clash the server answers UUID_MISMATCH and the client picks a
+/// new ID by itself (src/rendezvous_mediator.rs handle_uuid_mismatch), without telling the window.
 ///
 /// [extra] is where later phases add their lines (Phase 6: the VPN line, DD-1); nothing is shown for a feature that
 /// does not exist yet.
-List<NetRow> networkRows(
+List<NetRow> diagnosticNetworkRows(
     {required DolphinServerState server,
     required String serverAddress,
     required String localIp,

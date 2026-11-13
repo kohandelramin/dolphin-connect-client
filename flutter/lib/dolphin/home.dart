@@ -198,7 +198,7 @@ class _DolphinHomeState extends State<DolphinHome> {
       windows: Platform.operatingSystemVersion,
       installed: bind.mainIsInstalled(),
       service: checks.isEmpty ? '' : checks.first.result,
-      network: networkRows(
+      network: diagnosticNetworkRows(
         server: state,
         serverAddress: bind.mainGetOptionSync(key: kRendezvousServerOption),
         localIp: bind.mainGetOptionSync(key: kLocalIpOption),
@@ -371,12 +371,8 @@ class _DolphinHomeState extends State<DolphinHome> {
           coming: _tech(),
           connected: _connected,
           onCallback: callbackShown(bind.mainGetOptionSync(key: kDolphinCallbackOption)) ? _openCallback : null,
-          network: networkRows(
-            server: state,
-            serverAddress: bind.mainGetOptionSync(key: kRendezvousServerOption),
-            localIp: ip,
-            idChanged: _idChanged,
-          ),
+          // Owner 2026-11-13: the state and this PC's IP only; the ID change has its own notice below.
+          network: networkRows(server: state, localIp: ip),
           idChanged: _idChanged,
           onDismissIdNotice: () => setState(() => _idChanged = false),
           onStartHere: () => launchUrl(Uri.parse(links.help)),
