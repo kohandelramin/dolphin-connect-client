@@ -446,6 +446,13 @@ class OpenCall {
   final String? reasonId;
   final String? contactName;
   final String? contactPhone;
+
+  /// Code mode: the customer's live one-time code, given through the portal (only to the assignee, by RLS); null while
+  /// none is live and always in click mode. Secret: never logged; used once to open the session.
+  final String? code;
+
+  /// Code mode: the call waits for the customer's code (no live session, no code yet).
+  final bool waitingForCode;
   const OpenCall({
     required this.requestId,
     required this.consentMode,
@@ -455,6 +462,8 @@ class OpenCall {
     this.reasonId,
     this.contactName,
     this.contactPhone,
+    this.code,
+    this.waitingForCode = false,
   });
 
   factory OpenCall.fromJson(Map<String, dynamic> m) => OpenCall(
@@ -466,7 +475,12 @@ class OpenCall {
         reasonId: _strN(m, 'reasonId'),
         contactName: _strN(m, 'contactName'),
         contactPhone: _strN(m, 'contactPhone'),
+        code: _strN(m, 'code'),
+        waitingForCode: _bool(m, 'waitingForCode', missing: false),
       );
+
+  @override
+  String toString() => 'OpenCall($requestId)'; // never the code
 }
 
 /// One line of the last contacts: a request/call, or a connection.

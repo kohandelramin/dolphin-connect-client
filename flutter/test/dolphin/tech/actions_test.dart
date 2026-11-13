@@ -300,7 +300,25 @@ void main() {
         (_) => [noteJson('a', 1)],
       ]);
       expect(await poller.poll(), isEmpty);
+      expect(poller.answeredPolls, 0);
       expect((await poller.poll()).single.id, 'a');
+      expect(poller.answeredPolls, 1);
+    });
+
+    test("answeredPolls: the first answer's items are delivered while it is 1, later ones after it moved on", () async {
+      portal.onSeq('GET /notifications', [
+        (_) => [noteJson('a', 1), noteJson('b', 2)],
+        (_) => [noteJson('c', 3)],
+      ]);
+      final seenAt = <String, int>{};
+      poller.items.listen((n) => seenAt[n.id] = poller.answeredPolls);
+      await poller.poll();
+      await settle();
+      await poller.poll();
+      await settle();
+      expect(seenAt, {'a': 1, 'b': 1, 'c': 2});
+      poller.reset();
+      expect(poller.answeredPolls, 0);
     });
 
     test('an expired sign-in stops polling', () async {

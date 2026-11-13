@@ -195,6 +195,8 @@ void main() {
       expect(d.consentMode, ConsentMode.code);
       expect(d.call!.sessionLive, isTrue);
       expect(d.call!.contactPhone, '09120000000');
+      expect(d.call!.code, isNull);
+      expect(d.call!.waitingForCode, isFalse);
       expect(d.history[0], isA<HistoryRequest>().having((h) => h.number, 'n', 12));
       expect(d.history[1], isA<HistoryConnection>().having((h) => h.files, 'files', 2));
       expect(d.sentToday.single.url, '/api/app/v1/reports/r1');

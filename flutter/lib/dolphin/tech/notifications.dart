@@ -19,6 +19,7 @@ class NotificationPoller {
   DateTime? _since;
   Timer? _timer;
   bool _polling = false;
+  int _answered = 0;
 
   /// Every notification not seen before, oldest first within one poll.
   Stream<AppNotification> get items => _out.stream;
@@ -27,6 +28,11 @@ class NotificationPoller {
   DateTime? get since => _since;
 
   bool get running => _timer != null;
+
+  /// Polls the portal answered since the start (or the last [reset]). The first answer is the backlog (the waiting
+  /// requests of the last day): its items are delivered while this is 1, so the Windows toast can skip them. Items
+  /// reach [items] listeners after the count has moved on (the stream delivers asynchronously).
+  int get answeredPolls => _answered;
 
   /// Polls now, then every [interval].
   void start() {
@@ -45,6 +51,7 @@ class NotificationPoller {
     stop();
     _seen.clear();
     _since = null;
+    _answered = 0;
   }
 
   /// One poll. Returns the new items. Network trouble is quiet (the next poll tries again); a finished sign-in stops
@@ -63,6 +70,7 @@ class NotificationPoller {
       while (_seen.length > kNotificationSeenMax) {
         _seen.remove(_seen.first);
       }
+      _answered++;
       for (final n in fresh) {
         if (!_out.isClosed) _out.add(n);
       }
