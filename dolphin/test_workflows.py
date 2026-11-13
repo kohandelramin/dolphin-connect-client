@@ -391,6 +391,16 @@ class ChatFilesWiringTest(unittest.TestCase):
         self.assertIn("? DolphinWaitAccept()", wait)
         self.assertIn("closeConnection();", wait)  # «لغو» still ends the request as before
 
+    def test_the_panel_says_when_the_sign_in_expired(self):
+        view = self.read("flutter", "lib", "dolphin", "portal_view.dart")
+        self.assertIn("signInExpiredAt(url, DolphinBrand.portalUrl)", view)
+        self.assertIn("_web.executeScript(kNavigationStatusScript)", view)
+        self.assertIn("if (_expired) Positioned.fill(child: DolphinSignInExpired(onSignIn: _signInAgain)),", view)
+        # The panel still stays on the portal: the redirect home comes first in the address listener.
+        listener = view.split("_web.url.listen((url) {", 1)[1]
+        self.assertLess(listener.index("if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);"),
+                        listener.index("signInExpiredAt("))
+
 
 if __name__ == "__main__":
     unittest.main()
