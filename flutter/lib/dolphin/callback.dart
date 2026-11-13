@@ -128,7 +128,7 @@ class _DolphinCallbackFormState extends State<DolphinCallbackForm> {
               const SizedBox(width: 8),
               FilledButton(
                 onPressed: sending ? null : _send,
-                style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure, foregroundColor: DolphinColors.onFill),
                 child: Text(sending ? 'در حال فرستادن…' : 'فرستادن'),
               ),
             ],

@@ -101,12 +101,13 @@ void main() {
     expect(dolphinResumed(t0, t0.add(const Duration(minutes: 2))), isFalse);
   });
 
-  testWidgets('a resumed session says so in its badge; a new one says it is in session', (tester) async {
+  testWidgets('a resumed session says so in its badge; a new one needs none (the title says who is connected)',
+      (tester) async {
     await tester.pumpWidget(_session(resumed: true));
     expect(find.text('● دوباره وصل شد'), findsOneWidget);
-    expect(find.text('● در جلسه'), findsNothing);
     await tester.pumpWidget(_session());
-    expect(find.text('● در جلسه'), findsOneWidget);
+    expect(find.text('● دوباره وصل شد'), findsNothing);
+    expect(find.textContaining('وصل است'), findsOneWidget); // C3: «… وصل است»
     expect(find.text('پایان'), findsOneWidget); // the end button stays
   });
 }

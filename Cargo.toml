@@ -125,6 +125,11 @@ winapi = { version = "0.3", features = [
     "cfgmgr32",
     "ioapiset",
     "winspool",
+    # Dolphin Connect (Plan 19 C3, src/dolphin_frame.rs): the session frame's brush and module handle. Already built
+    # for libs/scrap; named here because this crate uses them. Features only: Cargo.lock unchanged.
+    "wingdi",
+    "libloaderapi",
+    "processthreadsapi",
 ] }
 windows = { version = "0.61", features = [
     "Win32",

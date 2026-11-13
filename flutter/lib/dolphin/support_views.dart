@@ -14,6 +14,11 @@ const kReportLabel = 'گزارش برای پشتیبانی';
 const kScreenshotLabel = 'عکس صفحه برای پشتیبانی';
 const kSupportToolsTitle = 'کمک به کارشناس';
 
+/// Plan 19 C1: the three helper tiles' short names (the dialogs keep the full ones above).
+const kHealthTile = 'بررسی سلامت';
+const kReportTile = 'گزارش';
+const kScreenshotTile = 'عکس صفحه';
+
 const kReportBody = 'گزارش‌های برنامه و وضعیت این رایانه برای کارشناس دلفین فرستاده می‌شود؛ بدون رمز و بدون شناسه‌ی رایانه‌های دیگر.';
 const kScreenshotBody = 'این عکس صفحه‌ی شماست. اگر چیز خصوصی در آن پیداست، «انصراف» را بزنید.';
 const kNoteLabel = 'توضیح کوتاه (اختیاری)';
@@ -29,7 +34,8 @@ const kCheckingLabel = 'در حال بررسی…';
 /// DD-19: under the red bar while the service is down; the button is upstream's own start (UAC prompt).
 const kFixLabel = 'درست کن';
 
-/// The three buttons on the home. A null callback hides its button (DD-7 and DD-48 follow `diagnostics-upload`).
+/// Plan 19 C1: the three helper tiles on the home, side by side: «بررسی سلامت» (DD-38), «گزارش» (DD-7), «عکس صفحه»
+/// (DD-48). A null callback hides its tile (DD-7 and DD-48 follow `diagnostics-upload`); the others share the row.
 class DolphinSupportTools extends StatelessWidget {
   final VoidCallback? onHealth;
   final VoidCallback? onReport;
@@ -40,32 +46,47 @@ class DolphinSupportTools extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget button(String label, IconData icon, VoidCallback onPressed) => OutlinedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 16),
-          label: Text(label, style: const TextStyle(fontSize: 12.5)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: DolphinColors.azureText,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+    Widget tile(String label, String tooltip, IconData icon, VoidCallback onPressed, String key) => Expanded(
+          child: Tooltip(
+            message: tooltip,
+            child: Material(
+              color: DolphinColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(DolphinRadii.control),
+                  side: BorderSide(color: DolphinColors.line)),
+              child: InkWell(
+                key: ValueKey('dolphin-tile-$key'),
+                borderRadius: BorderRadius.circular(DolphinRadii.control),
+                onTap: onPressed,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 64),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(icon, size: 20, color: DolphinColors.azureText),
+                      const SizedBox(height: 4),
+                      Text(label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: DolphinColors.ink, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
           ),
         );
     final onHealth = this.onHealth, onReport = this.onReport, onScreenshot = this.onScreenshot;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(DolphinRadii.card),
-        border: Border.all(color: DolphinColors.line),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text(kSupportToolsTitle, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-        const SizedBox(height: 8),
-        Wrap(spacing: 6, runSpacing: 6, children: [
-          if (onHealth != null) button(kHealthLabel, Icons.health_and_safety_outlined, onHealth),
-          if (onReport != null) button(kReportLabel, Icons.summarize_outlined, onReport),
-          if (onScreenshot != null) button(kScreenshotLabel, Icons.screenshot_monitor_outlined, onScreenshot),
-        ]),
+    final tiles = [
+      if (onHealth != null) tile(kHealthTile, kHealthLabel, Icons.health_and_safety_outlined, onHealth, 'health'),
+      if (onReport != null) tile(kReportTile, kReportLabel, Icons.summarize_outlined, onReport, 'report'),
+      if (onScreenshot != null)
+        tile(kScreenshotTile, kScreenshotLabel, Icons.screenshot_monitor_outlined, onScreenshot, 'screenshot'),
+    ];
+    return Semantics(
+      container: true,
+      label: kSupportToolsTitle,
+      child: Row(children: [
+        for (final (i, t) in tiles.indexed) ...[if (i > 0) const SizedBox(width: 8), t],
       ]),
     );
   }
@@ -104,7 +125,7 @@ class DolphinServiceNotice extends StatelessWidget {
             onPressed: onFix,
             icon: const Icon(Icons.build_outlined, size: 18),
             label: const Text(kFixLabel),
-            style: FilledButton.styleFrom(backgroundColor: DolphinColors.dangerText, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: DolphinColors.danger, foregroundColor: DolphinColors.onFill),
           ),
         ],
       ]),
@@ -225,7 +246,7 @@ class DolphinUploadPanel extends StatelessWidget {
               const SizedBox(width: 8),
               FilledButton(
                 onPressed: busy ? null : onSend,
-                style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure, foregroundColor: Colors.white),
+                style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure, foregroundColor: DolphinColors.onFill),
                 child: const Text(kSendLabel),
               ),
             ],
@@ -361,7 +382,7 @@ class DolphinHealthView extends StatelessWidget {
                                   icon: const Icon(Icons.build_outlined, size: 16),
                                   label: const Text(kFixServiceLabel),
                                   style: FilledButton.styleFrom(
-                                      backgroundColor: DolphinColors.azure, foregroundColor: Colors.white),
+                                      backgroundColor: DolphinColors.azure, foregroundColor: DolphinColors.onFill),
                                 ),
                               ),
                           ]),

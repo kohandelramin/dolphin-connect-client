@@ -25,7 +25,7 @@ class DolphinCustomerRequests extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-                color: Colors.white, border: Border(bottom: BorderSide(color: DolphinColors.line))),
+                color: DolphinColors.surface, border: Border(bottom: BorderSide(color: DolphinColors.line))),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               children: [

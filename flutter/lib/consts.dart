@@ -349,8 +349,9 @@ extension StringExtension on String {
   String get nonBreaking => replaceAll(' ', String.fromCharCode($nbsp));
 }
 
-const Size kConnectionManagerWindowSizeClosedChat = Size(300, 490);
-const Size kConnectionManagerWindowSizeOpenChat = Size(700, 490);
+// Dolphin Connect (Plan 19, C2): the accept prompt is 320 x 520 (upstream 300 x 490); the chat keeps its 400 px beside it.
+const Size kConnectionManagerWindowSizeClosedChat = Size(320, 520);
+const Size kConnectionManagerWindowSizeOpenChat = Size(720, 520);
 // Tabbar transition duration, now we remove the duration
 const Duration kTabTransitionDuration = Duration.zero;
 const double kEmptyMarginTop = 50;

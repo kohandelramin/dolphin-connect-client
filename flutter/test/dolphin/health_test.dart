@@ -186,15 +186,17 @@ void main() {
   group('support tools and uploads (DD-7, DD-48)', () {
     testWidgets('the buttons follow their callbacks', (tester) async {
       await tester.pumpWidget(_app(_home(onHealth: () {}, onReport: () {}, onScreenshot: () {})));
-      expect(find.text(kHealthLabel), findsOneWidget);
-      expect(find.text(kReportLabel), findsOneWidget);
-      expect(find.text(kScreenshotLabel), findsOneWidget);
+      // Plan 19 C1: three tiles with short names; the full name is each tile's tooltip.
+      expect(find.text(kHealthTile), findsOneWidget);
+      expect(find.text(kReportTile), findsOneWidget);
+      expect(find.text(kScreenshotTile), findsOneWidget);
+      expect(find.byTooltip(kReportLabel), findsOneWidget);
       // diagnostics-upload hidden: only the health check is left.
       await tester.pumpWidget(_app(_home(onHealth: () {})));
-      expect(find.text(kReportLabel), findsNothing);
-      expect(find.text(kScreenshotLabel), findsNothing);
+      expect(find.text(kReportTile), findsNothing);
+      expect(find.text(kScreenshotTile), findsNothing);
       await tester.pumpWidget(_app(_home()));
-      expect(find.text(kSupportToolsTitle), findsNothing);
+      expect(find.text(kHealthTile), findsNothing);
     });
 
     testWidgets('a report: the note goes with it, the answer is shown, then «بستن»', (tester) async {

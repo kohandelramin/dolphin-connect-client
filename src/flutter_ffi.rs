@@ -2841,6 +2841,12 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::dolphin_system::reset_share_at_start();
         return;
     }
+    // Dolphin Connect (Plan 19 C3): «کادر رنگی دور صفحه», "#rrggbb" while a technician is connected, "" to remove it.
+    #[cfg(target_os = "windows")]
+    if _key == "dolphin-frame" {
+        crate::dolphin_frame::set(&_value);
+        return;
+    }
     // Dolphin Connect (DD-35, ADR-0016): the window hides into the tray; make sure there is one (a portable app).
     #[cfg(target_os = "windows")]
     if _key == "dolphin-tray-start" {

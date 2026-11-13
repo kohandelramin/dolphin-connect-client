@@ -292,8 +292,9 @@ int demoSecondsLeft(DateTime seenAt, DateTime now) {
   return gone >= kDolphinDemoAskSecs ? 0 : kDolphinDemoAskSecs - gone;
 }
 
-/// The customer's prompt, in place of the session view (D2). Only a technician the portal vouched for can be watched
-/// ([canSee], the same rule as the accept prompt, D5); «نه» always works.
+/// The customer's prompt, in place of the session view (D2), in the look of the accept prompt (Plan 19 C2): a card
+/// with what is asked, the seconds left as a chip, and the two buttons pinned at the bottom. Only a technician the
+/// portal vouched for can be watched ([canSee], the same rule as the accept prompt, D5); «نه» always works.
 class DolphinDemoAskView extends StatelessWidget {
   final String technician;
   final bool canSee;
@@ -318,42 +319,67 @@ class DolphinDemoAskView extends StatelessWidget {
         child: Column(children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Icon(Icons.co_present_outlined, size: 36, color: DolphinColors.azure),
-                const SizedBox(height: 10),
-                Text(demoAskTitle(technician),
-                    key: const ValueKey('dolphin-demo-ask-title'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, height: 1.7, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
-                const SizedBox(height: 8),
-                Text(kDemoAskHint,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12.5, height: 1.7, color: DolphinColors.muted)),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+                  decoration: BoxDecoration(
+                    color: DolphinColors.surface,
+                    borderRadius: BorderRadius.circular(DolphinRadii.card),
+                    border: Border.all(color: DolphinColors.line),
+                  ),
+                  child: Column(children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: DolphinColors.azureSoft,
+                      child: Icon(Icons.co_present_outlined, size: 26, color: DolphinColors.azureText),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(demoAskTitle(technician),
+                        key: const ValueKey('dolphin-demo-ask-title'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15.5, height: 1.7, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+                    const SizedBox(height: 6),
+                    Text(kDemoAskHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12.5, height: 1.7, color: DolphinColors.muted)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
+                      child: Text('${faDigits('$secondsLeft')} ثانیه',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: DolphinColors.azureText)),
+                    ),
+                  ]),
+                ),
                 if (!canSee) ...[
                   const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                        color: DolphinColors.amberSoft, borderRadius: BorderRadius.circular(DolphinRadii.field)),
-                    child: Text('$kDemoNotVerified ${faDigits(phone)}',
-                        style: TextStyle(fontSize: 12.5, height: 1.7, color: DolphinColors.amberText)),
+                        color: DolphinColors.amberSoft, borderRadius: BorderRadius.circular(DolphinRadii.control)),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.info_outline, size: 18, color: DolphinColors.amberText),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('$kDemoNotVerified ${faDigits(phone)}',
+                            style: TextStyle(fontSize: 12.5, height: 1.7, color: DolphinColors.amberText)),
+                      ),
+                    ]),
                   ),
                 ],
-                const SizedBox(height: 10),
-                Text('${faDigits('$secondsLeft')} ثانیه',
-                    textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: DolphinColors.muted)),
               ]),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
             child: Row(children: [
               if (canSee) ...[
                 Expanded(
                   child: FilledButton(
                     key: const ValueKey('dolphin-demo-see'),
-                    style: FilledButton.styleFrom(backgroundColor: DolphinColors.aquaText),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: DolphinColors.accentFill, foregroundColor: DolphinColors.onFill),
                     onPressed: onSee,
                     child: const Text(kDemoSee),
                   ),
@@ -361,7 +387,11 @@ class DolphinDemoAskView extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
               Expanded(
-                child: OutlinedButton(key: const ValueKey('dolphin-demo-no'), onPressed: onNo, child: const Text(kDemoNo)),
+                child: OutlinedButton(
+                    key: const ValueKey('dolphin-demo-no'),
+                    style: OutlinedButton.styleFrom(foregroundColor: DolphinColors.ink, backgroundColor: DolphinColors.surface),
+                    onPressed: onNo,
+                    child: const Text(kDemoNo)),
               ),
             ]),
           ),
@@ -415,7 +445,9 @@ class DolphinDemoWindowBar extends StatelessWidget {
                     child: ChoiceChip(
                       key: ValueKey('dolphin-demo-screen-$i'),
                       selectedColor: DolphinColors.azureTint,
-                      label: Text('صفحه‌ی ${faDigits('${i + 1}')}', style: const TextStyle(fontSize: 12)),
+                      backgroundColor: DolphinColors.azureSoft,
+                      label: Text('صفحه‌ی ${faDigits('${i + 1}')}',
+                          style: TextStyle(fontSize: 12, color: i == current ? DolphinColors.ink : DolphinColors.azureText)),
                       selected: i == current,
                       onSelected: (_) => onScreen!(i),
                     ),
@@ -424,7 +456,9 @@ class DolphinDemoWindowBar extends StatelessWidget {
               FilledButton(
                 key: const ValueKey('dolphin-demo-window-end'),
                 style: FilledButton.styleFrom(
-                    backgroundColor: DolphinColors.danger, minimumSize: const Size(64, 34)),
+                    backgroundColor: DolphinColors.danger,
+                    foregroundColor: DolphinColors.onFill,
+                    minimumSize: const Size(64, 34)),
                 onPressed: onEnd,
                 child: const Text(kDemoEnd),
               ),
@@ -434,7 +468,8 @@ class DolphinDemoWindowBar extends StatelessWidget {
       );
 }
 
-/// The customer's demo window after the end, or when it could not connect.
+/// The customer's demo window after the end, or when it could not connect; in the look of the session's ended screen
+/// (Plan 19): the icon, the line, «بستن», centred.
 class DolphinDemoEndedView extends StatelessWidget {
   final bool wasConnected;
   final VoidCallback onClose;
@@ -447,20 +482,23 @@ class DolphinDemoEndedView extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(wasConnected ? Icons.check_circle_outline : Icons.info_outline,
-                    color: wasConnected ? DolphinColors.aqua : DolphinColors.amberText),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(wasConnected ? kDemoEnded : kDemoNotConnected,
-                        key: const ValueKey('dolphin-demo-ended-text'),
-                        style: TextStyle(color: DolphinColors.ink, height: 1.6))),
-              ]),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(wasConnected ? Icons.check_circle_outline : Icons.info_outline,
+                  size: 36, color: wasConnected ? DolphinColors.aquaText : DolphinColors.amberText),
+              const SizedBox(height: 8),
+              Text(wasConnected ? kDemoEnded : kDemoNotConnected,
+                  key: const ValueKey('dolphin-demo-ended-text'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: DolphinColors.ink,
+                      height: 1.6,
+                      fontSize: wasConnected ? 15 : 13.5,
+                      fontWeight: wasConnected ? FontWeight.w800 : FontWeight.w600)),
               const SizedBox(height: 12),
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: OutlinedButton(onPressed: onClose, child: const Text(kDemoClose)),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: DolphinColors.ink, backgroundColor: DolphinColors.surface),
+                onPressed: onClose,
+                child: const Text(kDemoClose),
               ),
             ]),
           ),

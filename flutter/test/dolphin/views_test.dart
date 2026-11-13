@@ -136,17 +136,19 @@ void main() {
 
   testWidgets('verified prompt: portal name, file transfer on by default (ADR-0012), accept passes the toggles',
       (tester) async {
-    List<bool>? got;
+    DolphinGrant? got;
     var denied = false;
     await tester.pumpWidget(_app(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.verified, 'رحمت کهندل'),
         peerName: 'DESKTOP-A1',
-        onAccept: (k, c, f) => got = [k, c, f],
+        onAccept: (g) => got = g,
         onDeny: () => denied = true)));
-    expect(find.textContaining('رحمت کهندل از دلفین'), findsOneWidget);
+    expect(find.text('رحمت کهندل'), findsOneWidget);
+    expect(find.text(kVerifiedTechLine), findsOneWidget);
     expect(find.textContaining('DESKTOP-A1'), findsNothing);
     await tester.tap(find.text('پذیرفتن'));
-    expect(got, [true, true, true]);
+    // «کامل»: mouse and keyboard, clipboard and file transfer on; sound off (DD-31).
+    expect(got, DolphinGrant.full);
     await tester.tap(find.text('رد'));
     expect(denied, isTrue);
   });
@@ -155,7 +157,7 @@ void main() {
     await tester.pumpWidget(_app(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.rejected),
         peerName: 'Dolphin Support',
-        onAccept: (k, c, f) {},
+        onAccept: (_) {},
         onDeny: () {})));
     expect(find.textContaining('از کارشناس دلفین نیست'), findsOneWidget);
     expect(find.text('پذیرفتن'), findsNothing);
@@ -164,7 +166,7 @@ void main() {
 
   testWidgets('while checking, only Deny is offered', (tester) async {
     await tester.pumpWidget(_app(DolphinAcceptView(
-        verdict: const TechVerdict(TechCheck.checking), peerName: 'x', onAccept: (k, c, f) {}, onDeny: () {})));
+        verdict: const TechVerdict(TechCheck.checking), peerName: 'x', onAccept: (_) {}, onDeny: () {})));
     expect(find.textContaining('در حال بررسی'), findsOneWidget);
     expect(find.text('پذیرفتن'), findsNothing);
   });
@@ -271,7 +273,7 @@ void main() {
         verdict: const TechVerdict(TechCheck.unverifiable),
         peerName: 'x',
         phone: '021-44280505',
-        onAccept: (k, c, f) {},
+        onAccept: (_) {},
         onDeny: () => denied = true)));
     expect(find.textContaining('پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.'), findsOneWidget);
     expect(find.textContaining('۰۲۱-۴۴۲۸۰۵۰۵'), findsOneWidget);
@@ -284,7 +286,7 @@ void main() {
     final verdict = verifyTechnician(
         peerId: '287654321', techId: '-', techName: '-', until: 0, nowSeconds: 1000, waitedMs: 9000, portalDown: true);
     await tester.pumpWidget(_app(DolphinAcceptView(
-        verdict: verdict, peerName: 'x', phone: '021-44280505', onAccept: (k, c, f) {}, onDeny: () {})));
+        verdict: verdict, peerName: 'x', phone: '021-44280505', onAccept: (_) {}, onDeny: () {})));
     expect(find.textContaining('پورتال دلفین در دسترس نیست'), findsOneWidget);
     expect(find.textContaining('۰۲۱-۴۴۲۸۰۵۰۵'), findsOneWidget);
     expect(find.textContaining('این اتصال از کارشناس دلفین نیست'), findsNothing);
@@ -297,7 +299,7 @@ void main() {
     await tester.pumpWidget(_app(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.verified, 'رحمت'),
         peerName: 'x',
-        onAccept: (k, c, f) => accepted = true,
+        onAccept: (_) => accepted = true,
         onDeny: () => denied = true)));
     await tester.tap(find.text('پذیرفتن'));
     expect(accepted, isTrue);
