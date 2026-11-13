@@ -5,6 +5,50 @@ released together. Each entry has a short Persian note for customers.
 
 ## Unreleased (next: 2.2.0, `dolphin/version.txt`; not built)
 
+### Plan 19 wave 2: the native technician app (T1–T7, RO-8, RO-10, technician x64)
+
+Compiled here: `cargo check --features flutter` (no new warnings), the Python tests, the Dart analysis and the widget
+tests; previews 110–120 looked at (tiles light and dark, list, card, requests, notifications, portal away, settings,
+stages, sign-in, end of call). Not built into an exe, not run on a PC, not tried against the live portal.
+
+- The technician app's window is fully native (`flutter/lib/dolphin/tech_ui/`), on the app API through the data layer
+  (`tech/`): it replaces the staff panel in WebView2 (`technician_home.dart`, `technician_header.dart`, removed).
+  Sign-in with username and password only (ADR-0008); «ورود منقضی شد» when the portal ends it; «خروج» in the
+  technician's name menu clears the token and the offline list.
+- T1: header (own ID, search with Ctrl+K, the ID field with «اتصال» / «ارائه دمو», bell, «ظاهر», settings, name),
+  navigation (رایانه‌ها، درخواست‌ها، تماس‌های من، سازمان‌ها، تاریخچه، متن‌های آماده، تنظیمات، باز کردن پورتال),
+  «اخیر و علاقه‌مندی», filters, and the PCs as tiles (default; the organization's colour, darkened until white text
+  reads at AA; Windows mark; ID in Persian digits; ★ and ⋯) or as the list; the choice is remembered. Bottom bar: open
+  session windows (name · time; a click brings the window up) and «سرور دلفین». First window 1120 × 720, minimum
+  960 × 640; upstream keeps size and place after that.
+- T2: the PC's card as a drawer: «اتصال» / «ارائه دمو» / ★, the open call (reason chips, internal note, «پیام به
+  مشتری», «پایان تماس»), «فرستاده‌ی مشتری» (download with the staff token into Downloads\Dolphin Connect), «آخرین
+  تماس‌ها». Code mode: «در انتظار کد مشتری…», the card asks the portal every 3 s and connects once with the code the
+  customer gave through the portal (`call.code`); a typed code still works.
+- T3 requests (در صف / مال من / بسته; waiting time amber after 10 minutes; «برداشتن و تماس»), T4 notifications (bell
+  list, an in-app notice, and a Windows toast with sound through UN-16's `--dolphin-notify` when the app is not in
+  front; the first answer after sign-in is the backlog and never toasts), T5 the portal-away card with the reason,
+  «تلاش دوباره», the 15 s retry, connect by ID without a call, and the cached list read-only («آخرین وضعیت: ساعت …»).
+- T6 settings in sections (نمایش، ظاهر، صفحه‌کلید و ماوس، فایل و پوشه‌ها، صدا، شبکه، درباره), each with a subtitle and
+  «بازنشانی این بخش». RO-10 through upstream's own keys: view style, scroll style, zoom cursor, quality monitor,
+  displays as separate windows, swap mouse buttons, reverse wheel, «جلسه‌ها در زبانه‌های یک پنجره». The picture quality
+  is shown in plain words only; nothing changes how a session connects.
+- T7: the DD-16 wait names its stages («آماده‌سازی اتصال امن» ✓, «در انتظار تصویر از …») and after 60 s says to check
+  both sides' internet with «ادامه‌ی انتظار» / «ارسال Ctrl+Alt+Del» / «قطع».
+- RO-8: when a session window this app opened closes and the technician still has the open call on that PC, the end
+  step asks for the reason and a note («پایان تماس» / «بعداً»).
+- «ارائه دمو» from the window: D1 confirmation first, then `POST /demo`, then demo_hooks.dart's demo session; a refusal
+  shows the portal's text and opens nothing. Upstream's «Switch Sides» is hidden in the technician app.
+- The update popup's «به‌روزرسانی» downloads the build through the app API and hands it to the TB-20 install
+  (`src/dolphin_update.rs` `stage_local`: size and SHA-256 from `/config`, then the same swap); the install waits
+  while a session window is open. Not signed in: the portal's page as before.
+- The portal's theme from `/config` is applied after sign-in; «خروج» brings the built-in tokens back.
+- Kept: the web side panel beside the session (DD-49 paste, DD-51 screenshot need the portal page); it now signs in on
+  its own the first time (the main window no longer holds a web session).
+
+**یادداشت فارسی:** برنامه‌ی کارشناس دیگر پنل وب ندارد: رایانه‌ها به شکل کاشی‌های رنگی هر سازمان، درخواست‌ها، اعلان‌ها و
+تنظیمات همه در خود برنامه است. اگر پورتال در دسترس نباشد، فهرست آخر فقط خواندنی می‌ماند و اتصال با شناسه کار می‌کند.
+
 ### Plan 19 wave 2: the customer app's new look (C1–C7, customer x64)
 
 Compiled here: `cargo check --features flutter`, the std-only Rust cores (`dolphin_system_core`, `dolphin_frame_core`),
