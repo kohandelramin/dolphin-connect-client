@@ -1212,6 +1212,130 @@ class NetWiringTest(unittest.TestCase):
         self.assertNotIn("libs/hbb_common", net.replace("`libs/hbb_common` stays upstream's", ""))
 
 
+class DemoWiringTest(unittest.TestCase):
+    """Plan 19 (D1–D2): «ارائه دمو». Its hooks in upstream files, proven by their text; the rules are tested in
+    src/dolphin_demo_core.rs and flutter/test/dolphin/demo_test.dart."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def core_const(self, name):
+        return re.search(rf'pub const {name}: &str = "([^"]+)";', self.read("src", "dolphin_demo_core.rs")).group(1)
+
+    def dart_const(self, name):
+        return re.search(rf"const {name} = '([^']+)';", self.read("flutter", "lib", "dolphin", "demo.dart")).group(1)
+
+    def test_the_core_is_a_module_and_tested_in_ci(self):
+        self.assertIn("\nmod dolphin_demo_core;\nmod dolphin_demo;\n", self.read("src", "lib.rs"))
+        self.assertIn("rustc --edition 2021 --test src/dolphin_demo_core.rs", CHECK)
+
+    def test_both_apps_speak_the_same_names(self):
+        for rust, dart in (("REQUEST_ID", "kDolphinDemoKey"), ("ANSWER_MSGTYPE", "kDolphinDemoKey"),
+                           ("SESSION_START", "kDolphinDemoKey"), ("SESSION_CANCEL", "kDolphinDemoCancelKey"),
+                           ("INTENT_KEY", "kDolphinDemoIntentKey"), ("PLATFORM_ADDITION", "kDolphinDemoAddition"),
+                           ("PLATFORM_SCREENS", "kDolphinDemoScreensAddition"), ("CM_ANSWER", "kDolphinDemoAnswer")):
+            self.assertEqual(self.core_const(rust), self.dart_const(dart), rust)
+        self.assertIn("const kDolphinDemoAskSecs = 60;", self.read("flutter", "lib", "dolphin", "demo.dart"))
+        self.assertIn("pub const ASK_SECS: u64 = 60;", self.read("src", "dolphin_demo_core.rs"))
+        # The customer PC's audit: the portal records engine.demo_viewed for this action.
+        self.assertEqual(self.core_const("AUDIT_ACTION"), "demo")
+
+    def test_the_technician_app_is_never_logged_into(self):
+        conn = self.read("src", "server", "connection.rs")
+        msg = conn.split("async fn on_message(&mut self, msg: Message) -> bool {", 1)[1]
+        gate = msg.index("if let Some(keep) = self.dolphin_demo_gate(&msg).await {")
+        # after the close reason, before upstream reads any LoginRequest (password, code, approval)
+        self.assertLess(msg.index('self.on_close("Peer close", true).await;'), gate)
+        self.assertLess(gate, msg.index("if let Some(message::Union::LoginRequest(lr)) = msg.union {"))
+        body = conn.split("async fn dolphin_demo_gate(&mut self, msg: &Message) -> Option<bool> {", 1)[1]
+        body = body.split("\n    }\n", 1)[0]
+        self.assertIn("rules::pre_login(hbb_common::config::is_outgoing_only(), kind) == Gate::Refuse", body)
+        self.assertIn("return Some(false);", body)
+        self.assertIn("let all = self.dolphin_demo?;", body)
+        self.assertIn("if rules::inbound_allowed(kind, all) {", body)
+
+    def test_only_the_awaited_demo_switches_back_and_it_only_watches(self):
+        conn = self.read("src", "server", "connection.rs")
+        branch = conn.split("} else if let Some(message::Union::SwitchSidesResponse(_s)) = msg.union {", 1)[1][:3200]
+        claim = branch.index("if !self.dolphin_demo_claim(&lr, &_s.uuid).await {")
+        self.assertLess(claim, branch.index("let uuid_old = SWITCH_SIDES_UUID.lock().unwrap().remove(&lr.my_id);"))
+        self.assertLess(branch.index("self.from_switch = true;"), branch.index("self.dolphin_demo_scope_login();"))
+        self.assertLess(branch.index("self.dolphin_demo_scope_login();"),
+                        branch.index("if !self.send_logon_response_and_keep_alive().await {"))
+        body = conn.split("async fn dolphin_demo_claim(&mut self, lr: &LoginRequest, uuid: &[u8]) -> bool {", 1)[1]
+        body = body.split("\n    }\n", 1)[0]
+        self.assertIn("if !hbb_common::config::is_outgoing_only() {", body)
+        self.assertIn("crate::dolphin_demo::claim(&lr.my_id, &u)", body)
+        for off in ("keyboard", "clipboard", "audio", "file", "restart", "recording", "block_input", "privacy_mode",
+                    "lock_after_session_end"):
+            self.assertIn(f"self.{off} = false;", body)
+        self.assertLess(body.index("self.lock_after_session_end = false;"), body.index("insert_switch_sides_uuid("))
+        scope = conn.split("fn dolphin_demo_scope_login(&mut self) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("Self::scoped_view_camera_option(&option).0", scope)
+        # the technician's own window cannot hand the demo a permission
+        perm = conn.split("ipc::Data::SwitchPermission{name, enabled} => {", 1)[1][:2000]
+        self.assertLess(perm.index("if conn.dolphin_demo.is_some() {"), perm.index('} else if &name == "keyboard" {'))
+        self.assertIn("if conn.dolphin_demo.is_some() {\n                                continue;", perm)
+        end = conn.split('conn.on_close("End", true).await;', 1)[1][:300]
+        self.assertIn("crate::dolphin_demo::ended();", end)
+
+    def test_the_technician_app_is_reachable_only_while_its_demo_waits(self):
+        rz = self.read("src", "rendezvous_mediator.rs")
+        start_all = rz.split("pub async fn start_all() {", 1)[1].split("crate::hbbs_http::sync::start();", 1)[0]
+        self.assertIn("Self::dolphin_demo_listen(&mut dolphin_demo_server).await;", start_all)
+        listen = rz.split("async fn dolphin_demo_listen(server: &mut Option<ServerPtr>) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("if !crate::dolphin_demo::listening() {", listen)
+        self.assertIn("while crate::dolphin_demo::listening() && !SHOULD_EXIT.load(Ordering::SeqCst) {", listen)
+        for never in ("direct_server", "lan::start_listening", "hbbs_http::sync::start", "start_auto_update"):
+            self.assertNotIn(never, listen)
+
+    def test_the_customer_is_asked_first(self):
+        conn = self.read("src", "server", "connection.rs")
+        arm = conn.split("Some(misc::Union::PluginRequest(p)) if crate::dolphin_demo_core::is_request(&p.id) => {", 1)
+        self.assertIn("self.dolphin_demo_request(&p.content).await;", arm[1][:200])
+        # before upstream's own arm, which would hand it to the side pane's paste
+        self.assertIn("Some(misc::Union::PluginRequest(p)) => {", arm[1])
+        req = conn.split("async fn dolphin_demo_request(&mut self, content: &[u8]) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("if !self.is_authed_remote_conn() || self.view_camera {", req)
+        self.assertIn('ui: cfg!(feature = "flutter"),', req)
+        self.assertNotIn("launch_view", req)
+        ans = conn.split("async fn dolphin_demo_answer(&mut self, see: bool) -> bool {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertLess(ans.index("} else if crate::dolphin_demo::launch_view(&self.lr.my_id, &uuid) {"),
+                        ans.index('self.post_conn_audit(json!({ "action": rules::AUDIT_ACTION }));'))
+        perm = conn.split("ipc::Data::SwitchPermission{name, enabled} => {", 1)[1][:2000]
+        self.assertIn("if &name == crate::dolphin_demo_core::CM_ANSWER {", perm)
+        timer = conn.split("_ = second_timer.tick() => {", 1)[1][:1400]
+        self.assertIn("if !conn.dolphin_demo_tick().await {", timer)
+        cm = self.read("src", "ui_cm_interface.rs")
+        self.assertIn("pub dolphin_demo_ask: bool,", cm)
+        sw = cm.split("pub fn switch_permission(id: i32, name: String, enabled: bool) {", 1)[1][:600]
+        self.assertIn("if name == crate::dolphin_demo_core::CM_ANSWER {", sw)
+        model = self.read("flutter", "lib", "models", "server_model.dart")
+        self.assertIn("dolphinDemoAsk = json['dolphin_demo_ask'] ?? false;", model)
+        view = self.read("flutter", "lib", "dolphin", "connection.dart")
+        self.assertIn("canSee: acceptAllowed(verdict),", view)
+        self.assertIn("if (acceptAllowed(_verdict())) answer(true);", view)
+        # the x86 build says at login that it cannot, so the technician knows before asking
+        self.assertIn('platform_additions.insert(crate::dolphin_demo_core::PLATFORM_ADDITION.into(), '
+                      'json!(cfg!(feature = "flutter")));', conn)
+
+    def test_the_flutter_hooks(self):
+        model = self.read("flutter", "lib", "models", "model.dart")
+        box = model.split("handleMsgBox(Map<String, dynamic> evt, SessionID sessionId, String peerId) {", 1)[1]
+        self.assertLess(box.index("if (dolphinDemoMsgBox(parent.target, type, title, text)) return;"),
+                        box.index("if (_dolphinQuietRetry(type, title, text, dialogManager)) return;"))
+        self.assertIn("dolphinDemoOnPeerInfo(parent.target);", model)
+        remote = self.read("flutter", "lib", "desktop", "pages", "remote_page.dart")
+        self.assertIn("? DolphinDemoWindowStrip(ffi: _ffi, peerId: widget.id)", remote)
+        server = self.read("flutter", "lib", "desktop", "pages", "server_page.dart")
+        self.assertIn("if (bind.isOutgoingOnly()) return const DolphinDemoBarHost();", server)
+        self.assertIn("dolphinDemoWindowOpened(widget.ffi);", self.read("flutter", "lib", "dolphin", "side_pane.dart"))
+        session = self.read("src", "ui_session_interface.rs")
+        self.assertIn("crate::dolphin_demo::session_request(&self.get_id(), key, value)", session)
+        ffi = self.read("src", "flutter_ffi.rs")
+        self.assertIn("if _key == crate::dolphin_demo_core::INTENT_KEY {", ffi)
+        self.assertIn("} else if key == crate::dolphin_demo_core::INTENT_KEY {", ffi)
+
 
 if __name__ == "__main__":
     unittest.main()

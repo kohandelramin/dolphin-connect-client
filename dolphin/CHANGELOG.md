@@ -3,6 +3,10 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
+## Unreleased (Plan 19)
+
+- «ارائه دمو» (D1–D2): the technician shows his screen to a customer PC. The customer presses «دیدن» first (60 s, otherwise «مشتری جواب نداد»); the customer's app then connects back over upstream's switch sides and shows the technician's screen in a «دمو از دلفین — …» window, view only, with «پایان دمو». The technician app is reachable only while it waits for that one connection (at most 90 s) and refuses every other login; the technician sees a red bar «در حال نمایش صفحه‌ی شما به …» with «پایان دمو». Audited `demo` from the customer PC. Not on the x86 build (Windows 7/8). Persian: «ارائه دمو: کارشناس می‌تواند صفحه‌ی خودش را به شما نشان دهد؛ شما اول «دیدن» را می‌زنید و فقط تماشا می‌کنید.»
+
 ## 2.1.0-rc.1 (built 2026-11-13 on the owner's word; a release candidate, not pinned by the portal until tested)
 
 All three apps. Owner decisions D21 and D23 (2026-11-10). Not compiled on the maintainer's PC (no Rust or Flutter
