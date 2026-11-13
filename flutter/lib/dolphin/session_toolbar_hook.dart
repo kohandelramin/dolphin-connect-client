@@ -12,6 +12,7 @@ import 'monitor_picker.dart';
 import 'no_picture.dart';
 import 'safe_mode_hooks.dart';
 import 'session_toolbar.dart';
+import 'sound.dart';
 
 /// Plan 18 Phase 3 merge point for p3-panel: «عکس صفحه» (DD-51) and «زبان صفحه‌کلید» (DD-6) in the session bar.
 /// Set these once (e.g. in the remote window's start-up); null leaves the buttons disabled with «(به‌زودی)».
@@ -129,6 +130,21 @@ class _DolphinToolbarHookState extends State<DolphinToolbarHook> {
     }
   }
 
+  /// DD-31: from what the customer's PC said at login and upstream's session toggle (off at the start of every session).
+  DolphinSound get _sound {
+    final offered = pi.platformAdditions[kDolphinSoundOffered];
+    return soundState(
+        peerOffers: offered is bool ? offered : null,
+        audioPermission: m.permissions['audio'],
+        muted: bind.sessionGetToggleOptionSync(sessionId: ffi.sessionId, arg: kDolphinSoundToggle));
+  }
+
+  /// As upstream's «Mute» item (toolbarDisplayToggle in common/widgets/toolbar.dart).
+  Future<void> _toggleSound() async {
+    await bind.sessionToggleOption(sessionId: ffi.sessionId, value: kDolphinSoundToggle);
+    if (mounted) setState(() {});
+  }
+
   Future<void> _toggleFollow() async {
     await bind.sessionToggleOption(sessionId: ffi.sessionId, value: _follow);
     if (mounted) setState(() {});
@@ -195,6 +211,8 @@ class _DolphinToolbarHookState extends State<DolphinToolbarHook> {
             onCtrlAltDel: dolphinCanCtrlAltDel(ffi) ? () => bind.sessionCtrlAltDel(sessionId: ffi.sessionId) : null,
             onLock: input ? () => bind.sessionLockScreen(sessionId: ffi.sessionId) : null,
             onFiles: isDesktop ? _files : null,
+            sound: _sound,
+            onSound: _toggleSound,
             onViewOnly: versionCmp(pi.version, '1.2.0') >= 0 && m.keyboard ? _toggleViewOnly : null,
             onMyCursor: [kPeerPlatformWindows, kPeerPlatformMacOS, kPeerPlatformLinux].contains(pi.platform)
                 ? _toggleMyCursor

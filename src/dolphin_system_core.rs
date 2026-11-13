@@ -48,6 +48,7 @@ pub fn switch_default(key: &str) -> SwitchMode {
         SWITCH_SHARE_TOGGLE | SWITCH_STAY_IN_TRAY | SWITCH_RECEIVE_FOLDER | "diagnostics-upload" => {
             SwitchMode::Available
         }
+        SWITCH_REMOTE_SOUND => SwitchMode::Available,
         _ => SwitchMode::Hidden,
     }
 }
@@ -227,6 +228,34 @@ pub fn printer_forward(mode: SwitchMode, permitted: bool) -> bool {
 #[cfg_attr(not(feature = "flutter"), allow(dead_code))]
 pub fn printer_service_wanted(mode: SwitchMode) -> bool {
     mode != SwitchMode::Hidden
+}
+
+// ---- DD-31: the customer's computer sound (owner 2026-11-13: yes, off by default) ----
+
+/// The portal's switch for «صدای رایانه‌ی مشتری». Available (the default): the technician's toolbar shows the button
+/// and every session starts with the sound off. Hidden: the customer PC sends no sound at all and tells the
+/// technician's app so at login. Forced reads as available: sound adds traffic, so it never starts by itself.
+pub const SWITCH_REMOTE_SOUND: &str = "remote-sound";
+
+/// `platform_additions` key: whether the customer PC sends its sound in this session (the technician app has no
+/// heartbeat and never sees the switches; flutter/lib/dolphin/sound.dart reads this).
+pub const PLATFORM_SOUND_OFFERED: &str = "dolphin_sound_offered";
+
+/// Whether the switch lets the customer PC send its sound.
+pub fn sound_offered(mode: SwitchMode) -> bool {
+    mode != SwitchMode::Hidden
+}
+
+/// [`sound_offered`] from the pushed option as stored (`dolphin-switches`).
+pub fn sound_offered_by(raw_switches: &str) -> bool {
+    sound_offered(switch_mode(raw_switches, SWITCH_REMOTE_SOUND))
+}
+
+/// Whether a new session of this kind starts with the customer's sound off (upstream starts it on, from the peer's
+/// saved «Mute»). Every remote-desktop session does; other kinds carry no sound. A reconnect inside the session keeps
+/// the technician's choice, since it reuses the session's settings.
+pub fn session_starts_muted(is_remote_desktop: bool) -> bool {
+    is_remote_desktop
 }
 
 // ---- DD-12: the fixed receive folder ----
@@ -445,6 +474,26 @@ mod tests {
         assert!(!printer_service_wanted(SwitchMode::Hidden));
         assert!(printer_service_wanted(SwitchMode::Available));
         assert!(printer_service_wanted(SwitchMode::Forced));
+    }
+
+    #[test]
+    fn the_customer_sound_is_offered_unless_the_portal_hides_it() {
+        assert_eq!(switch_default(SWITCH_REMOTE_SOUND), SwitchMode::Available); // as kSwitchDefaults in switches.dart
+        assert!(sound_offered_by(""));
+        assert!(sound_offered_by("-"));
+        assert!(sound_offered_by(r#"{"remote-sound":"available"}"#));
+        assert!(sound_offered_by(r#"{"remote-sound":"forced"}"#));
+        assert!(!sound_offered_by(r#"{"remote-sound":"hidden"}"#));
+        assert!(sound_offered_by(r#"{"remote-printer":"hidden"}"#));
+        assert!(!sound_offered(SwitchMode::Hidden));
+        assert!(sound_offered(SwitchMode::Available));
+        assert!(sound_offered(SwitchMode::Forced));
+    }
+
+    #[test]
+    fn every_remote_desktop_session_starts_with_the_sound_off() {
+        assert!(session_starts_muted(true));
+        assert!(!session_starts_muted(false));
     }
 
     #[test]

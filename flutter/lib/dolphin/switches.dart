@@ -19,6 +19,7 @@ class DolphinSwitch {
   static const remotePrinter = 'remote-printer';
   static const wakeOnLan = 'wake-on-lan';
   static const safeMode = 'safe-mode';
+  static const remoteSound = 'remote-sound';
 }
 
 /// Defaults when the portal has not said anything yet (a PC never linked, or an app older than the portal's list).
@@ -32,6 +33,7 @@ const Map<String, SwitchMode> kSwitchDefaults = {
   DolphinSwitch.remotePrinter: SwitchMode.hidden,
   DolphinSwitch.wakeOnLan: SwitchMode.hidden,
   DolphinSwitch.safeMode: SwitchMode.hidden,
+  DolphinSwitch.remoteSound: SwitchMode.available,
 };
 
 class DolphinSwitches {

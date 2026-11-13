@@ -2981,6 +2981,11 @@ impl LoginConfigHandler {
         let config = self.load_config();
         self.remember = !config.password.is_empty();
         self.config = config;
+        // Dolphin Connect (DD-31): every session starts with the customer's sound off, whatever the peer's saved «Mute»
+        // says; «صدای رایانه‌ی مشتری» on the toolbar turns it on. In memory only (src/dolphin_system_core.rs).
+        if crate::dolphin_system_core::session_starts_muted(conn_type == ConnType::DEFAULT_CONN) {
+            self.config.disable_audio.v = true;
+        }
 
         let conn_token = conn_token
             .map(|x| serde_json::from_str::<ConnToken>(&x).ok())

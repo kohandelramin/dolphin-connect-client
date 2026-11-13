@@ -801,6 +801,9 @@ PORTAL_SWITCHES = {
     "remote-printer": ("both", "hidden"),
     "wake-on-lan": ("both", "hidden"),
     "safe-mode": ("technician", "hidden"),
+    # Plan 18 Phase 6 (DD-31): the portal adds this key with the apps that read it (filed under the technician, whose
+    # toolbar shows the button; enforced by the customer PC, as safe-mode).
+    "remote-sound": ("technician", "available"),
 }
 # Keys with no reader in the customer app yet, and why.
 SWITCHES_NOT_READ = {
@@ -865,6 +868,44 @@ class FeatureSwitchesTest(unittest.TestCase):
         rv = self.read("src", "rendezvous_mediator.rs")
         start = rv.split("pub async fn start_all() {", 1)[1]
         self.assertLess(start.index("if config::is_outgoing_only() {"), start.index("crate::hbbs_http::sync::start();"))
+
+
+class SoundWiringTest(unittest.TestCase):
+    """Plan 18 Phase 6 (DD-31): «صدای رایانه‌ی مشتری», off at the start of every session, the organization's
+    `remote-sound` switch enforced on the customer PC."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_pc_sends_no_sound_while_the_switch_is_hidden(self):
+        conn = self.read("src", "server", "connection.rs")
+        gate = conn.split("fn audio_enabled(&self) -> bool {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("crate::dolphin_system_core::sound_offered_by(", gate)
+        self.assertIn("crate::dolphin_system_core::SWITCHES_OPTION", gate)
+        # every subscription to the audio service asks audio_enabled(), at login and on each change
+        subs = conn.split("fn try_sub_monitor_services(&mut self)", 1)[1].split("s.add_monitor_connection(", 1)[0]
+        self.assertIn("if !self.audio_enabled() {\n                    noperms.push(super::audio_service::NAME);", subs)
+
+    def test_the_customer_pc_tells_the_technician_at_login(self):
+        conn = self.read("src", "server", "connection.rs")
+        self.assertIn("crate::dolphin_system_core::PLATFORM_SOUND_OFFERED.into(),", conn)
+        core = self.read("src", "dolphin_system_core.rs")
+        self.assertIn('pub const PLATFORM_SOUND_OFFERED: &str = "dolphin_sound_offered";', core)
+        self.assertIn('pub const SWITCH_REMOTE_SOUND: &str = "remote-sound";', core)
+        self.assertIn("const kDolphinSoundOffered = 'dolphin_sound_offered';", self.read("flutter", "lib", "dolphin", "sound.dart"))
+
+    def test_every_session_starts_with_the_sound_off(self):
+        client = self.read("src", "client.rs")
+        init = client.split("    pub fn initialize(\n", 1)[1].split("\n    }\n", 1)[0]
+        hook = init.index("crate::dolphin_system_core::session_starts_muted(conn_type == ConnType::DEFAULT_CONN)")
+        self.assertLess(init.index("self.config = config;"), hook)
+        self.assertIn("self.config.disable_audio.v = true;", init[hook:hook + 200])
+
+    def test_the_toolbar_button_toggles_upstreams_session_option(self):
+        hook = self.read("flutter", "lib", "dolphin", "session_toolbar_hook.dart")
+        self.assertIn("sound: _sound,", hook)
+        self.assertIn("bind.sessionToggleOption(sessionId: ffi.sessionId, value: kDolphinSoundToggle)", hook)
+        self.assertIn("const kDolphinSoundToggle = 'disable-audio';", self.read("flutter", "lib", "dolphin", "sound.dart"))
 
 
 class SafeModeWiringTest(unittest.TestCase):
