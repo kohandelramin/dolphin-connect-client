@@ -83,7 +83,7 @@ String homeBarDetail(HomeStatus s) {
   final who = s.techName.isEmpty ? 'کارشناس دلفین' : s.techName;
   switch (s.bar) {
     case HomeBar.coming:
-      return '$who اجازه‌ی اتصال دارد؛ وقتی پیام اتصال آمد «پذیرفتن» را بزنید.';
+      return '$who اجازه‌ی اتصال دارد؛ اگر پیام اتصال آمد، «پذیرفتن» را بزنید.';
     case HomeBar.connected:
       return s.techName.isEmpty ? '' : '${s.techName} به این رایانه وصل است.';
     case HomeBar.offline:

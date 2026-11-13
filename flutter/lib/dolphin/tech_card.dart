@@ -82,7 +82,7 @@ class DolphinTechCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('کارشناس دلفین در راه است', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
             const SizedBox(height: 2),
-            Text('$who اجازه‌ی اتصال دارد؛ وقتی پیام اتصال آمد «پذیرفتن» را بزنید.',
+            Text('$who اجازه‌ی اتصال دارد؛ اگر پیام اتصال آمد، «پذیرفتن» را بزنید.',
                 style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
           ]),
         ),
