@@ -123,6 +123,32 @@ and the std-only `src/dolphin_system_core.rs` tests ran; the crate, the Dart ana
 کنار ساعت می‌ماند و رنگش وضعیت را نشان می‌دهد. با «توقف اشتراک» هیچ کس، حتی کارشناس دلفین، نمی‌تواند وصل شود تا
 «شروع اشتراک» را بزنید. فایل‌هایی که کارشناس می‌فرستد در پوشه‌ی «دریافتی دلفین» در Downloads ذخیره می‌شوند.
 
+### Plan 18 Phase 3: the technician's session toolbar, screens, dark theme, no-picture help (technician x64)
+
+Flutter only; no change to connections, codecs or networking. Widget and unit tests in `flutter/test/dolphin/`
+(`session_toolbar_test.dart`, `monitor_picker_test.dart`, `no_picture_test.dart`, `tech_theme_test.dart`,
+`technician_header_test.dart`) ran with Flutter 3.24.5 on the maintainer's PC; not yet seen in a real session.
+
+- DD-28: a Persian quick bar at the start of the session toolbar, each button with a tooltip: Ctrl+Alt+Del, lock,
+  files, «عکس صفحه» and «زبان صفحه‌کلید» (wired by the side-panel work through `DolphinToolbarHooks`; disabled with
+  «(به‌زودی)» until then), «صفحه‌ها», «فقط تماشا», «نشانگر خودم», «دنبال کردن پنجره‌ی مشتری» (only with several
+  screens, as upstream), «تصویر نمی‌آید؟» and «جمع کردن نوار». The latency in milliseconds with «مستقیم» or «از سرور
+  دلفین» is only displayed (upstream's quality-monitor delay and connection type); it changes nothing. Each action is
+  the one upstream has in its menus, called the same way; upstream's menus stay after the bar. Safe Mode comes in
+  Phase 5. The toolbar pin says «ثابت کردن / رها کردن نوار ابزار» (upstream had «سجاق»).
+- DD-52: «صفحه‌ها» opens a picture of the customer's screens as they are arranged, with number, resolution and
+  «اصلی»; the one being viewed is blue. The pictures are shapes, not live images: a live image of every screen would
+  mean capturing and sending each one (the owner's speed rule).
+- DD-53: «ظاهر» in the technician header: «مثل ویندوز» (default), «روشن» or «تیره». It is upstream's `theme` option,
+  so the session windows follow it. Customer screens stay light (DR-1). The staff panel inside the window is the
+  portal's own page and keeps the portal's look.
+- DD-16: when no picture comes 8 s after «وصل شد؛ در انتظار تصویر…», the dialog says why (locked PC, Windows sign-in
+  screen, screen off) and offers «فرستادن Ctrl+Alt+Del» (when the PC can take it), «صبر می‌کنم» and «قطع»; it adds
+  that the app is not installed on the customer's PC when that PC says so. A picture that shows the sign-in screen or
+  froze when Windows locked looks like a still screen, so for that the same help opens from «تصویر نمی‌آید؟».
+
+**یادداشت فارسی:** فقط برنامه‌ی کارشناس عوض شده است.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.

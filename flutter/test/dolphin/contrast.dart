@@ -20,6 +20,14 @@ Widget darkApp(Widget child) => MediaQuery(
       ),
     );
 
+/// The technician's light theme («روشن», DD-53).
+Widget lightApp(Widget child) => MaterialApp(
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: ThemeMode.light,
+      home: Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: child)),
+    );
+
 /// The colour painted behind [finder]: the nearest opaque Material or decorated box, with translucent layers blended.
 Color backgroundOf(WidgetTester tester, Finder finder) {
   final layers = <Color>[];
