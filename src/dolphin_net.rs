@@ -485,7 +485,8 @@ mod sys {
         }
     }
 
-    fn pin_raw(raw: u64, index: u32, v6: bool) -> bool {
+    // RawSocket is u64 on 64-bit Windows and u32 on 32-bit (the x86 build); take it as it is.
+    fn pin_raw(raw: std::os::windows::io::RawSocket, index: u32, v6: bool) -> bool {
         let (level, name) = if v6 { (IPPROTO_IPV6.0, IPV6_UNICAST_IF) } else { (IPPROTO_IP.0, IP_UNICAST_IF) };
         let value = net::unicast_if_value(index, v6);
         let ok = unsafe { setsockopt(SOCKET(raw as usize), level, name, Some(&value)) } == 0;
