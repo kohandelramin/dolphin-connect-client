@@ -6,6 +6,7 @@ import 'home_status.dart';
 import 'home_widgets.dart';
 import 'network_status.dart';
 import 'recent_sessions.dart';
+import 'support_views.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 
@@ -22,7 +23,8 @@ const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به ش
 
 /// What the stopped state says and its button.
 const kServiceStoppedHint = 'تا سرویس روشن نشود کارشناس نمی‌تواند وصل شود؛ هر اتصال باز هم به اجازه‌ی شما نیاز دارد.';
-const kStartServiceLabel = 'روشن کردن سرویس';
+/// DD-19: the button in the red notice (support_views.dart kFixLabel); upstream's start with its UAC prompt.
+const kStartServiceLabel = kFixLabel;
 
 /// Under the ID while the server is reachable (the offline bar says what to do instead).
 const kWindowOpenLine = 'تا این پنجره باز است کسی بدون اجازه‌ی شما وصل نمی‌شود.';
@@ -96,6 +98,15 @@ class DolphinHomeView extends StatelessWidget {
   /// DD-32: Dolphin's own version at the bottom of the window; '' hides it.
   final String version;
 
+  /// Plan 18 Phase 4: «بررسی سلامت» (DD-38), «گزارش برای پشتیبانی» (DD-7), «عکس صفحه برای پشتیبانی» (DD-48); a null
+  /// callback hides its button.
+  final VoidCallback? onHealth;
+  final VoidCallback? onReport;
+  final VoidCallback? onScreenshot;
+
+  /// DD-40: what to do on a PC with no monitor (health.dart headlessFix); '' hides the notice.
+  final String headlessFix;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -119,7 +130,11 @@ class DolphinHomeView extends StatelessWidget {
       this.onCopyIp,
       this.onCopyDownload,
       this.onCopyGuide,
-      this.version = ''});
+      this.version = '',
+      this.onHealth,
+      this.onReport,
+      this.onScreenshot,
+      this.headlessFix = ''});
 
   @override
   Widget build(BuildContext context) =>
@@ -133,8 +148,9 @@ class DolphinHomeView extends StatelessWidget {
     final onCallback = this.onCallback;
     final helpers = DolphinHomeHelpers(
         onStartHere: onStartHere, onCopyIp: onCopyIp, onCopyDownload: onCopyDownload, onCopyGuide: onCopyGuide);
+    final tools = DolphinSupportTools(onHealth: onHealth, onReport: onReport, onScreenshot: onScreenshot);
     final hint = switch (state) {
-      DolphinServerState.stopped => kServiceStoppedHint,
+      DolphinServerState.stopped => '', // DD-19: the red notice under the bar says it, with «درست کن».
       DolphinServerState.offline => '', // DD-33: the offline bar already says what to do.
       _ => kWindowOpenLine,
     };
@@ -150,18 +166,13 @@ class DolphinHomeView extends StatelessWidget {
                 child: Column(
                   children: [
                     DolphinStatusBar(status: status),
-                    if (state == DolphinServerState.stopped && onStartService != null) ...[
+                    if (state == DolphinServerState.stopped) ...[
                       const SizedBox(height: 10),
-                      FilledButton.icon(
-                        onPressed: onStartService,
-                        icon: const Icon(Icons.power_settings_new, size: 18),
-                        label: const Text(kStartServiceLabel, style: TextStyle(fontWeight: FontWeight.w700)),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: DolphinColors.azure,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
-                        ),
-                      ),
+                      DolphinServiceNotice(text: kServiceStoppedHint, onFix: onStartService),
+                    ],
+                    if (headlessFix.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      DolphinHeadlessNotice(fix: headlessFix),
                     ],
                     if (idChanged) ...[
                       const SizedBox(height: 10),
@@ -313,6 +324,10 @@ class DolphinHomeView extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
                       ),
+                    ],
+                    if (!tools.isEmpty) ...[
+                      const SizedBox(height: 14),
+                      tools,
                     ],
                     if (!helpers.isEmpty) ...[
                       const SizedBox(height: 14),

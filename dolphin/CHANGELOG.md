@@ -204,6 +204,45 @@ Python tests ran. The Windows runner, the crate and everything on real PCs are u
 **یادداشت فارسی:** کنار تصویر جلسه سه دکمه است: «پنل مشتری» (اطلاعات رایانه، تماس باز، متن‌های آماده)، «عکس صفحه»
 (به پیوست‌های تماس باز می‌رود) و «زبان صفحه‌کلید مشتری». پنل با همان ورود پنل کارشناسان باز می‌شود.
 
+### Plan 18 Phase 4: health check, report, screenshot, stopped service, logs, no monitor (customer x64)
+
+Dart only (`flutter/lib/dolphin/`); no Rust, no new bridge function, no change to connections, codecs or the network
+path. `flutter test test/dolphin`, `flutter analyze lib/dolphin test/dolphin` and the Python tests ran; the screen
+capture, the service read, the desktop folder and the network probes also ran once on the maintainer's PC (Windows 11)
+from a plain Dart script. The app itself is not built; everything in the real window is unverified.
+
+- DD-38 «بررسی سلامت» (home, «کمک به کارشناس»): the service, registration with the server, DNS of the server's name,
+  TCP to the rendezvous (21116), relay (21117) and portal ports, writing a small file in the app's folders, and the
+  monitor (DD-40), each with a short Persian result. The only repair is «تعمیر سرویس», upstream's own service start
+  (`start_service(true)`: an installed app recreates and starts the service behind the UAC prompt, then reopens).
+  «ذخیره‌ی گزارش» writes `dolphin-health-<date>.txt` to the desktop (the real Desktop folder, OneDrive included). The
+  probes open one TCP connection per port and close it at once.
+- DD-19: when an installed app's Windows service is stopped or gone while the customer did not turn it off, the bar
+  says «سرویس دلفین خاموش است» with a red notice and «درست کن» (the same repair). The state is read from the service
+  manager every 10 s (no console window, no admin rights); two reads in a row before it shows, so an update's restart
+  never flashes it. No heartbeat field: a stopped service sends no heartbeat, so the portal already sees the PC offline.
+- DD-7 «گزارش برای پشتیبانی»: an optional note and «فرستادن»; the zip (`diagnostic.txt`: version, Windows, installed
+  or not, service, network panel, the health checks; the logs of the last 3 days, each cut to its last 2 MB; DD-39's
+  newest backup) goes to `POST /rd/api/dolphin/diagnostics` with the PC's ID and the heartbeat's machine UUID, under
+  the portal's 5 MB (old logs, then the backup, are left out first). Each answer of the portal has its own Persian line
+  (not linked to an organization, at most three a day, …).
+- DD-48 «عکس صفحه برای پشتیبانی»: the window steps aside, every monitor is captured in the app (GDI), the window comes
+  back with the picture, an optional note, «فرستادن» and «انصراف». The PNG is made smaller until it is under the portal's
+  3 MB; `POST /rd/api/dolphin/screenshot`. Both buttons follow the portal's `diagnostics-upload` switch.
+- Nothing secret leaves the PC: logs and the diagnostic text go through one scrub (values after password, key, token,
+  salt, hash, uuid … are removed to the end of the line; other PCs' IDs become `[ID]`, this PC's stays); config files,
+  peer lists and recent sessions are never read.
+- DD-39: at start, at most once a day, the app's logs older than 7 days are zipped (scrubbed) into
+  `log\backup\logs-until-<day>.zip` and removed; the newest 3 backups are kept. The service's own logs, in the
+  LocalService profile, cannot be read by the customer's account and are not touched.
+- DD-40: on a PC with no monitor (no screen, or one Windows stand-in of at most 1024 × 1024, upstream's rule), an amber
+  notice says what to do: installed on Windows 10 2004 or later, the app makes a virtual display when connected
+  (upstream); otherwise install the app or plug in an HDMI dummy. Display only.
+
+**یادداشت فارسی:** در پنجره‌ی اصلی بخش «کمک به کارشناس» آمده است: «بررسی سلامت» (سرویس، اینترنت، سرور و دیسک را
+می‌سنجد و گزارش را روی دسکتاپ ذخیره می‌کند)، «گزارش برای پشتیبانی» و «عکس صفحه برای پشتیبانی» (عکس را پیش از فرستادن
+می‌بینید). اگر سرویس برنامه خاموش شده باشد، پنجره با یک کادر قرمز و دکمه‌ی «درست کن» می‌گوید.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.

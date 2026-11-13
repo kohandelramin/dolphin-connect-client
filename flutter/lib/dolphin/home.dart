@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:window_size/window_size.dart' as window_size;
 
 import '../common.dart';
 import '../consts.dart';
@@ -17,13 +19,20 @@ import 'callback.dart';
 import 'customer_requests.dart';
 import 'digits.dart';
 import 'first_run_view.dart';
+import 'health.dart';
+import 'health_probe.dart';
 import 'home_helpers.dart';
 import 'home_status.dart';
 import 'home_view.dart';
+import 'log_files.dart';
 import 'network_status.dart';
 import 'panel_bridge.dart';
 import 'recent_sessions.dart';
+import 'screenshot.dart';
 import 'share.dart';
+import 'support_upload.dart';
+import 'support_views.dart';
+import 'switches.dart';
 import 'tech_card.dart';
 import 'verify.dart';
 import 'window_sizes.dart';
@@ -57,6 +66,11 @@ class _DolphinHomeState extends State<DolphinHome> {
   bool _firstRun = false;
   // DD-32: the ID differs from the one this app saw last; shown until closed.
   bool _idChanged = false;
+  // DD-19: the installed app's Windows service, read every 10 s (two reads in a row before the notice shows).
+  final _serviceWatch = ServiceWatch();
+  int _ticks = 0;
+  // DD-40: what to do on a PC with no monitor; '' when it has one.
+  String _headlessFix = '';
 
   @override
   void initState() {
@@ -71,6 +85,10 @@ class _DolphinHomeState extends State<DolphinHome> {
     _options = Timer.periodic(const Duration(seconds: 2), (_) => _readConnected());
     _readStopped();
     _firstRun = firstRunShown(bind.mainGetLocalOption(key: kDolphinFirstRunLocal));
+    // Plan 18 Phase 4: DD-39 log cleanup (at most once a day), DD-40 the monitor check, DD-19 the first service read.
+    _cleanLogs();
+    _readHeadless();
+    _readService();
   }
 
   @override
@@ -82,11 +100,12 @@ class _DolphinHomeState extends State<DolphinHome> {
   Future<void> _readConnected() async {
     final n = connectedCount(await bind.mainGetConnectStatus());
     final stopped = await mainGetBoolOption(kOptionStopService);
+    if (++_ticks % 5 == 0) _readService();
     final changed = _noteId(trimID(gFFI.serverModel.serverId.text));
     if (mounted) {
       setState(() {
         _connected = n;
-        _stopped = stopped;
+        _stopped = stopped || _serviceWatch.down;
         if (changed) _idChanged = true;
       });
     }
@@ -112,7 +131,154 @@ class _DolphinHomeState extends State<DolphinHome> {
 
   Future<void> _readStopped() async {
     final stopped = await mainGetBoolOption(kOptionStopService);
-    if (mounted) setState(() => _stopped = stopped);
+    if (mounted) setState(() => _stopped = stopped || _serviceWatch.down);
+  }
+
+  // ---- Plan 18 Phase 4: health, reports, screenshot (DD-7, DD-19, DD-38, DD-39, DD-40, DD-48) ----
+
+  String get _appName => bind.mainGetAppNameSync();
+  String get _appData => Platform.environment['APPDATA'] ?? '';
+  String get _logDir => logDirFor(appData: _appData, appName: _appName);
+  String get _ownId => trimID(gFFI.serverModel.serverId.text);
+
+  /// DD-19: the Windows service of an installed app; the red notice with «درست کن» after two "down" reads in a row.
+  void _readService() {
+    if (!Platform.isWindows) return;
+    final installed = bind.mainIsInstalled();
+    final stopOption = mainGetBoolOptionSync(kOptionStopService);
+    final down = serviceDown(installed: installed, state: readServiceState(_appName), stopOption: stopOption);
+    if (_serviceWatch.note(down) && mounted) setState(() => _stopped = stopOption || _serviceWatch.down);
+  }
+
+  /// DD-39: logs older than 7 days into one scrubbed backup zip, at most once a day.
+  Future<void> _cleanLogs() async {
+    if (!Platform.isWindows || _appData.isEmpty) return;
+    final now = DateTime.now();
+    if (!cleanupDue(bind.mainGetLocalOption(key: kDolphinLogsCleanedLocal), now)) return;
+    bind.mainSetLocalOption(key: kDolphinLogsCleanedLocal, value: cleanupStamp(now));
+    try {
+      await cleanLogsAsync(_logDir, now, ownId: _ownId);
+    } catch (_) {}
+  }
+
+  /// DD-40: one small screen, or none, is Windows' stand-in for a PC with no monitor.
+  Future<void> _readHeadless() async {
+    if (!Platform.isWindows) return;
+    try {
+      final screens = await window_size.getScreenList();
+      // rcMonitor: physical pixels, as the app is per-monitor DPI aware.
+      final headless = looksHeadless([for (final s in screens) (s.frame.width, s.frame.height)]);
+      final fix = headless ? headlessFix(installed: bind.mainIsInstalled(), windowsBuild: windowsBuildNumber) : '';
+      if (mounted && fix != _headlessFix) setState(() => _headlessFix = fix);
+    } catch (_) {}
+  }
+
+  bool get _uploadShown => uploadShown(
+      DolphinSwitches.parse(bind.mainGetOptionSync(key: kDolphinSwitchesOption)).mode(DolphinSwitch.diagnosticsUpload));
+
+  HealthInputs _healthInputs() => HealthInputs(
+        installed: bind.mainIsInstalled(),
+        serviceName: _appName,
+        stopOption: mainGetBoolOptionSync(kOptionStopService),
+        registered: gFFI.serverModel.connectStatus > 0,
+        rendezvous: bind.mainGetOptionSync(key: kRendezvousServerOption),
+        relay: bind.mainGetOptionSync(key: 'relay-server'),
+        portal: DolphinBrand.portalUrl,
+        appDirs: _appData.isEmpty ? const [] : ['$_appData\\$_appName\\config', _logDir],
+        headless: _headlessFix.isNotEmpty,
+        windowsBuild: windowsBuildNumber,
+      );
+
+  /// DD-7 and DD-38: the short text, with the checks just run (the service line first). Only this PC's own facts.
+  String _diagnostic(List<HealthItem> checks) {
+    final state = serverStateFromStatus(gFFI.serverModel.connectStatus, serviceStopped: _stopped);
+    return diagnosticText(DiagnosticFacts(
+      appVersion: DolphinBrand.version,
+      windows: Platform.operatingSystemVersion,
+      installed: bind.mainIsInstalled(),
+      service: checks.isEmpty ? '' : checks.first.result,
+      network: networkRows(
+        server: state,
+        serverAddress: bind.mainGetOptionSync(key: kRendezvousServerOption),
+        localIp: bind.mainGetOptionSync(key: kLocalIpOption),
+        idChanged: _idChanged,
+      ).map((r) => r.toString()).toList(),
+      checks: checks.map((c) => c.line).toList(),
+      ownId: _ownId,
+      at: DateTime.now(),
+    ));
+  }
+
+  /// The one safe repair: upstream's own start. An installed app recreates and starts the service behind a UAC
+  /// prompt, then reopens the window.
+  void _fix(HealthFix fix) {
+    if (fix == HealthFix.startService) start_service(true);
+  }
+
+  Future<String> _saveHealth(List<HealthItem> items) async {
+    final name = healthReportName(DateTime.now());
+    try {
+      await File('${desktopDir()}\\$name').writeAsString(_diagnostic(items), flush: true);
+      return 'گزارش روی دسکتاپ ذخیره شد:\n$name';
+    } catch (_) {
+      return 'گزارش ذخیره نشد؛ جای خالی دیسک را بررسی کنید.';
+    }
+  }
+
+  void _openHealth() => showDolphinPanel(
+      context,
+      (close) => DolphinHealthDialog(
+            run: () => runHealthChecks(_healthInputs()),
+            onFix: (fix) {
+              close();
+              _fix(fix);
+            },
+            onSave: _saveHealth,
+            onClose: close,
+          ));
+
+  Future<UploadAnswer> _post(UploadKind kind, Uint8List bytes, String note) async {
+    final id = await bind.mainGetMyId();
+    final uuid = await bind.mainGetUuid();
+    return postUpload(uploadUri(DolphinBrand.portalUrl, kind, id: id, uuid: uuid, note: note), bytes, kind);
+  }
+
+  /// DD-7: the zip is built when «فرستادن» is pressed: the checks, the recent logs and DD-39's newest backup.
+  Future<UploadAnswer> _sendReport(String note) async {
+    final text = _diagnostic(await runHealthChecks(_healthInputs()));
+    final dir = _logDir;
+    final files = listLogFolder(Directory(dir));
+    final zip = await buildReportZipAsync(
+        diagnostic: text, logRoot: dir, logs: reportLogs(files, DateTime.now()), backup: newestBackup(files), ownId: _ownId);
+    return _post(UploadKind.diagnostics, zip, note);
+  }
+
+  void _openReport() => showDolphinPanel(
+      context, (close) => DolphinUploadForm(kind: UploadKind.diagnostics, onSend: _sendReport, onClose: close));
+
+  /// DD-48: our window steps aside, the screen is read, and the window comes back with the picture to look at before
+  /// anything is sent.
+  Future<void> _takeScreenshot() async {
+    RawScreen? raw;
+    try {
+      await windowManager.minimize();
+      await Future.delayed(const Duration(milliseconds: 700));
+      raw = captureScreen();
+    } catch (_) {
+    } finally {
+      await windowManager.restore();
+      await windowManager.show();
+    }
+    final png = raw == null ? null : await encodeScreen(raw);
+    if (!mounted) return;
+    if (png == null) {
+      showToast('عکس صفحه گرفته نشد.');
+      return;
+    }
+    showDolphinPanel(
+        context,
+        (close) => DolphinUploadForm(
+            kind: UploadKind.screenshot, png: png, onSend: (note) => _post(UploadKind.screenshot, png, note), onClose: close));
   }
 
   Future<void> _fitWindow() async {
@@ -217,6 +383,10 @@ class _DolphinHomeState extends State<DolphinHome> {
           onCopyDownload: () => _copy(links.download),
           onCopyGuide: () => _copy(links.guide),
           version: DolphinBrand.version,
+          onHealth: isWindows ? _openHealth : null,
+          onReport: isWindows && _uploadShown ? _openReport : null,
+          onScreenshot: isWindows && _uploadShown ? _takeScreenshot : null,
+          headlessFix: _headlessFix,
         );
       }),
     );

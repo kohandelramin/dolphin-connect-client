@@ -27,7 +27,11 @@ import 'package:flutter_hbb/dolphin/share.dart';
 import 'package:flutter_hbb/dolphin/tech_card.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_hbb/dolphin/verify.dart';
+import 'package:flutter_hbb/dolphin/health.dart';
+import 'package:flutter_hbb/dolphin/support_upload.dart';
+import 'package:flutter_hbb/dolphin/support_views.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 final String? _dir = Platform.environment['DOLPHIN_PREVIEW_DIR'];
 
@@ -159,5 +163,66 @@ void main() {
     await _shot(tester, '27-side-strip', const Size(80, 200),
         Center(child: DolphinSideStrip(open: true, onToggle: noop, onScreenshot: noop, onKeyboard: (_) {})));
     await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+  // Plan 18 Phase 4: health check, report, screenshot, stopped service, no monitor (customer x64).
+  testWidgets('write phase 4 previews', (tester) async {
+    await _loadFonts();
+    // Real soft shadows under the dialogs (tests draw them solid by default).
+    debugDisableShadows = false;
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    // As showDolphinPanel draws it: the light theme, over the dimmed window.
+    Widget dialog(Widget child) => Container(
+        color: Colors.black54,
+        child: DolphinLight(
+            paint: false,
+            child: Center(
+                child: Dialog(
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+                    child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 340), child: child)))));
+    final checks = [
+      serviceItem(installed: true, state: ServiceState.stopped, stopOption: false),
+      registeredItem(true),
+      dnsItem('remote.dolphindev.ir', isIp: false, addresses: ['185.143.233.133']),
+      portItem('سرور دلفین', 21116, true),
+      portItem('رله‌ی دلفین', 21117, false),
+      portItem('پورتال دلفین', 443, true),
+      diskItem(const []),
+      displayItem(headless: false, installed: true, windowsBuild: 19045),
+    ];
+    await _shot(tester, '30-health-check', home, dialog(DolphinHealthView(
+        items: checks, onFix: (_) {}, onSave: noop, onAgain: noop, onClose: noop,
+        saved: 'گزارش روی دسکتاپ ذخیره شد:\n${healthReportName(DateTime(2026, 11, 13, 10, 30))}')));
+    final note = TextEditingController(text: 'برنامه‌ی حسابداری باز نمی‌شود');
+    await _shot(tester, '31-report-sent', home, dialog(DolphinUploadPanel(
+        kind: UploadKind.diagnostics, phase: UploadPhase.done, note: note, onSend: noop, onClose: noop,
+        message: uploadAnswer(200, '{"ok":true}').text)));
+    // A made-up desktop: a taskbar and two windows.
+    final screen = img.Image(width: 1280, height: 720)..clear(img.ColorRgb8(36, 99, 160));
+    img.fillRect(screen, x1: 0, y1: 680, x2: 1280, y2: 720, color: img.ColorRgb8(30, 30, 40));
+    img.fillRect(screen, x1: 120, y1: 90, x2: 760, y2: 520, color: img.ColorRgb8(245, 245, 245));
+    img.fillRect(screen, x1: 120, y1: 90, x2: 760, y2: 120, color: img.ColorRgb8(20, 98, 224));
+    img.fillRect(screen, x1: 640, y1: 260, x2: 1100, y2: 560, color: img.ColorRgb8(255, 255, 255));
+    img.fillRect(screen, x1: 660, y1: 300, x2: 1080, y2: 330, color: img.ColorRgb8(208, 60, 78));
+    final png = Uint8List.fromList(img.encodePng(screen));
+    // Decode it before the shot: a test frame does not wait for image codecs.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    final ctx = tester.element(find.byType(SizedBox));
+    await tester.runAsync(() => precacheImage(MemoryImage(png), ctx));
+    await _shot(tester, '32-screenshot-confirm', home, dialog(DolphinUploadPanel(
+        kind: UploadKind.screenshot, phase: UploadPhase.ready, note: TextEditingController(), png: png, onSend: noop, onClose: noop)));
+    await _shot(tester, '33-service-stopped', home, DolphinHomeView(
+        id: '123456789', state: DolphinServerState.stopped, onCopy: noop, onStartService: noop, phone: '021-44280505',
+        siteLabel: 'support.dolphindev.ir', network: [const NetRow('سرور دلفین', 'سرویس خاموش است', tone: NetTone.bad)],
+        version: '2.1.0'));
+    await _shot(tester, '34-virtual-display', home, DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        headlessFix: headlessFix(installed: false, windowsBuild: 19045), network: net, version: '2.1.0'));
+    await _shot(tester, '35-home-support-tools', homeTall, DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        network: net, version: '2.1.0', onHealth: noop, onReport: noop, onScreenshot: noop, onStartHere: noop,
+        onCopyDownload: noop, onCopyGuide: noop, onRequests: noop));
+    await tester.pumpWidget(const SizedBox());
+    debugDisableShadows = true;
   }, skip: _dir == null);
 }
