@@ -30,15 +30,15 @@ class DolphinReceiveFolderView extends StatelessWidget {
           borderRadius: BorderRadius.circular(DolphinRadii.control),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.folder_open, color: DolphinColors.azure, size: 18),
+          Icon(Icons.folder_open, color: DolphinColors.azureText, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text(kReceiveFolderLabel, style: TextStyle(color: DolphinColors.ink, fontSize: 12)),
+              Text(kReceiveFolderLabel, style: TextStyle(color: DolphinColors.ink, fontSize: 12)),
               const SizedBox(height: 2),
               SelectableText(path,
                   textDirection: TextDirection.ltr,
-                  style: const TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.4)),
+                  style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.4)),
             ]),
           ),
         ]),

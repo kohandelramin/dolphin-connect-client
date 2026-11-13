@@ -1,45 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
-/// Dolphin's palette: the portal's tokens (app/src/app/globals.css), the website's system in a lighter blue.
+import 'theme_tokens.dart';
+
+export 'theme_tokens.dart' show DolphinTheme, DolphinThemeTokens, DolphinThemeSet, applyThemeOverrides;
+
+/// Dolphin's palette, as the customer screens name it: each colour reads the light tokens in use
+/// ([DolphinTheme.light], theme_tokens.dart), so a theme the portal pushes reaches every view. With the built-in tokens
+/// every value is the portal's own (app/src/app/globals.css), as before Plan 19. Getters, not constants: a view that
+/// uses one cannot be `const` (the colour may change while the app runs).
 class DolphinColors {
-  static const azure = Color(0xFF1462E0); // the one primary blue (D20): fills and text; white on it 5.45:1, on azureSoft 4.97:1
-  static const azureSoft = Color(0xFFEEF5FF);
-  static const azureTint = Color(0xFFD9E8FF);
-  static const aqua = Color(0xFF0D9488); // fills and icons only (3.74:1 on white)
-  static const aquaText = Color(0xFF0F766E); // small aqua text (5.47:1 on white, 4.91:1 on aquaSoft)
-  static const aquaSoft = Color(0xFFE6F6F4);
-  static const ink = Color(0xFF0B1829);
-  static const msgSuccess = aquaText; // message-box success icon on a white dialog 5.47:1 (upstream #32bea6 was 2.3:1); x86 also uses it as caption fill under white text
-  static const msgError = Color(0xFFD03C4E); // message-box error icon on a white dialog 4.73:1 (upstream #E04F5F was 3.9:1); x86 also uses it as caption fill under white text
-  static const danger = Color(0xFFE11D48);
-  static const dangerText = Color(0xFFBE123C);
-  static const dangerSoft = Color(0xFFFFF0F3);
-  static const amberText = Color(0xFF92400E); // the portal's amber text, for notices (6.59:1 on amberSoft)
-  static const amberSoft = Color(0xFFFEF6E0);
-  static const fieldEdge = Color(0xFF728AA6); // the portal's «در دسترس نیست» dot (StatusDot); a fill, never text
-  static const ground = Color(0xFFF6F9FF);
-  static const muted = Color(0xFF52637A);
-  static const line = Color(0xFFE2E9F3);
-  static const lineStrong = Color(0xFFC8D6E8);
+  DolphinColors._();
+  static DolphinThemeTokens get _t => DolphinTheme.light;
+
+  static Color get azure => _t.primary; // the one primary blue (D20) as a fill; white on it 5.45:1
+  static Color get azureText => _t.primaryText; // the blue as text or an icon; 4.97:1 on azureSoft
+  static Color get azureSoft => _t.surfaceAlt;
+  static Color get azureTint => _t.primaryTint;
+  static Color get aqua => _t.accent; // fills and icons only (3.74:1 on white)
+  static Color get aquaText => _t.success; // small aqua text (5.47:1 on white, 4.91:1 on aquaSoft)
+  static Color get aquaSoft => _t.accentSoft;
+  static Color get ink => _t.text;
+  static Color get msgSuccess => _t.success; // message-box success icon on a white dialog 5.47:1 (upstream #32bea6 was 2.3:1)
+  static Color get msgError => _t.errorIcon; // message-box error icon on a white dialog 4.73:1 (upstream #E04F5F was 3.9:1)
+  static Color get danger => _t.dangerFill;
+  static Color get dangerText => _t.danger;
+  static Color get dangerSoft => _t.dangerSoft;
+  static Color get amberText => _t.warning; // the portal's amber text, for notices (6.59:1 on amberSoft)
+  static Color get amberSoft => _t.warningSoft;
+  static Color get fieldEdge => _t.offlineDot; // the portal's «در دسترس نیست» dot (StatusDot); a fill, never text
+  static Color get ground => _t.background;
+  static Color get surface => _t.surface;
+  static Color get muted => _t.textMuted;
+  static Color get line => _t.line;
+  static Color get lineStrong => _t.lineStrong;
 }
 
-/// The portal's radii: fields 10, controls 12, cards 18.
+/// The portal's radii: fields 10, controls 12, cards 18 (tokens `radius` and `radiusLarge`; fields one step less).
 class DolphinRadii {
-  static const field = 10.0;
-  static const control = 12.0;
-  static const card = 18.0;
+  DolphinRadii._();
+  static double get field => DolphinTheme.light.radiusField;
+  static double get control => DolphinTheme.light.radius;
+  static double get card => DolphinTheme.light.radiusLarge;
 }
 
 /// Embedded in the app (assets/fonts), so it renders the same on every Windows.
 const kDolphinFont = 'Vazirmatn';
 
-/// Dolphin's look over the upstream theme: Vazirmatn everywhere, azure and aqua as the brand colours.
+/// Dolphin's look over the upstream theme: Vazirmatn everywhere, azure and aqua as the brand colours (the tokens of
+/// the base theme's brightness).
 ThemeData dolphinTheme(ThemeData base) {
+  final t = DolphinTheme.of(base.brightness);
   return base.copyWith(
-    colorScheme: base.colorScheme.copyWith(
-        primary: DolphinColors.azure,
-        secondary: DolphinColors.aqua,
-        error: DolphinColors.danger),
+    colorScheme: base.colorScheme.copyWith(primary: t.primary, secondary: t.accent, error: t.dangerFill),
     textTheme: base.textTheme.apply(fontFamily: kDolphinFont),
     primaryTextTheme: base.primaryTextTheme.apply(fontFamily: kDolphinFont),
   );
@@ -49,24 +62,25 @@ ThemeData dolphinTheme(ThemeData base) {
 /// one main action, outlined the others, text buttons for quiet links. Views set only colours, never sizes or radii.
 /// [outlineInk] and [outlineSide] are the outlined button's text and border: the light ones by default; the
 /// technician app's dark palette passes its own (DD-53, tech_theme.dart).
-ThemeData dolphinButtons(ThemeData t,
-    {Color outlineInk = DolphinColors.ink, Color outlineSide = DolphinColors.lineStrong}) {
-  const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(DolphinRadii.control)));
+ThemeData dolphinButtons(ThemeData t, {Color? outlineInk, Color? outlineSide}) {
+  final tokens = DolphinTheme.of(t.brightness);
+  final shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(tokens.radius)));
   const size = Size(64, 44);
   const padding = EdgeInsets.symmetric(horizontal: 16);
   const label = TextStyle(fontFamily: kDolphinFont, fontWeight: FontWeight.w700, fontSize: 14);
   return t.copyWith(
     filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-            minimumSize: size, padding: padding, shape: shape, textStyle: label, backgroundColor: DolphinColors.azure)),
+            minimumSize: size, padding: padding, shape: shape, textStyle: label, backgroundColor: tokens.primary,
+            foregroundColor: tokens.onPrimary)),
     elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
             minimumSize: size, padding: padding, shape: shape, textStyle: label, elevation: 0,
-            backgroundColor: DolphinColors.azure, foregroundColor: Colors.white)),
+            backgroundColor: tokens.primary, foregroundColor: tokens.onPrimary)),
     outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-            minimumSize: size, padding: padding, shape: shape, textStyle: label, foregroundColor: outlineInk,
-            side: BorderSide(color: outlineSide))),
+            minimumSize: size, padding: padding, shape: shape, textStyle: label,
+            foregroundColor: outlineInk ?? tokens.text, side: BorderSide(color: outlineSide ?? tokens.lineStrong))),
     textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(minimumSize: size, padding: padding, shape: shape, textStyle: label)),
   );
@@ -83,13 +97,68 @@ class DolphinLight extends StatelessWidget {
   final bool paint;
   const DolphinLight({super.key, required this.child, this.paint = true});
 
-  static final ThemeData data = dolphinButtons(dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false)));
+  static DolphinThemeTokens? _dataFor;
+  static ThemeData? _data;
+
+  /// Built once per token set (the built-in one, or the portal's while it is in use).
+  static ThemeData get data {
+    final t = DolphinTheme.light;
+    if (!identical(t, _dataFor) || _data == null) {
+      _data = dolphinButtons(dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false)));
+      _dataFor = t;
+    }
+    return _data!;
+  }
 
   @override
-  Widget build(BuildContext context) => Theme(
-        data: data,
-        child: paint
-            ? Material(color: DolphinColors.ground, child: child)
-            : Material(type: MaterialType.transparency, child: child),
+  Widget build(BuildContext context) => DolphinFontScale(
+        scale: DolphinTheme.light.fontScale,
+        child: Theme(
+          data: data,
+          child: paint
+              ? Material(color: DolphinColors.ground, child: child)
+              : Material(type: MaterialType.transparency, child: child),
+        ),
       );
 }
+
+/// The `fontScale` token: every text below grows or shrinks by it, on top of Windows' own text scaling. 1 (the
+/// built-in) changes nothing.
+class DolphinFontScale extends StatelessWidget {
+  final double scale;
+  final Widget child;
+  const DolphinFontScale({super.key, required this.scale, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (scale == 1) return child;
+    final mq = MediaQuery.maybeOf(context);
+    if (mq == null) return child;
+    return MediaQuery(
+        data: mq.copyWith(textScaler: TextScaler.linear(mq.textScaler.scale(14) / 14 * scale)), child: child);
+  }
+}
+
+/// A pushed theme reaches views that read [DolphinColors] in their build: when the tokens change, every widget in
+/// the app builds again once (no state is lost; nothing is remounted). Installed once by theme_option.dart.
+void dolphinRebuildOnThemeChange() {
+  if (_rebuildInstalled) return;
+  _rebuildInstalled = true;
+  DolphinTheme.active.addListener(() {
+    void mark(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(mark);
+    }
+
+    void markAll() => WidgetsBinding.instance.rootElement?.visitChildren(mark);
+    // A theme applied from a widget's initState arrives while the tree builds: mark it after this frame.
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks) {
+      markAll();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => markAll());
+    }
+  });
+}
+
+bool _rebuildInstalled = false;

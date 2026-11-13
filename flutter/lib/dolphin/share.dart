@@ -58,7 +58,7 @@ class DolphinShareView extends StatelessWidget {
                 Text(stopped ? kShareOffLabel : kShareOnLabel,
                     style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12.5)),
                 Text(stopped ? kShareOffHint : kShareOnHint,
-                    style: const TextStyle(color: DolphinColors.muted, fontSize: 11, height: 1.4)),
+                    style: TextStyle(color: DolphinColors.muted, fontSize: 11, height: 1.4)),
               ]),
             ),
             const SizedBox(width: 6),

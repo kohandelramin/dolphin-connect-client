@@ -52,18 +52,18 @@ class DolphinDropMask extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.file_upload_outlined, size: 40, color: DolphinColors.azure),
+                  Icon(Icons.file_upload_outlined, size: 40, color: DolphinColors.azureText),
                   const SizedBox(height: 8),
                   Text(remoteFolder.trim().isEmpty ? kDropNoFolder : kDropTitle,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: kDolphinFont, fontWeight: FontWeight.w800, color: DolphinColors.ink, fontSize: 15)),
                   if (remoteFolder.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(remoteFolder,
                         textDirection: TextDirection.ltr,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                        style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                   ],
                 ]),
               ),
@@ -147,7 +147,7 @@ class DolphinJobButtons extends StatelessWidget {
                 minimumSize: const Size(32, 32),
                 fixedSize: const Size(32, 32),
                 padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinTheme.light.radiusSmall)),
               ),
               icon: Icon(_look(a).$1, size: 18),
             ),

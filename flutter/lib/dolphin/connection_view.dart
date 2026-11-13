@@ -55,7 +55,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
         selected: value,
         onSelected: (v) => setState(() => set(v)),
         selectedColor: DolphinColors.azureTint,
-        checkmarkColor: DolphinColors.azure,
+        checkmarkColor: DolphinColors.azureText,
       );
 
   @override
@@ -101,7 +101,7 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
             Text(title,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.dangerText : null)),
-            Text(note, textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
+            Text(note, textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
             const SizedBox(height: 12),
             if (canAccept)
               Wrap(
@@ -204,7 +204,7 @@ class DolphinSessionView extends StatelessWidget {
         dense: true,
         contentPadding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        title: Text(label, style: const TextStyle(fontSize: 13.5, color: DolphinColors.ink)),
+        title: Text(label, style: TextStyle(fontSize: 13.5, color: DolphinColors.ink)),
         value: _value(name),
         onChanged: (v) => onToggle(name, v),
       );
@@ -225,7 +225,7 @@ class DolphinSessionView extends StatelessWidget {
           for (final l in lines)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text(l, style: const TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
+              child: Text(l, style: TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
             ),
         ]),
       );
@@ -250,17 +250,17 @@ class DolphinSessionView extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
                   child: Text(badge,
-                      style: const TextStyle(color: DolphinColors.azure, fontWeight: FontWeight.w700, fontSize: 12)),
+                      style: TextStyle(color: DolphinColors.azureText, fontWeight: FontWeight.w700, fontSize: 12)),
                 ),
                 const Spacer(),
                 Text(sessionClock(elapsed),
-                    textDirection: TextDirection.ltr, style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                    textDirection: TextDirection.ltr, style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
               ]),
               const SizedBox(height: 6),
               Text(technician,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
               if (onChat != null)
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -282,14 +282,14 @@ class DolphinSessionView extends StatelessWidget {
               if (paused)
                 _notice(
                     ground: DolphinColors.azureSoft,
-                    titleColor: DolphinColors.azure,
+                    titleColor: DolphinColors.azureText,
                     icon: Icons.pause_circle_outline,
                     title: kDolphinPausedTitle,
                     lines: const [kDolphinPausedNote]),
               const SizedBox(height: 4),
               for (final (name, label) in kDolphinPermissionLabels) _switch(name, label),
               Text(onPause != null && !paused ? kDolphinPauseHint : 'هر کدام را خاموش کنید، کارشناس دیگر نمی‌تواند از آن استفاده کند.',
-                  style: const TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
+                  style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
             ]),
           ),
         ),
@@ -402,10 +402,10 @@ class _DolphinEndedViewState extends State<DolphinEndedView> {
           const Text('جلسه پایان یافت.', style: TextStyle(fontWeight: FontWeight.w700)),
           if (r != null) ...[
             const SizedBox(height: 4),
-            Text(endReasonText(r), textAlign: TextAlign.center, style: const TextStyle(color: DolphinColors.muted)),
+            Text(endReasonText(r), textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
           ],
           const SizedBox(height: 6),
-          const Text(kDolphinRebootHint,
+          Text(kDolphinRebootHint,
               textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.6)),
           const SizedBox(height: 10),
           OutlinedButton(onPressed: _close, child: const Text('بستن')),

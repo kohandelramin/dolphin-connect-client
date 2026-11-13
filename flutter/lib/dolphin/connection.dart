@@ -17,6 +17,7 @@ import 'reconnect.dart';
 import 'safe_mode.dart';
 import 'session_controls.dart';
 import 'tech_card.dart';
+import 'theme_option.dart';
 import 'verify.dart';
 
 /// Connections the customer ended from this window («پایان» or «رد»), for the ended screen's reason (UX-6).
@@ -61,6 +62,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   @override
   void initState() {
     super.initState();
+    // Plan 19: the theme the main window last applied (this window has no option sync of its own).
+    themeFromMainWindow();
     // Remote control only: a file-transfer tab opened beside a live session is not a comeback.
     _resumed = widget.client.type_() == ClientType.remote && dolphinResumed(_lastLive[widget.client.peerId], DateTime.now());
     // Twice a second: re-check what the portal said about this peer, and note when the session started.

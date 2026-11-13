@@ -24,7 +24,7 @@ class DolphinCustomerRequests extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
                 color: Colors.white, border: Border(bottom: BorderSide(color: DolphinColors.line))),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
@@ -36,11 +36,11 @@ class DolphinCustomerRequests extends StatelessWidget {
                   style: TextButton.styleFrom(foregroundColor: DolphinColors.muted),
                 ),
                 const SizedBox(width: 6),
-                const Text('درخواست‌ها و پیام‌ها',
+                Text('درخواست‌ها و پیام‌ها',
                     style: TextStyle(fontWeight: FontWeight.w800, color: DolphinColors.ink)),
                 const Spacer(),
                 if (id.isNotEmpty) ...[
-                  const Text('شناسه‌ی این رایانه', style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
+                  Text('شناسه‌ی این رایانه', style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
                   const SizedBox(width: 6),
                   Text(groupId(id),
                       textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700)),

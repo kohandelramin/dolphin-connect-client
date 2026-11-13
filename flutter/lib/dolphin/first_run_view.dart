@@ -24,17 +24,17 @@ class DolphinFirstRunView extends StatelessWidget {
             width: 22,
             height: 22,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: DolphinColors.azureSoft, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: DolphinColors.azureSoft, shape: BoxShape.circle),
             child: Text(n,
-                style: const TextStyle(color: DolphinColors.azure, fontSize: 12.5, fontWeight: FontWeight.w800)),
+                style: TextStyle(color: DolphinColors.azureText, fontSize: 12.5, fontWeight: FontWeight.w800)),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(color: DolphinColors.ink, fontSize: 13, height: 1.7))),
+          Expanded(child: Text(text, style: TextStyle(color: DolphinColors.ink, fontSize: 13, height: 1.7))),
         ]);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
-        decoration: const BoxDecoration(color: DolphinColors.ground),
+        decoration: BoxDecoration(color: DolphinColors.ground),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
         child: Column(children: [
           Expanded(
@@ -57,7 +57,7 @@ class DolphinFirstRunView extends StatelessWidget {
                       child: Directionality(
                         textDirection: TextDirection.ltr,
                         child: Text(id.isEmpty ? '…' : readableId(id),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: 2, color: DolphinColors.ink)),
                       ),
                     ),
@@ -68,7 +68,7 @@ class DolphinFirstRunView extends StatelessWidget {
                         onPressed: onCopy,
                         icon: const Icon(Icons.copy, size: 18),
                         label: const Text('کپی شناسه'),
-                        style: OutlinedButton.styleFrom(foregroundColor: DolphinColors.azure),
+                        style: OutlinedButton.styleFrom(foregroundColor: DolphinColors.azureText),
                       ),
                     ),
                   ]),

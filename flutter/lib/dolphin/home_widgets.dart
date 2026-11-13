@@ -25,7 +25,7 @@ class DolphinStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final (fg, bg) = switch (status.bar) {
       HomeBar.ready => (DolphinColors.aquaText, DolphinColors.aquaSoft),
-      HomeBar.coming => (DolphinColors.azure, DolphinColors.azureSoft),
+      HomeBar.coming => (DolphinColors.azureText, DolphinColors.azureSoft),
       HomeBar.connected => (Colors.white, DolphinColors.azure),
       HomeBar.connecting => (DolphinColors.muted, DolphinColors.azureSoft),
       HomeBar.offline || HomeBar.stopped => (DolphinColors.dangerText, DolphinColors.dangerSoft),
@@ -95,9 +95,9 @@ class DolphinIdNotice extends StatelessWidget {
         borderRadius: BorderRadius.circular(DolphinRadii.control),
       ),
       child: Row(children: [
-        const Icon(Icons.info_outline, size: 18, color: DolphinColors.amberText),
+        Icon(Icons.info_outline, size: 18, color: DolphinColors.amberText),
         const SizedBox(width: 8),
-        const Expanded(
+        Expanded(
           child: Text(kIdChangedNotice,
               style: TextStyle(color: DolphinColors.amberText, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.6)),
         ),
@@ -105,7 +105,7 @@ class DolphinIdNotice extends StatelessWidget {
           IconButton(
             tooltip: 'بستن',
             onPressed: onDismiss,
-            icon: const Icon(Icons.close, size: 16, color: DolphinColors.amberText),
+            icon: Icon(Icons.close, size: 16, color: DolphinColors.amberText),
           ),
       ]),
     );
@@ -141,7 +141,7 @@ class DolphinNetworkPanel extends StatelessWidget {
               color: DolphinColors.aquaSoft,
               boxShadow: [BoxShadow(color: DolphinColors.aqua.withOpacity(0.35), blurRadius: 10, spreadRadius: 1)],
             ),
-            child: const Icon(Icons.wifi, size: 16, color: DolphinColors.aqua),
+            child: Icon(Icons.wifi, size: 16, color: DolphinColors.aqua),
           );
         }
         return SizedBox(
@@ -151,7 +151,7 @@ class DolphinNetworkPanel extends StatelessWidget {
               size: 16, color: r.tone == NetTone.bad ? DolphinColors.dangerText : DolphinColors.muted),
         );
       case NetKind.address:
-        return const SizedBox(
+        return SizedBox(
             width: _iconBox, height: _iconBox, child: Icon(Icons.computer_outlined, size: 16, color: DolphinColors.muted));
       case NetKind.plain:
         return const SizedBox.shrink();
@@ -175,7 +175,7 @@ class DolphinNetworkPanel extends StatelessWidget {
                 KeyedSubtree(
                     key: r.kind == NetKind.status ? const ValueKey('dolphin-net-status-icon') : null, child: _icon(r)),
                 if (r.kind != NetKind.plain) const SizedBox(width: 10),
-                Text('${r.label}:', style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                Text('${r.label}:', style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(r.value,
@@ -208,7 +208,7 @@ class DolphinHomeHelpers extends StatelessWidget {
           icon: const Icon(Icons.copy, size: 15),
           label: Text(label, style: const TextStyle(fontSize: 12.5)),
           style: OutlinedButton.styleFrom(
-            foregroundColor: DolphinColors.azure,
+            foregroundColor: DolphinColors.azureText,
             padding: const EdgeInsets.symmetric(horizontal: 10),
           ),
         );
@@ -226,7 +226,7 @@ class DolphinHomeHelpers extends StatelessWidget {
             icon: const Icon(Icons.menu_book_outlined, size: 18),
             label: const Text(kStartHereLabel),
             style: TextButton.styleFrom(
-              foregroundColor: DolphinColors.azure,
+              foregroundColor: DolphinColors.azureText,
               backgroundColor: DolphinColors.azureSoft,
             ),
           ),

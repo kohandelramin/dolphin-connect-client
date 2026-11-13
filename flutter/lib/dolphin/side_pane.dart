@@ -448,7 +448,7 @@ class DolphinSideStrip extends StatelessWidget {
                   key: toggleKey,
                   tooltip: open ? 'بستن پنل مشتری' : 'پنل مشتری',
                   isSelected: open,
-                  color: open ? DolphinColors.azure : DolphinColors.muted,
+                  color: open ? DolphinColors.azureText : DolphinColors.muted,
                   icon: const Icon(Icons.view_sidebar_outlined),
                   onPressed: onToggle,
                 ),
@@ -462,7 +462,7 @@ class DolphinSideStrip extends StatelessWidget {
                 PopupMenuButton<String>(
                   key: keyboardKey,
                   tooltip: 'زبان صفحه‌کلید مشتری',
-                  icon: const Icon(Icons.keyboard_outlined, color: DolphinColors.muted),
+                  icon: Icon(Icons.keyboard_outlined, color: DolphinColors.muted),
                   onSelected: onKeyboard,
                   itemBuilder: (context) => [
                     for (final c in kDolphinKeyboardChoices)
@@ -494,14 +494,14 @@ class DolphinSidePane extends StatelessWidget {
         child: Directionality(
           textDirection: TextDirection.rtl,
           child: DecoratedBox(
-            decoration: const BoxDecoration(border: BorderDirectional(end: BorderSide(color: DolphinColors.line))),
+            decoration: BoxDecoration(border: BorderDirectional(end: BorderSide(color: DolphinColors.line))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Container(
                 height: 40,
                 padding: const EdgeInsetsDirectional.only(start: 12, end: 4),
                 color: DolphinColors.azureSoft,
                 child: Row(children: [
-                  const Expanded(
+                  Expanded(
                       child: Text('پنل مشتری', style: TextStyle(fontWeight: FontWeight.bold, color: DolphinColors.ink))),
                   IconButton(
                       tooltip: 'بستن', icon: const Icon(Icons.close, size: 18), onPressed: onClose),

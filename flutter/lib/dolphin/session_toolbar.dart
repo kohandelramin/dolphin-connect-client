@@ -113,7 +113,7 @@ class DolphinBarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = DolphinTechPalette.ofContext(context);
     final fg = filled ? Colors.white : p.ink;
-    final bg = filled ? const Color(0xFF1462E0) : p.surface;
+    final bg = filled ? p.fill : p.surface;
     final shown = !stateInTooltip
         ? tooltip
         : on == true
@@ -133,10 +133,10 @@ class DolphinBarButton extends StatelessWidget {
             child: Material(
               color: bg,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(p.radiusSmall),
                   side: filled ? BorderSide.none : BorderSide(color: p.lineStrong)),
               child: InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(p.radiusSmall),
                 onTap: onPressed,
                 child: SizedBox(
                   height: 32,
@@ -184,7 +184,7 @@ class DolphinLatencyChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         height: 32,
         decoration: BoxDecoration(
-            color: p.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: p.line)),
+            color: p.surface, borderRadius: BorderRadius.circular(p.radiusSmall), border: Border.all(color: p.line)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 6),

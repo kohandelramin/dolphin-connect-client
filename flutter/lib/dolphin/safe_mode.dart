@@ -220,11 +220,11 @@ class DolphinRestartNoticeView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
-                const Icon(Icons.restart_alt, color: DolphinColors.amberText),
+                Icon(Icons.restart_alt, color: DolphinColors.amberText),
                 const SizedBox(width: 6),
                 Expanded(
                     child: Text(safe ? kRestartNoticeSafeTitle : kRestartNoticeNormalTitle,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink))),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink))),
               ]),
               const SizedBox(height: 10),
               Container(
@@ -232,7 +232,7 @@ class DolphinRestartNoticeView extends StatelessWidget {
                 decoration: BoxDecoration(
                     color: DolphinColors.amberSoft, borderRadius: BorderRadius.circular(DolphinRadii.field)),
                 child: Text(safe ? kRestartNoticeSafe : kRestartNoticeNormal,
-                    style: const TextStyle(fontSize: 13, height: 1.7, color: DolphinColors.amberText)),
+                    style: TextStyle(fontSize: 13, height: 1.7, color: DolphinColors.amberText)),
               ),
               const SizedBox(height: 12),
               Text(restartCountdown(secondsLeft),
@@ -241,7 +241,7 @@ class DolphinRestartNoticeView extends StatelessWidget {
                   style: TextStyle(fontSize: done ? 15 : 20, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
               if (safe) ...[
                 const SizedBox(height: 8),
-                const Text(kRestartNoticeSafeAfter,
+                Text(kRestartNoticeSafeAfter,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.muted)),
               ],
@@ -293,7 +293,7 @@ class DolphinSafeModeBanner extends StatelessWidget {
               border: Border.all(color: DolphinColors.amberText.withOpacity(0.25)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Row(children: [
+              Row(children: [
                 Icon(Icons.health_and_safety_outlined, size: 18, color: DolphinColors.amberText),
                 SizedBox(width: 6),
                 Expanded(
@@ -301,7 +301,7 @@ class DolphinSafeModeBanner extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w800, color: DolphinColors.amberText))),
               ]),
               const SizedBox(height: 4),
-              const Text(kSafeModeBannerLine, style: TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
+              Text(kSafeModeBannerLine, style: TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 key: const ValueKey('dolphin-safe-mode-return'),
@@ -312,7 +312,7 @@ class DolphinSafeModeBanner extends StatelessWidget {
               if (note != null && note!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(note!, style: const TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
+                  child: Text(note!, style: TextStyle(fontSize: 12, height: 1.6, color: DolphinColors.ink)),
                 ),
             ]),
           ),
@@ -333,10 +333,10 @@ class DolphinSafeModeReturnConfirm extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text(kSafeModeBannerReturn,
+              Text(kSafeModeBannerReturn,
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
               const SizedBox(height: 8),
-              const Text(kSafeModeReturnConfirm, style: TextStyle(height: 1.7, color: DolphinColors.ink)),
+              Text(kSafeModeReturnConfirm, style: TextStyle(height: 1.7, color: DolphinColors.ink)),
               const SizedBox(height: 14),
               Row(children: [
                 Expanded(

@@ -60,7 +60,7 @@ class DolphinPermissionStrip extends StatelessWidget {
                 borderRadius: BorderRadius.circular(99),
                 border: Border.all(color: DolphinColors.line)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('اجازه‌های مشتری:', style: TextStyle(fontSize: 11.5, color: DolphinColors.muted)),
+              Text('اجازه‌های مشتری:', style: TextStyle(fontSize: 11.5, color: DolphinColors.muted)),
               for (final s in states) ...[
                 const SizedBox(width: 10),
                 Icon(s.$2 ? Icons.check_circle : Icons.block,
@@ -85,8 +85,8 @@ class DolphinPermissionStrip extends StatelessWidget {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(DolphinRadii.card)),
-              child: const Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.pause_circle_filled, size: 40, color: DolphinColors.azure),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.pause_circle_filled, size: 40, color: DolphinColors.azureText),
                 SizedBox(height: 8),
                 Text(kDolphinCustomerPaused,
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: DolphinColors.ink)),

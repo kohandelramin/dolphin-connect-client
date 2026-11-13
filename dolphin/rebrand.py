@@ -41,12 +41,22 @@ X86_COLOURS = {
     ],
 }
 THEME_DART = ROOT / "flutter" / "lib" / "dolphin" / "theme.dart"
-TOKEN = re.compile(r"static const (\w+) = Color\(0xFF([0-9A-Fa-f]{6})\)")
+# Plan 19: the colours live in theme_tokens.dart (the built-in light tokens); theme.dart names them for the views
+# (`static Color get azure => _t.primary;`). The x86 build has no runtime theme: it gets the built-in values.
+THEME_TOKENS_DART = ROOT / "flutter" / "lib" / "dolphin" / "theme_tokens.dart"
+BUILT_IN = re.compile(r"(\w+): Color\(0xFF([0-9A-Fa-f]{6})\)")
+GETTER = re.compile(r"static Color get (\w+) => _t\.(\w+);")
 
 
-def dolphin_tokens(theme_text):
-    """The palette in flutter/lib/dolphin/theme.dart (the one token source, D20): name -> lower-case hex."""
-    tokens = {name: value.lower() for name, value in TOKEN.findall(theme_text)}
+def dolphin_tokens(theme_text, tokens_text=None):
+    """The palette as the views name it (theme.dart's getters over the built-in light tokens of theme_tokens.dart, the
+    one token source, D20): name -> lower-case hex. The token names themselves are included too."""
+    if tokens_text is None:
+        tokens_text = THEME_TOKENS_DART.read_text(encoding="utf-8")
+    block = tokens_text.split("static const builtInLight = DolphinThemeTokens._(", 1)[-1].split(");", 1)[0]
+    light = {name: value.lower() for name, value in BUILT_IN.findall(block)}
+    tokens = dict(light)
+    tokens.update({name: light[src] for name, src in GETTER.findall(theme_text) if src in light})
     for needed in ("azure", "azureTint", "aquaText"):
         if needed not in tokens:
             raise ValueError(f"theme.dart: token {needed} not found")

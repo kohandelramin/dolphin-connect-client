@@ -147,7 +147,7 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'نمایش این بخش در برنامه به «Microsoft Edge WebView2» نیاز دارد. آن را نصب کنید، یا همین صفحه را در مرورگر باز کنید.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: DolphinColors.muted, height: 1.8),

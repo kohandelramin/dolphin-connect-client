@@ -75,19 +75,19 @@ class DolphinUpdateCheckView extends StatelessWidget {
       UpdateCheckPhase.idle => null,
       UpdateCheckPhase.checking => const _Line(
           icon: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), text: kCheckingText),
-      UpdateCheckPhase.latest => const _Line(
+      UpdateCheckPhase.latest => _Line(
           icon: Icon(Icons.check_circle, size: 18, color: DolphinColors.aqua), text: kUpToDateText, color: DolphinColors.aquaText),
       UpdateCheckPhase.found => _Line(
-          icon: const Icon(Icons.system_update_alt, size: 18, color: DolphinColors.azure),
+          icon: Icon(Icons.system_update_alt, size: 18, color: DolphinColors.azureText),
           text: foundText(version),
           color: DolphinColors.ink,
           bold: true),
-      UpdateCheckPhase.unreachable => const _Line(
+      UpdateCheckPhase.unreachable => _Line(
           icon: Icon(Icons.cloud_off, size: 18, color: DolphinColors.amberText),
           text: kCheckUnreachableText,
           color: DolphinColors.amberText),
       UpdateCheckPhase.disabled =>
-        const _Line(icon: Icon(Icons.science_outlined, size: 18, color: DolphinColors.muted), text: kCheckDisabledText),
+        _Line(icon: Icon(Icons.science_outlined, size: 18, color: DolphinColors.muted), text: kCheckDisabledText),
     };
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -117,9 +117,9 @@ class DolphinUpdateCheckView extends StatelessWidget {
 class _Line extends StatelessWidget {
   final Widget icon;
   final String text;
-  final Color color;
+  final Color? color; // null: muted
   final bool bold;
-  const _Line({required this.icon, required this.text, this.color = DolphinColors.muted, this.bold = false});
+  const _Line({required this.icon, required this.text, this.color, this.bold = false});
 
   @override
   Widget build(BuildContext context) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -127,6 +127,6 @@ class _Line extends StatelessWidget {
         const SizedBox(width: 8),
         Flexible(
             child: Text(text,
-                style: TextStyle(color: color, height: 1.7, fontWeight: bold ? FontWeight.w700 : FontWeight.normal))),
+                style: TextStyle(color: color ?? DolphinColors.muted, height: 1.7, fontWeight: bold ? FontWeight.w700 : FontWeight.normal))),
       ]);
 }

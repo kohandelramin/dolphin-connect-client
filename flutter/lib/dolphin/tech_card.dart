@@ -54,7 +54,7 @@ class DolphinTechAvatar extends StatelessWidget {
       radius: radius,
       backgroundColor: DolphinColors.azureSoft,
       foregroundImage: photo == null ? null : MemoryImage(photo),
-      child: Icon(Icons.person, color: DolphinColors.azure, size: radius),
+      child: Icon(Icons.person, color: DolphinColors.azureText, size: radius),
     );
   }
 }
@@ -83,7 +83,7 @@ class DolphinTechCard extends StatelessWidget {
             const Text('کارشناس دلفین در راه است', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
             const SizedBox(height: 2),
             Text('$who اجازه‌ی اتصال دارد؛ اگر پیام اتصال آمد، «پذیرفتن» را بزنید.',
-                style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+                style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
           ]),
         ),
       ]),

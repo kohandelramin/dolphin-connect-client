@@ -113,10 +113,10 @@ class DolphinUpdateView extends StatelessWidget {
         ? progress.error
         : (check.state == 'blocked' && progress.state == 'idle' ? check.error : '');
     final children = <Widget>[
-      const Text(kDolphinUpdateTitle,
+      Text(kDolphinUpdateTitle,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
       const SizedBox(height: 8),
-      Text(check.lead, style: const TextStyle(height: 1.8, color: DolphinColors.muted)),
+      Text(check.lead, style: TextStyle(height: 1.8, color: DolphinColors.muted)),
       const SizedBox(height: 16),
     ];
     if (check.state == 'manual') {
@@ -131,10 +131,10 @@ class DolphinUpdateView extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
               color: DolphinColors.dangerSoft, borderRadius: BorderRadius.circular(DolphinRadii.control)),
-          child: Text(error, style: const TextStyle(height: 1.8, color: DolphinColors.dangerText)),
+          child: Text(error, style: TextStyle(height: 1.8, color: DolphinColors.dangerText)),
         ),
         const SizedBox(height: 8),
-        Text(check.phone, style: const TextStyle(height: 1.8, color: DolphinColors.ink)),
+        Text(check.phone, style: TextStyle(height: 1.8, color: DolphinColors.ink)),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilledButton(onPressed: onRetry, child: const Text('تلاش دوباره')),
@@ -156,7 +156,7 @@ class DolphinUpdateView extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(ready ? (progress.waiting ? kDolphinWaitingText : kDolphinApplyingText) : progress.text,
-            style: const TextStyle(color: DolphinColors.muted)),
+            style: TextStyle(color: DolphinColors.muted)),
         // A lost link to the session count must never strand the customer: continue never cuts the session.
         if (progress.state == 'ready' && progress.waiting && onContinue != null) ...[
           const SizedBox(height: 12),

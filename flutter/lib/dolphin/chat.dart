@@ -10,8 +10,8 @@ import 'theme.dart';
 const kChatEmpty = 'با فرستادن پیام شروع کنید';
 
 /// The other side's bubble: white text 6.1:1 (upstream's blueGrey was 4.35:1). Ours is the brand azure (5.45:1).
-const kChatTheirs = DolphinColors.muted;
-const kChatOurs = DolphinColors.azure;
+Color get kChatTheirs => DolphinColors.muted;
+Color get kChatOurs => DolphinColors.azure;
 
 final _strongRtl = RegExp(r'[֐-ࣿיִ-﷿ﹰ-﻿]');
 final _strongLtr = RegExp(r'[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]');

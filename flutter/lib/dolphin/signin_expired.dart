@@ -75,12 +75,12 @@ class DolphinSignInExpired extends StatelessWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 360),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.lock_clock_outlined, size: 44, color: DolphinColors.azure),
+                  Icon(Icons.lock_clock_outlined, size: 44, color: DolphinColors.azureText),
                   const SizedBox(height: 12),
-                  const Text(kSignInExpiredTitle,
+                  Text(kSignInExpiredTitle,
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
                   const SizedBox(height: 8),
-                  const Text(kSignInExpiredText,
+                  Text(kSignInExpiredText,
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13.5, height: 1.8, color: DolphinColors.muted)),
                   const SizedBox(height: 18),

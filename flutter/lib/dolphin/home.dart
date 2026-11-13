@@ -36,6 +36,7 @@ import 'support_upload.dart';
 import 'support_views.dart';
 import 'switches.dart';
 import 'tech_card.dart';
+import 'theme_option.dart';
 import 'verify.dart';
 import 'window_sizes.dart';
 
@@ -85,6 +86,8 @@ class _DolphinHomeState extends State<DolphinHome> {
     // the unsynced 0 (the code would flash during a session). The first read is the 2 s tick; until then it is unknown
     // and the code stays hidden (codeHiddenFor(null)).
     _options = Timer.periodic(const Duration(seconds: 2), (_) => _readConnected());
+    // Plan 19: the portal's theme (`dolphin-theme`), then on every 2 s read when it changes.
+    syncThemeFromPortal();
     _readStopped();
     _firstRun = firstRunShown(bind.mainGetLocalOption(key: kDolphinFirstRunLocal));
     // Plan 18 Phase 4: DD-39 log cleanup (at most once a day), DD-40 the monitor check, DD-19 the first service read.
@@ -101,6 +104,7 @@ class _DolphinHomeState extends State<DolphinHome> {
 
   Future<void> _readConnected() async {
     final n = connectedCount(await bind.mainGetConnectStatus());
+    syncThemeFromPortal();
     final stopped = await mainGetBoolOption(kOptionStopService);
     if (++_ticks % 5 == 0) _readService();
     final changed = _noteId(trimID(gFFI.serverModel.serverId.text));

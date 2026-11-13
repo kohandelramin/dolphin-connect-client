@@ -1228,3 +1228,30 @@ class NetWiringTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThemeTokensWiringTest(unittest.TestCase):
+    """Plan 19: one token set for both apps; the customer app takes the portal's `dolphin-theme` from the heartbeat."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_palettes_read_the_tokens(self):
+        theme = self.read("flutter", "lib", "dolphin", "theme.dart")
+        tech = self.read("flutter", "lib", "dolphin", "tech_theme.dart")
+        self.assertIn("static DolphinThemeTokens get _t => DolphinTheme.light;", theme)
+        self.assertNotIn("static const azure", theme)
+        self.assertIn("static DolphinTechPalette get dark => DolphinTechPalette.fromTokens(DolphinTheme.dark);", tech)
+        # no hard-coded brand colour left in the views
+        for path in ROOT.joinpath("flutter", "lib", "dolphin").glob("*.dart"):
+            if path.name in ("theme_tokens.dart", "brand.dart"):
+                continue
+            self.assertNotIn("Color(0xFF", path.read_text(encoding="utf-8"), path.name)
+
+    def test_the_customer_app_reads_the_option_and_hands_it_to_the_session_window(self):
+        tokens = self.read("flutter", "lib", "dolphin", "theme_tokens.dart")
+        self.assertIn("const kDolphinThemeOption = 'dolphin-theme';", tokens)
+        home = self.read("flutter", "lib", "dolphin", "home.dart")
+        self.assertEqual(home.count("syncThemeFromPortal();"), 2)  # at start and on the 2 s read
+        self.assertIn("themeFromMainWindow();", self.read("flutter", "lib", "dolphin", "connection.dart"))
+        self.assertIn("ThemeOverrideResult applyThemeOverrides(Object? json)", tokens)

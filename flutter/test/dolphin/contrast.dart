@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
+import 'package:flutter_hbb/dolphin/theme_tokens.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// WCAG 2.x contrast ratio of two opaque colours.
-double contrast(Color a, Color b) {
-  final la = a.computeLuminance(), lb = b.computeLuminance();
-  final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
-  return (hi + 0.05) / (lo + 0.05);
-}
+/// WCAG 2.x contrast ratio of two opaque colours: the app's own check of pushed themes (theme_tokens.dart), so the
+/// tests and the override check measure the same way.
+double contrast(Color a, Color b) => contrastRatio(a, b);
 
 /// A dark Windows: the platform says dark and the app theme mode follows it, as upstream's default "system" does.
 Widget darkApp(Widget child) => MediaQuery(

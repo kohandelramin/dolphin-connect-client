@@ -4,7 +4,8 @@ import 'theme.dart';
 
 /// DD-53: the technician app's colours, light and dark. The customer's screens stay light whatever Windows says (DR-1);
 /// the technician, who sits in front of the app all day, chooses: «مثل ویندوز» (the default), «روشن» or «تیره».
-/// Every pair a view uses is checked for contrast in test/dolphin/tech_theme_test.dart.
+/// Every pair a view uses is checked for contrast in test/dolphin/tech_theme_test.dart. Plan 19: the colours come from
+/// the theme tokens (theme_tokens.dart), so the portal's theme reaches the technician app too.
 class DolphinTechPalette {
   final Brightness brightness;
   final Color ground; // behind everything
@@ -18,6 +19,9 @@ class DolphinTechPalette {
   final Color okText; // «خوب» (aqua) as text on [surface]
   final Color warnText; // amber as text on [surface]
   final Color dangerText; // red as text on [surface]
+  final Color fill; // the brand blue as a fill (selected chips); white text on it
+  final double radiusSmall; // the toolbar's chips (8 built in)
+  final double radiusTiny; // the screen picker's tiles (6 built in)
 
   const DolphinTechPalette._({
     required this.brightness,
@@ -32,39 +36,34 @@ class DolphinTechPalette {
     required this.okText,
     required this.warnText,
     required this.dangerText,
+    required this.fill,
+    required this.radiusSmall,
+    required this.radiusTiny,
   });
 
-  /// The portal's own light tokens (theme.dart).
-  static const light = DolphinTechPalette._(
-    brightness: Brightness.light,
-    ground: DolphinColors.ground,
-    surface: Colors.white,
-    ink: DolphinColors.ink,
-    muted: DolphinColors.muted,
-    line: DolphinColors.line,
-    lineStrong: DolphinColors.lineStrong,
-    accent: DolphinColors.azure,
-    accentSoft: DolphinColors.azureSoft,
-    okText: DolphinColors.aquaText,
-    warnText: DolphinColors.amberText,
-    dangerText: DolphinColors.dangerText,
-  );
+  /// The palette of one token set (theme_tokens.dart): the built-in light one is the portal's own tokens, the
+  /// built-in dark one the website's ink ground with azure and aqua lifted, both as before Plan 19.
+  factory DolphinTechPalette.fromTokens(DolphinThemeTokens t) => DolphinTechPalette._(
+        brightness: t.brightness,
+        ground: t.background,
+        surface: t.surface,
+        ink: t.text,
+        muted: t.textMuted,
+        line: t.line,
+        lineStrong: t.lineStrong,
+        accent: t.primaryText,
+        accentSoft: t.surfaceAlt,
+        okText: t.success,
+        warnText: t.warning,
+        dangerText: t.danger,
+        fill: t.primary,
+        radiusSmall: t.radiusSmall,
+        radiusTiny: t.radiusTiny,
+      );
 
-  /// The ink ground of the website, with azure and aqua lifted so they read on it.
-  static const dark = DolphinTechPalette._(
-    brightness: Brightness.dark,
-    ground: Color(0xFF0B1829), // DolphinColors.ink
-    surface: Color(0xFF13233A),
-    ink: Color(0xFFE8EEF7),
-    muted: Color(0xFFA3B3C7),
-    line: Color(0xFF22344D),
-    lineStrong: Color(0xFF4A6080),
-    accent: Color(0xFF8AB8FF),
-    accentSoft: Color(0xFF1B355C),
-    okText: Color(0xFF5EEAD4),
-    warnText: Color(0xFFFCD34D),
-    dangerText: Color(0xFFFF9FB2),
-  );
+  /// The tokens in use (built-in, or the portal's theme while it is in use).
+  static DolphinTechPalette get light => DolphinTechPalette.fromTokens(DolphinTheme.light);
+  static DolphinTechPalette get dark => DolphinTechPalette.fromTokens(DolphinTheme.dark);
 
   static DolphinTechPalette of(Brightness b) => b == Brightness.dark ? dark : light;
 
@@ -93,13 +92,25 @@ class DolphinTechTheme extends StatelessWidget {
   final bool paint;
   const DolphinTechTheme({super.key, required this.child, this.paint = true});
 
-  static final ThemeData darkData = dolphinButtons(
-      dolphinTheme(ThemeData(brightness: Brightness.dark, useMaterial3: false)).copyWith(
-          scaffoldBackgroundColor: DolphinTechPalette.dark.ground,
-          canvasColor: DolphinTechPalette.dark.surface,
-          popupMenuTheme: PopupMenuThemeData(color: DolphinTechPalette.dark.surface)),
-      outlineInk: DolphinTechPalette.dark.ink,
-      outlineSide: DolphinTechPalette.dark.lineStrong);
+  static DolphinThemeTokens? _darkFor;
+  static ThemeData? _darkData;
+
+  /// Built once per token set, as [DolphinLight.data].
+  static ThemeData get darkData {
+    final t = DolphinTheme.dark;
+    if (!identical(t, _darkFor) || _darkData == null) {
+      final p = DolphinTechPalette.fromTokens(t);
+      _darkData = dolphinButtons(
+          dolphinTheme(ThemeData(brightness: Brightness.dark, useMaterial3: false)).copyWith(
+              scaffoldBackgroundColor: p.ground,
+              canvasColor: p.surface,
+              popupMenuTheme: PopupMenuThemeData(color: p.surface)),
+          outlineInk: p.ink,
+          outlineSide: p.lineStrong);
+      _darkFor = t;
+    }
+    return _darkData!;
+  }
 
   static ThemeData dataFor(Brightness b) => b == Brightness.dark ? darkData : DolphinLight.data;
 
@@ -107,11 +118,14 @@ class DolphinTechTheme extends StatelessWidget {
   Widget build(BuildContext context) {
     final b = Theme.of(context).brightness;
     final p = DolphinTechPalette.of(b);
-    return Theme(
-      data: dataFor(b),
-      child: paint
-          ? Material(color: p.ground, child: child)
-          : Material(type: MaterialType.transparency, child: child),
+    return DolphinFontScale(
+      scale: DolphinTheme.of(b).fontScale,
+      child: Theme(
+        data: dataFor(b),
+        child: paint
+            ? Material(color: p.ground, child: child)
+            : Material(type: MaterialType.transparency, child: child),
+      ),
     );
   }
 }

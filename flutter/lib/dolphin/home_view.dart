@@ -193,7 +193,7 @@ class DolphinHomeView extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          const Text('این شناسه را پشت تلفن به کارشناس دلفین بگویید',
+                          Text('این شناسه را پشت تلفن به کارشناس دلفین بگویید',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                           const SizedBox(height: 10),
@@ -222,10 +222,10 @@ class DolphinHomeView extends StatelessWidget {
                           ),
                           if (code.isNotEmpty) ...[
                             const SizedBox(height: 12),
-                            const Divider(height: 1, color: DolphinColors.line),
+                            Divider(height: 1, color: DolphinColors.line),
                             const SizedBox(height: 8),
                             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              const Text('رمز یک‌بارمصرف',
+                              Text('رمز یک‌بارمصرف',
                                   style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                               const SizedBox(width: 8),
                               Directionality(
@@ -236,13 +236,13 @@ class DolphinHomeView extends StatelessWidget {
                               ),
                               IconButton(
                                 tooltip: 'کپی رمز',
-                                icon: const Icon(Icons.copy, size: 16, color: DolphinColors.muted),
+                                icon: Icon(Icons.copy, size: 16, color: DolphinColors.muted),
                                 onPressed: onCopyCode,
                               ),
                             ]),
                             Text(codeSpoken ? kCodeSpokenLine : kCodeForPortalLine,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+                                style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
                           ],
                         ],
                       ),
@@ -256,7 +256,7 @@ class DolphinHomeView extends StatelessWidget {
                       Text(
                         hint,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
+                        style: TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.7),
                       ),
                     ],
                     // As before: not while a technician is on the way, nor while the server is unreachable.
@@ -270,8 +270,8 @@ class DolphinHomeView extends StatelessWidget {
                           icon: const Icon(Icons.phone_callback_outlined, size: 18),
                           label: const Text(kCallbackLabel, style: TextStyle(fontWeight: FontWeight.w700)),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: DolphinColors.azure,
-                            side: const BorderSide(color: DolphinColors.lineStrong),
+                            foregroundColor: DolphinColors.azureText,
+                            side: BorderSide(color: DolphinColors.lineStrong),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
                           ),
                         ),
@@ -297,7 +297,7 @@ class DolphinHomeView extends StatelessWidget {
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(recentLine(s, DateTime.now()),
-                                    style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+                                    style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
                               ),
                           ],
                         ),
@@ -314,7 +314,7 @@ class DolphinHomeView extends StatelessWidget {
                           label: const Text('درخواست‌ها و پیام‌ها',
                               style: TextStyle(fontWeight: FontWeight.w700)),
                           style: TextButton.styleFrom(
-                            foregroundColor: DolphinColors.azure,
+                            foregroundColor: DolphinColors.azureText,
                             backgroundColor: DolphinColors.azureSoft,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(DolphinRadii.control)),
@@ -323,7 +323,7 @@ class DolphinHomeView extends StatelessWidget {
                       ),
                       // UX-8: most customers have no portal account; say so before they meet a sign-in page.
                       const SizedBox(height: 6),
-                      const Text(
+                      Text(
                         kRequestsWhoFor,
                         textAlign: TextAlign.center,
                         style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
@@ -342,7 +342,7 @@ class DolphinHomeView extends StatelessWidget {
               ),
             ),
             Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border(top: BorderSide(color: DolphinColors.line))),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -354,11 +354,11 @@ class DolphinHomeView extends StatelessWidget {
                       child: Text(
                           phone.isEmpty ? 'پشتیبانی دلفین' : 'پشتیبانی دلفین: ${faDigits(phone)}',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                          style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                     ),
                     Text(siteLabel,
                         textDirection: TextDirection.ltr,
-                        style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                        style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
                   ],
                 ),
                 // DD-32: our own version (TB-4), so the customer can read it to the technician.
@@ -366,12 +366,12 @@ class DolphinHomeView extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: onAbout == null
-                        ? Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted, fontSize: 12))
+                        ? Text(versionLabel(version), style: TextStyle(color: DolphinColors.muted, fontSize: 12))
                         : InkWell(
                             onTap: onAbout,
                             child: Text('${versionLabel(version)} · درباره و به‌روزرسانی',
-                                style: const TextStyle(
-                                    color: DolphinColors.azure, fontSize: 12, decoration: TextDecoration.underline)),
+                                style: TextStyle(
+                                    color: DolphinColors.azureText, fontSize: 12, decoration: TextDecoration.underline)),
                           ),
                   ),
               ]),

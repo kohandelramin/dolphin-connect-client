@@ -17,7 +17,7 @@ class DolphinAbout extends StatelessWidget {
       DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
 
   Widget _build(BuildContext context) {
-    const link = TextStyle(color: DolphinColors.azure, decoration: TextDecoration.underline);
+    final link = TextStyle(color: DolphinColors.azureText, decoration: TextDecoration.underline);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
@@ -33,7 +33,7 @@ class DolphinAbout extends StatelessWidget {
             FutureBuilder<String>(
               future: bind.mainGetMyId(),
               builder: (context, snapshot) => SelectableText('شناسه‌ی این رایانه: ${snapshot.data ?? ''}',
-                  style: const TextStyle(color: DolphinColors.muted)),
+                  style: TextStyle(color: DolphinColors.muted)),
             ),
             // DD-41: the customer's virtual printer; nothing while the portal's `remote-printer` switch is hidden.
             if (bind.isIncomingOnly()) ...[const SizedBox(height: 10), const DolphinPrinterSection()],
@@ -43,11 +43,11 @@ class DolphinAbout extends StatelessWidget {
               const Text('مجوز AGPL-3.0 · '),
               InkWell(
                   onTap: () => launchUrl(Uri.parse(DolphinBrand.sourceUrl)),
-                  child: const Text('کد منبع', style: link)),
+                  child: Text('کد منبع', style: link)),
               const Text(' · '),
               InkWell(
                   onTap: () => launchUrl(Uri.parse(DolphinBrand.site)),
-                  child: const Text('حریم خصوصی', style: link)),
+                  child: Text('حریم خصوصی', style: link)),
             ]),
           ],
         ),
@@ -65,7 +65,7 @@ class DolphinAboutHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted)),
+        Text(versionLabel(version), style: TextStyle(color: DolphinColors.muted)),
       ]);
 }
 

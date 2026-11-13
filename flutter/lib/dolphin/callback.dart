@@ -102,7 +102,7 @@ class _DolphinCallbackFormState extends State<DolphinCallbackForm> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text(kCallbackLabel, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          const Text('کارشناس دلفین به این شماره زنگ می‌زند و بعد به همین رایانه وصل می‌شود.',
+          Text('کارشناس دلفین به این شماره زنگ می‌زند و بعد به همین رایانه وصل می‌شود.',
               style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
           const SizedBox(height: 12),
           if (!done) ...[
@@ -117,7 +117,7 @@ class _DolphinCallbackFormState extends State<DolphinCallbackForm> {
             const SizedBox(height: 8),
             TextField(controller: _note, enabled: !sending, maxLength: 500, maxLines: 2, decoration: _field('مشکل چیست؟ (اختیاری)')),
           ],
-          if (_problem != null) Text(_problem!, style: const TextStyle(color: DolphinColors.dangerText, fontSize: 12.5)),
+          if (_problem != null) Text(_problem!, style: TextStyle(color: DolphinColors.dangerText, fontSize: 12.5)),
           if (_status.text.isNotEmpty)
             Text(_status.text,
                 style: TextStyle(color: done ? DolphinColors.aquaText : DolphinColors.dangerText, fontSize: 13, height: 1.6)),

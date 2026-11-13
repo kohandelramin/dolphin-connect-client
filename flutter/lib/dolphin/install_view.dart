@@ -66,7 +66,7 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('نصب دلفین کانکت',
+              Text('نصب دلفین کانکت',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
               const SizedBox(height: 10),
               Text(
@@ -77,13 +77,13 @@ class _DolphinInstallViewState extends State<DolphinInstallView> {
                   style: TextStyle(color: DolphinColors.muted, height: 1.8)),
               const SizedBox(height: 22),
               if (_installing) ...[
-                const LinearProgressIndicator(color: DolphinColors.azure, backgroundColor: DolphinColors.azureTint),
+                LinearProgressIndicator(color: DolphinColors.azure, backgroundColor: DolphinColors.azureTint),
                 const SizedBox(height: 12),
-                const Text('در حال نصب… اگر ویندوز اجازه خواست، «Yes» (یا «بله») را بزنید.',
+                Text('در حال نصب… اگر ویندوز اجازه خواست، «Yes» (یا «بله») را بزنید.',
                     textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
                 if (_slow) ...[
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                       'اگر پنجره‌ی اجازه‌ی ویندوز باز است، آن را از نوار وظیفه باز کنید و «بله» را بزنید. اگر آن را بستید، این پنجره بسته می‌شود؛ برنامه‌ی نصب را دوباره باز کنید.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: DolphinColors.muted)),

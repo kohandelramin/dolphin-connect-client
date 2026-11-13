@@ -45,23 +45,23 @@ class DolphinTechnicianIdView extends StatelessWidget {
         decoration: BoxDecoration(
             color: Colors.white,
             border: Border.all(color: DolphinColors.line),
-            borderRadius: BorderRadius.circular(10)),
+            borderRadius: BorderRadius.circular(DolphinRadii.field)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('شناسه‌ی کارشناسیِ شما',
+            Text('شناسه‌ی کارشناسیِ شما',
                 style: TextStyle(color: DolphinColors.muted, fontSize: 12)),
             Row(children: [
               Expanded(
                 child: Directionality(
                   textDirection: TextDirection.ltr,
                   child: SelectableText(id.isEmpty ? '…' : groupId(id),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
                 ),
               ),
               TextButton(onPressed: id.isEmpty ? null : onCopy, child: const Text('کپی')),
             ]),
-            const Text('این شناسه را در «حساب من» در پورتال ثبت کنید؛ سرور فقط اتصال از همین شناسه را می‌پذیرد.',
+            Text('این شناسه را در «حساب من» در پورتال ثبت کنید؛ سرور فقط اتصال از همین شناسه را می‌پذیرد.',
                 style: TextStyle(color: DolphinColors.muted, fontSize: 11.5)),
           ],
         ),

@@ -45,7 +45,7 @@ class DolphinSupportTools extends StatelessWidget {
           icon: Icon(icon, size: 16),
           label: Text(label, style: const TextStyle(fontSize: 12.5)),
           style: OutlinedButton.styleFrom(
-            foregroundColor: DolphinColors.azure,
+            foregroundColor: DolphinColors.azureText,
             padding: const EdgeInsets.symmetric(horizontal: 10),
           ),
         );
@@ -91,11 +91,11 @@ class DolphinServiceNotice extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.error_outline, size: 18, color: DolphinColors.dangerText),
+          Icon(Icons.error_outline, size: 18, color: DolphinColors.dangerText),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(color: DolphinColors.dangerText, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.6)),
+                style: TextStyle(color: DolphinColors.dangerText, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.6)),
           ),
         ]),
         if (onFix != null) ...[
@@ -124,14 +124,14 @@ class DolphinHeadlessNotice extends StatelessWidget {
         padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 12, 8),
         decoration: BoxDecoration(color: DolphinColors.amberSoft, borderRadius: BorderRadius.circular(DolphinRadii.control)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.desktop_access_disabled_outlined, size: 18, color: DolphinColors.amberText),
+          Icon(Icons.desktop_access_disabled_outlined, size: 18, color: DolphinColors.amberText),
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text(kHeadlessTitle,
+              Text(kHeadlessTitle,
                   style: TextStyle(color: DolphinColors.amberText, fontSize: 12.5, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
-              Text(fix, style: const TextStyle(color: DolphinColors.amberText, fontSize: 12, height: 1.6)),
+              Text(fix, style: TextStyle(color: DolphinColors.amberText, fontSize: 12, height: 1.6)),
             ]),
           ),
         ]),
@@ -174,7 +174,7 @@ class DolphinUploadPanel extends StatelessWidget {
           Text(shot ? kScreenshotLabel : kReportLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text(shot ? kScreenshotBody : kReportBody,
-              style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
+              style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6)),
           if (png != null) ...[
             const SizedBox(height: 10),
             ClipRRect(
@@ -207,7 +207,7 @@ class DolphinUploadPanel extends StatelessWidget {
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               const SizedBox(width: 8),
               Text(phase == UploadPhase.preparing ? kPreparingReport : kSendingLabel,
-                  style: const TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                  style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
             ]),
           if (message.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -287,10 +287,10 @@ class _DolphinUploadFormState extends State<DolphinUploadForm> {
 }
 
 Icon _toneIcon(CheckTone t) => switch (t) {
-      CheckTone.ok => const Icon(Icons.check_circle, size: 18, color: DolphinColors.aqua),
-      CheckTone.warn => const Icon(Icons.warning_amber_rounded, size: 18, color: DolphinColors.amberText),
-      CheckTone.bad => const Icon(Icons.cancel, size: 18, color: DolphinColors.dangerText),
-      CheckTone.info => const Icon(Icons.info_outline, size: 18, color: DolphinColors.muted),
+      CheckTone.ok => Icon(Icons.check_circle, size: 18, color: DolphinColors.aqua),
+      CheckTone.warn => Icon(Icons.warning_amber_rounded, size: 18, color: DolphinColors.amberText),
+      CheckTone.bad => Icon(Icons.cancel, size: 18, color: DolphinColors.dangerText),
+      CheckTone.info => Icon(Icons.info_outline, size: 18, color: DolphinColors.muted),
     };
 
 /// DD-38: the check list. Pure: [items] null while the checks run.
@@ -321,10 +321,10 @@ class DolphinHealthView extends StatelessWidget {
                 tooltip: kCloseLabel,
                 visualDensity: VisualDensity.compact,
                 onPressed: onClose,
-                icon: const Icon(Icons.close, size: 20, color: DolphinColors.muted)),
+                icon: Icon(Icons.close, size: 20, color: DolphinColors.muted)),
           ]),
           if (items == null)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -352,7 +352,7 @@ class DolphinHealthView extends StatelessWidget {
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(i.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                             Text(i.result,
-                                style: const TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.5)),
+                                style: TextStyle(color: DolphinColors.muted, fontSize: 12, height: 1.5)),
                             if (i.fix == HealthFix.startService && onFix != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -374,7 +374,7 @@ class DolphinHealthView extends StatelessWidget {
           ],
           if (saved.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(saved, style: const TextStyle(color: DolphinColors.aquaText, fontSize: 12, height: 1.5)),
+            Text(saved, style: TextStyle(color: DolphinColors.aquaText, fontSize: 12, height: 1.5)),
           ],
           const SizedBox(height: 8),
           if (items == null)

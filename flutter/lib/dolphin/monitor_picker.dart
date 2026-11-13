@@ -123,12 +123,12 @@ class _ScreenTile extends StatelessWidget {
     return Tooltip(
       message: selected ? '${screenName(index)} (همین را می‌بینید)' : screenName(index),
       child: Material(
-        color: selected ? const Color(0xFF1462E0) : p.surface,
+        color: selected ? p.fill : p.surface,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-            side: BorderSide(color: selected ? const Color(0xFF1462E0) : p.lineStrong, width: 1.5)),
+            borderRadius: BorderRadius.circular(p.radiusTiny),
+            side: BorderSide(color: selected ? p.fill : p.lineStrong, width: 1.5)),
         child: InkWell(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(p.radiusTiny),
           onTap: onTap,
           child: Directionality(
             textDirection: TextDirection.rtl,

@@ -79,10 +79,10 @@ class DolphinPrinterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (ui == PrinterUi.hidden) return const SizedBox.shrink();
-    const body = TextStyle(color: DolphinColors.muted, height: 1.7);
+    final body = TextStyle(color: DolphinColors.muted, height: 1.7);
     final children = <Widget>[
-      const Row(children: [
-        Icon(Icons.print_outlined, size: 20, color: DolphinColors.azure),
+      Row(children: [
+        Icon(Icons.print_outlined, size: 20, color: DolphinColors.azureText),
         SizedBox(width: 8),
         Text(kPrinterTitle, style: TextStyle(fontWeight: FontWeight.w700, color: DolphinColors.ink)),
       ]),
@@ -92,15 +92,15 @@ class DolphinPrinterCard extends StatelessWidget {
       case PrinterUi.hidden:
         break;
       case PrinterUi.osTooOld:
-        children.add(const Text(kPrinterOsText, style: body));
+        children.add(Text(kPrinterOsText, style: body));
       case PrinterUi.needsInstall:
-        children.add(const Text(kPrinterNeedsInstallText, style: body));
+        children.add(Text(kPrinterNeedsInstallText, style: body));
       case PrinterUi.printerMissing:
         children.addAll([
           Text(printerMissingText(printerName), style: body),
           const SizedBox(height: 8),
           if (installing)
-            const Text(kPrinterInstallingText, style: body)
+            Text(kPrinterInstallingText, style: body)
           else
             FilledButton.icon(
                 onPressed: onInstall,
@@ -113,17 +113,17 @@ class DolphinPrinterCard extends StatelessWidget {
     if (error.isNotEmpty) {
       children.addAll([
         const SizedBox(height: 6),
-        Text(error, style: const TextStyle(color: DolphinColors.dangerText, height: 1.6)),
+        Text(error, style: TextStyle(color: DolphinColors.dangerText, height: 1.6)),
       ]);
     }
     if (ui == PrinterUi.ready || ui == PrinterUi.printerMissing) {
       children.add(const SizedBox(height: 4));
       children.add(mode == SwitchMode.forced
-          ? const Text(kPrinterForcedText, style: TextStyle(color: DolphinColors.aquaText, height: 1.7))
+          ? Text(kPrinterForcedText, style: TextStyle(color: DolphinColors.aquaText, height: 1.7))
           : SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text(kPrinterAllowLabel, style: TextStyle(color: DolphinColors.ink)),
+              title: Text(kPrinterAllowLabel, style: TextStyle(color: DolphinColors.ink)),
               value: on,
               onChanged: onChanged,
             ));
