@@ -379,6 +379,18 @@ class ChatFilesWiringTest(unittest.TestCase):
         self.assertIn("chatFollowsIncoming(", self.read("flutter", "lib", "models", "chat_model.dart"))
         conn = self.read("flutter", "lib", "dolphin", "connection.dart")
         self.assertIn("gFFI.chatModel.toggleCMChatPage(MessageKey(c.peerId, c.id))", conn)
+    def test_the_technician_hears_refused_or_no_answer(self):
+        model = self.read("flutter", "lib", "models", "model.dart")
+        body = model.split("handleMsgBox(Map<String, dynamic> evt, SessionID sessionId, String peerId) {", 1)[1]
+        hook = body.index("dolphinRequestDenied(")
+        self.assertLess(hook, body.index("showMsgBox(sessionId, type, title, text, link, hasRetry, dialogManager);"))
+        self.assertIn("text = kDolphinRequestDeniedKey;", body[:2000])
+        self.assertIn("if (!isCache) _dolphinWaitingAccept = false;", model.split("handlePeerInfo(Map<String, dynamic> evt", 1)[1][:400])
+        dialog = self.read("flutter", "lib", "common", "widgets", "dialog.dart")
+        wait = dialog.split("void showWaitAcceptDialog(", 1)[1].split("void showRestartRemoteDevice(", 1)[0]
+        self.assertIn("? DolphinWaitAccept()", wait)
+        self.assertIn("closeConnection();", wait)  # «لغو» still ends the request as before
+
 
 if __name__ == "__main__":
     unittest.main()
