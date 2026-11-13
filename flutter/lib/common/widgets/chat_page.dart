@@ -5,6 +5,7 @@ import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
 
+import '../../dolphin/chat.dart'; // Dolphin Connect (DD-29)
 import '../../mobile/pages/home_page.dart';
 
 enum ChatPageType {
@@ -96,14 +97,16 @@ class ChatPage extends StatelessWidget implements PageShape {
             return Stack(
               children: [
                 LayoutBuilder(builder: (context, constraints) {
+                  final messages = chatModel
+                          .messages[chatModel.currentKey]?.chatMessages ??
+                      <ChatMessage>[];
                   final chat = DashChat(
                     onSend: chatModel.send,
                     currentUser: chatModel.me,
-                    messages: chatModel
-                            .messages[chatModel.currentKey]?.chatMessages ??
-                        [],
+                    messages: messages,
                     readOnly: readOnly,
                     inputOptions: InputOptions(
+                      inputTextDirection: TextDirection.rtl, // Dolphin Connect (DD-29)
                       focusNode: chatModel.inputNode,
                       textController: chatModel.textController,
                       inputTextStyle: TextStyle(
@@ -135,40 +138,28 @@ class ChatPage extends StatelessWidget implements PageShape {
                       showOtherUsersName: false,
                       textColor: Colors.white,
                       maxWidth: constraints.maxWidth * 0.7,
-                      messageTextBuilder: (message, _, __) {
-                        final isOwnMessage = message.user.id.isBlank!;
-                        return Column(
-                          crossAxisAlignment: isOwnMessage
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(message.text,
-                                style: TextStyle(color: Colors.white)),
-                            Text(
-                              "${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                              ),
-                            ).marginOnly(top: 3),
-                          ],
-                        );
-                      },
+                      // Dolphin Connect (DD-29): the text in its own direction, Persian time (flutter/lib/dolphin/chat.dart).
+                      messageTextBuilder: (message, _, __) =>
+                          DolphinChatText(text: message.text, at: message.createdAt),
                       messageDecorationBuilder:
                           (message, previousMessage, nextMessage) {
-                        final isOwnMessage = message.user.id.isBlank!;
+                        // Dolphin Connect (DD-29): ours on the left of the right-to-left chat, readable colours.
+                        final ours = message.user.id == chatModel.me.id;
+                        final c = chatBubbleCorners(ours: ours);
                         return defaultMessageDecoration(
-                          color:
-                              isOwnMessage ? MyTheme.accent : Colors.blueGrey,
-                          borderTopLeft: 8,
-                          borderTopRight: 8,
-                          borderBottomRight: isOwnMessage ? 2 : 8,
-                          borderBottomLeft: isOwnMessage ? 8 : 2,
+                          color: ours ? kChatOurs : kChatTheirs,
+                          borderTopLeft: c.topLeft,
+                          borderTopRight: c.topRight,
+                          borderBottomRight: c.bottomRight,
+                          borderBottomLeft: c.bottomLeft,
                         );
                       },
                     ),
                   ).workaroundFreezeLinuxMint();
-                  return SelectionArea(child: chat);
+                  // Dolphin Connect (DD-29): right to left, Vazirmatn, «با فرستادن پیام شروع کنید» while empty.
+                  return DolphinChatFrame(
+                      empty: messages.isEmpty,
+                      child: SelectionArea(child: chat));
                 }),
               ],
             ).paddingOnly(bottom: 8);

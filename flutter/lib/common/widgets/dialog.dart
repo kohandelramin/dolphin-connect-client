@@ -18,6 +18,7 @@ import 'package:flutter_hbb/utils/http_service.dart' as http;
 import '../../common.dart';
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
+import '../../dolphin/request_outcome.dart'; // Dolphin Connect (DD-14)
 import 'address_book.dart';
 
 void clientClose(SessionID sessionId, FFI ffi) async {
@@ -1391,7 +1392,10 @@ void showWaitAcceptDialog(SessionID sessionId, String type, String title,
 
     return CustomAlertDialog(
       title: null,
-      content: msgboxContent(type, title, text),
+      // Dolphin Connect (DD-14): the technician app counts the wait and says «مشتری جواب نداد» after a minute.
+      content: bind.isOutgoingOnly()
+          ? DolphinWaitAccept()
+          : msgboxContent(type, title, text),
       actions: [
         dialogButton('Cancel', onPressed: onCancel, isOutline: true),
       ],

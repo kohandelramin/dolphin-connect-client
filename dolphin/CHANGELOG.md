@@ -148,6 +148,35 @@ Flutter only; no change to connections, codecs or networking. Widget and unit te
   froze when Windows locked looks like a still screen, so for that the same help opens from «تصویر نمی‌آید؟».
 
 **یادداشت فارسی:** فقط برنامه‌ی کارشناس عوض شده است.
+### Plan 18 Phase 3: chat, files, refused or no answer, sign-in expired (customer x64, technician x64)
+
+Flutter only; no change to connections, network or speed. The Dart analysis and the widget tests ran on the
+maintainer's PC (Flutter 3.24.5); the apps were not built or run.
+
+- DD-29: the session chat is right to left in both apps: Vazirmatn, each message in its own direction (a Windows path
+  reads left to right), the time in Persian digits, readable bubbles, and «با فرستادن پیام شروع کنید» while nothing has
+  been said. The customer's session window has «گفتگو با کارشناس»; a message that arrives while the chat still shows an
+  ended session moves it to the new one, so it is seen at once.
+- DD-30: in the technician's file window, files dropped from Windows on either side go to the folder open on the
+  customer's PC, the same way as «ارسال», with a mask that names that folder (upstream's drop asked the customer's PC
+  for the technician's local paths, and folders went as files). The transfer list is a queue in Persian: «۴۵٪», «۲ از ۵
+  فایل», «توقف» (the row stays as «لغو»), «تلاش دوباره» after a failure or a stop, «ادامه», «پاک کردن از فهرست». A pin
+  button beside «خانه» keeps pinned folders for each side in this app (per Windows account, so per technician).
+  «کپی مسیر» on a file or folder. Dropping onto the session window itself is not in this build.
+- DD-14: while a request waits for «پذیرفتن», the technician sees how long it has waited; after a minute «مشتری جواب
+  نداد» and what to do (the request still waits, «لغو» ends it as before). The customer's «رد» shows «مشتری رد کرد»
+  instead of «مشتری اتصال را بست».
+- DD-15: the technician app's panel shows «ورود منقضی شد» with one «ورود دوباره» when the staff sign-in expired mid-use:
+  on the portal's `expired=1` sign-in page, or a page that answered 401 (the English "Sign in as staff." of the CSV and
+  report routes). After signing in it goes back to the last panel page.
+- Portal change suggested (not in this repo): `requireStaff` could redirect to `/staff/login?expired=1` when a session
+  cookie came with the request, so an expired page load shows the notice too (today only actions and 401s do; a plain
+  `/staff/login` is also where «خروج» lands).
+
+**یادداشت فارسی:** گفت‌وگوی جلسه راست‌به‌چپ و با قلم وزیرمتن شد و مشتری از پنجره‌ی جلسه دکمه‌ی «گفتگو با کارشناس»
+دارد. کارشناس فایل‌ها را با کشیدن و رها کردن می‌فرستد، صف انتقال درصد و «توقف» و «تلاش دوباره» دارد، پوشه‌های پرکاربرد را
+سنجاق می‌کند و مسیر هر فایل را کپی می‌کند. اگر مشتری درخواست را رد کند یا جواب ندهد، کارشناس همان را می‌بیند؛ اگر ورود
+کارشناس به پنل تمام شود، «ورود منقضی شد» و یک دکمه‌ی «ورود دوباره» می‌آید.
 
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 

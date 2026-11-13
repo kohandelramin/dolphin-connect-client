@@ -6,6 +6,7 @@ import 'package:webview_windows/webview_windows.dart';
 
 import 'brand.dart';
 import 'panel_bridge.dart';
+import 'signin_expired.dart';
 import 'theme.dart';
 
 /// Lets the screen around a portal page send it a message (the technician app's own field, WF-2).
@@ -44,6 +45,11 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
   bool _noWebView = false;
   String _url = '';
 
+  // DD-15: the staff sign-in expired mid-use (signin_expired.dart); the last panel page, to return to after it.
+  bool _expired = false;
+  String? _lastPage;
+  bool get _staff => widget.path.startsWith('/staff');
+
   bool get _onPortal => isPortalPage(_url, DolphinBrand.portalUrl);
 
   String get _home => '${DolphinBrand.portalUrl}${widget.path}';
@@ -65,7 +71,11 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       _subs.add(_web.url.listen((url) {
         _url = url;
         if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);
+        if (_staff && _onPortal && signInExpiredAt(url, DolphinBrand.portalUrl) && mounted) {
+          setState(() => _expired = true); // DD-15
+        }
       }));
+      if (_staff) _subs.add(_web.loadingState.listen(_onLoaded)); // DD-15
       _subs.add(_web.webMessage.listen(_onMessage));
       await _web.loadUrl(_home);
       widget.link?._send = _web.postWebMessage;
@@ -74,6 +84,31 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
     } catch (_) {
       if (mounted) setState(() => _noWebView = true);
     }
+  }
+
+  /// DD-15: after each page, a 401 means the sign-in expired; a panel page that loaded is where to come back to.
+  Future<void> _onLoaded(LoadingState state) async {
+    if (state != LoadingState.navigationCompleted || !_onPortal) return;
+    final url = _url;
+    int status = 0;
+    try {
+      final s = await _web.executeScript(kNavigationStatusScript);
+      status = s is num ? s.toInt() : int.tryParse('$s') ?? 0;
+    } catch (_) {} // no status: only the address is used
+    if (!mounted || url != _url) return;
+    if (signInExpiredAt(url, DolphinBrand.portalUrl, status: status)) {
+      setState(() => _expired = true);
+    } else if (isStaffPanelPage(url, DolphinBrand.portalUrl)) {
+      _lastPage = url;
+      if (_expired) setState(() => _expired = false); // signed in again
+    }
+  }
+
+  void _signInAgain() {
+    final onLogin = isStaffLoginPage(_url, DolphinBrand.portalUrl);
+    setState(() => _expired = false);
+    // On the portal's own sign-in page (with its `next`) the form is already there; otherwise go to it.
+    if (!onLogin) _web.loadUrl(signInAgainUrl(DolphinBrand.portalUrl, _lastPage));
   }
 
   Future<void> _onMessage(dynamic raw) async {
@@ -120,6 +155,11 @@ class _DolphinPortalViewState extends State<DolphinPortalView> {
       );
     }
     if (!_ready) return const Center(child: CircularProgressIndicator());
-    return Webview(_web);
+    // DD-15: the notice covers the panel (the WebView is a texture, so Flutter draws over it); one tree either way, so
+    // the WebView is never rebuilt.
+    return Stack(children: [
+      Webview(_web),
+      if (_expired) Positioned.fill(child: DolphinSignInExpired(onSignIn: _signInAgain)),
+    ]);
   }
 }

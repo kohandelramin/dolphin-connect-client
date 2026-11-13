@@ -46,6 +46,7 @@ import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/dolphin/reconnect.dart'; // Dolphin Connect (D23)
 import 'package:flutter_hbb/dolphin/permissions.dart'; // Dolphin Connect (DD-46)
 import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart'; // Dolphin Connect (DD-16)
+import 'package:flutter_hbb/dolphin/request_outcome.dart'; // Dolphin Connect (DD-14)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -130,6 +131,8 @@ class FfiModel with ChangeNotifier {
   Timer? _dolphinRetryTimer;
   // Dolphin Connect (DD-46): the customer paused (flutter/lib/dolphin/permissions.dart); shown over the picture.
   bool dolphinPaused = false;
+  // Dolphin Connect (DD-14): a request is waiting for the customer's «پذیرفتن»; cleared at the login.
+  bool _dolphinWaitingAccept = false;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
   bool _viewOnly = false;
@@ -893,8 +896,21 @@ class FfiModel with ChangeNotifier {
     final dialogManager = parent.target!.dialogManager;
     final type = evt['type'];
     final title = evt['title'];
-    final text = evt['text'];
+    var text = evt['text'];
     final link = evt['link'];
+    // Dolphin Connect (DD-14): «مشتری رد کرد» when the customer refused the waiting request (request_outcome.dart).
+    if (type == 'wait-remote-accept-nook') {
+      _dolphinWaitingAccept = true;
+    } else if (title is String &&
+        text is String &&
+        dolphinRequestDenied(
+            technician: bind.isOutgoingOnly(),
+            waitingForAccept: _dolphinWaitingAccept,
+            title: title,
+            text: text)) {
+      _dolphinWaitingAccept = false;
+      text = kDolphinRequestDeniedKey;
+    }
 
     // The peer-gone detector reconnects under `restarting-show` rather than an error title, so
     // it needs naming here too. By its own title, not the type: an explicitly restarted remote
@@ -1402,6 +1418,7 @@ class FfiModel with ChangeNotifier {
   handlePeerInfo(Map<String, dynamic> evt, String peerId, bool isCache) async {
     // Dolphin Connect (DD-46): a new login starts unpaused; a PC that is still paused says so right after.
     dolphinPaused = false;
+    if (!isCache) _dolphinWaitingAccept = false; // Dolphin Connect (DD-14): accepted
     parent.target?.chatModel.voiceCallStatus.value = VoiceCallStatus.notStarted;
 
     _queryAuditGuid(peerId);

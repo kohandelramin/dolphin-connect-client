@@ -157,6 +157,8 @@ FA_ADD = {
     # src/dolphin_system_core.rs RECEIVE_ONLY_ERROR (DD-12).
     "dolphin_receive_folder_only": "در این رایانه فایل‌ها فقط در پوشه‌ی «دریافتی دلفین» ذخیره می‌شوند؛ همان پوشه را باز کنید",
     "Too many wrong attempts": "رمز چند بار اشتباه وارد شد؛ یک دقیقه صبر کنید و رمز تازه را از مشتری بپرسید",
+    # flutter/lib/dolphin/request_outcome.dart kDolphinRequestDeniedKey (DD-14): «رد» before any login.
+    "dolphin_request_denied": "مشتری رد کرد؛ اگر اشتباهی بود، با او تماس بگیرید و دوباره وصل شوید",
 }
 FA_END = "\n    ].iter().cloned().collect();"
 LATIN_START = re.compile(r"^(?:[A-Za-z]|\.\.\.)")

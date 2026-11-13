@@ -146,6 +146,11 @@ class ErrorTextsTest(unittest.TestCase):
         for key in keys + ["The main window is not open"]:
             self.assertIn(key, r.FA_ADD)
 
+    def test_the_refusal_key_of_the_technician_app_has_persian(self):
+        dart = (r.ROOT / "flutter" / "lib" / "dolphin" / "request_outcome.dart").read_text(encoding="utf-8")
+        key = re.search(r"const kDolphinRequestDeniedKey = '([^']+)';", dart).group(1)
+        self.assertIn("مشتری رد کرد", r.FA_ADD[key])  # DD-14
+
     def test_additions_go_before_the_end_of_the_table(self):
         fa = 'x = [\n        ("a", "b")\n    ].iter().cloned().collect();\n}'
         out, problems = r.apply_fa_additions(fa, {"k": "مقدار"})

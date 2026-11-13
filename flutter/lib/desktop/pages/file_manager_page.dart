@@ -23,6 +23,7 @@ import 'package:flutter_hbb/web/dummy.dart'
 import '../../consts.dart';
 import '../../desktop/widgets/material_mod_popup_menu.dart' as mod_menu;
 import '../../common.dart';
+import '../../dolphin/file_transfer.dart'; // Dolphin Connect (DD-30)
 import '../../models/model.dart';
 import '../../models/platform_model.dart';
 import '../widgets/popup_menu.dart';
@@ -185,15 +186,26 @@ class _FileManagerPageState extends State<FileManagerPage>
 
   Widget dropArea(FileManagerView fileView) {
     return DropTarget(
-        onDragDone: (detail) =>
-            handleDragDone(detail, fileView.controller.isLocal),
+        onDragDone: (detail) {
+          _dropMaskVisible.value = false; // Dolphin Connect (DD-30)
+          handleDragDone(detail, fileView.controller.isLocal);
+        },
         onDragEntered: (enter) {
           _dropMaskVisible.value = true;
         },
         onDragExited: (exit) {
           _dropMaskVisible.value = false;
         },
-        child: fileView);
+        // Dolphin Connect (DD-30): while files are dragged over, where they will land.
+        child: Stack(children: [
+          fileView,
+          Obx(() => _dropMaskVisible.value
+              ? Positioned.fill(
+                  child: DolphinDropMask(
+                      remoteFolder:
+                          model.remoteController.directory.value.path))
+              : const SizedBox.shrink()),
+        ]));
   }
 
   Widget generateCard(Widget child) {
@@ -293,7 +305,7 @@ class _FileManagerPageState extends State<FileManagerPage>
                                         fit: BoxFit.scaleDown,
                                         child: Text.rich(
                                           TextSpan(
-                                            text: item.percentText,
+                                            text: transferPercent(item.percent), // Dolphin Connect (DD-30)
                                             children: [
                                               if (item.recvJobRes)
                                                 TextSpan(
@@ -321,38 +333,16 @@ class _FileManagerPageState extends State<FileManagerPage>
                             ],
                           ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Offstage(
-                              offstage: item.state != JobState.paused,
-                              child: MenuButton(
-                                tooltip: translate("Resume"),
-                                onPressed: () {
-                                  jobController.resumeJob(item.id);
-                                },
-                                child: SvgPicture.asset(
-                                  "assets/refresh.svg",
-                                  colorFilter: svgColor(Colors.white),
-                                ),
-                                color: MyTheme.accent,
-                                hoverColor: MyTheme.accent80,
-                              ),
-                            ),
-                            MenuButton(
-                              tooltip: translate("Delete"),
-                              child: SvgPicture.asset(
-                                "assets/close.svg",
-                                colorFilter: svgColor(Colors.white),
-                              ),
-                              onPressed: () {
-                                jobController.jobTable.removeAt(index);
-                                jobController.cancelJob(item.id);
-                              },
-                              color: MyTheme.accent,
-                              hoverColor: MyTheme.accent80,
-                            ),
-                          ],
+                        // Dolphin Connect (DD-30): «توقف», «تلاش دوباره», «ادامه», «پاک کردن از فهرست».
+                        DolphinJobButtons(
+                          actions: jobActions(
+                              type: item.type.name,
+                              state: item.state.name,
+                              err: item.err,
+                              canRetry: jobController.dolphinTransfers
+                                  .containsKey(item.id)),
+                          onAction: (a) =>
+                              jobController.dolphinJobAction(item.id, a),
                         ).marginAll(12),
                       ],
                     ),
@@ -399,21 +389,32 @@ class _FileManagerPageState extends State<FileManagerPage>
     );
   }
 
+  // Dolphin Connect (DD-30): files dropped on either side go to the folder open on the customer's PC, by the same path
+  // as «ارسال» (local to remote). Upstream sent them through the remote side, which asked the customer's PC for the
+  // dropped local paths; folders now go as folders.
   void handleDragDone(DropDoneDetails details, bool isLocal) {
-    if (isLocal) {
-      // ignore local
-      return;
-    }
-    final items = SelectedItems(isLocal: false);
-    for (var file in details.files) {
-      final f = File(file.path);
+    final remote = model.remoteController.directoryData();
+    final dropped = dropToSend([
+      for (final file in details.files)
+        (
+          path: file.path,
+          name: file.name,
+          isDir: FileSystemEntity.isDirectorySync(file.path),
+          size: FileSystemEntity.isDirectorySync(file.path)
+              ? 0
+              : File(file.path).lengthSync(),
+        )
+    ], remote.directory.path);
+    if (dropped.isEmpty) return;
+    final items = SelectedItems(isLocal: true);
+    for (final d in dropped) {
       items.add(Entry()
-        ..path = file.path
-        ..name = file.name
-        ..size = FileSystemEntity.isDirectorySync(f.path) ? 0 : f.lengthSync());
+        ..path = d.path
+        ..name = d.name
+        ..entryType = d.isDir ? 0 : 4 // FileType: Dir 0, File 4
+        ..size = d.size);
     }
-    final otherSideData = model.localController.directoryData();
-    model.remoteController.sendFiles(items, otherSideData);
+    model.localController.sendFiles(items, remote);
   }
 }
 
@@ -758,6 +759,16 @@ class _FileManagerViewState extends State<FileManagerView> {
                       ),
                       color: Theme.of(context).cardColor,
                       hoverColor: Theme.of(context).hoverColor,
+                    ),
+                    // Dolphin Connect (DD-30): pinned folders, kept in this app per technician.
+                    DolphinPinMenu(
+                      side: isLocal ? 'local' : 'remote',
+                      current: () => controller.directory.value.path,
+                      onOpen: (path) => controller.openDirectory(path),
+                      load: () =>
+                          bind.mainGetLocalOption(key: kDolphinPinsKey),
+                      save: (v) => bind.mainSetLocalOption(
+                          key: kDolphinPinsKey, value: v),
                     ),
                     MenuButton(
                       tooltip: translate('Create Folder'),
@@ -1155,7 +1166,16 @@ class _FileManagerViewState extends State<FileManagerView> {
                   onTap: () {
                     controller.renameAction(entry, isLocal);
                   },
-                )
+                ),
+              // Dolphin Connect (DD-30): «کپی مسیر».
+              mod_menu.PopupMenuItem(
+                child: Text(kCopyPath),
+                height: CustomPopupMenuTheme.height,
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: entry.path));
+                  showToast(kPathCopied);
+                },
+              ),
             ];
             if (items.isNotEmpty) {
               rightClickEntry.value = entry;

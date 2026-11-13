@@ -362,5 +362,70 @@ class SystemWiringTest(unittest.TestCase):
         for t in ("presence_test.dart", "share_test.dart", "plain_errors_test.dart", "receive_folder_test.dart"):
             self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
 
+
+class ChatFilesWiringTest(unittest.TestCase):
+    """Plan 18 Phase 3 (DD-29, DD-30, DD-14, DD-15): the hooks in upstream files, proven by their text, since the apps
+    are not built here."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_chat_is_right_to_left_with_an_empty_line(self):
+        page = self.read("flutter", "lib", "common", "widgets", "chat_page.dart")
+        self.assertIn("inputTextDirection: TextDirection.rtl, // Dolphin Connect (DD-29)", page)
+        self.assertIn("DolphinChatText(text: message.text, at: message.createdAt)", page)
+        self.assertIn("return DolphinChatFrame(", page)
+        self.assertIn("empty: messages.isEmpty,", page)
+        self.assertIn("chatFollowsIncoming(", self.read("flutter", "lib", "models", "chat_model.dart"))
+        conn = self.read("flutter", "lib", "dolphin", "connection.dart")
+        self.assertIn("gFFI.chatModel.toggleCMChatPage(MessageKey(c.peerId, c.id))", conn)
+    def test_the_technician_hears_refused_or_no_answer(self):
+        model = self.read("flutter", "lib", "models", "model.dart")
+        body = model.split("handleMsgBox(Map<String, dynamic> evt, SessionID sessionId, String peerId) {", 1)[1]
+        hook = body.index("dolphinRequestDenied(")
+        self.assertLess(hook, body.index("showMsgBox(sessionId, type, title, text, link, hasRetry, dialogManager);"))
+        self.assertIn("text = kDolphinRequestDeniedKey;", body[:2000])
+        self.assertIn("if (!isCache) _dolphinWaitingAccept = false;", model.split("handlePeerInfo(Map<String, dynamic> evt", 1)[1][:400])
+        dialog = self.read("flutter", "lib", "common", "widgets", "dialog.dart")
+        wait = dialog.split("void showWaitAcceptDialog(", 1)[1].split("void showRestartRemoteDevice(", 1)[0]
+        self.assertIn("? DolphinWaitAccept()", wait)
+        self.assertIn("closeConnection();", wait)  # «لغو» still ends the request as before
+
+    def test_the_panel_says_when_the_sign_in_expired(self):
+        view = self.read("flutter", "lib", "dolphin", "portal_view.dart")
+        self.assertIn("signInExpiredAt(url, DolphinBrand.portalUrl)", view)
+        self.assertIn("_web.executeScript(kNavigationStatusScript)", view)
+        self.assertIn("if (_expired) Positioned.fill(child: DolphinSignInExpired(onSignIn: _signInAgain)),", view)
+        # The panel still stays on the portal: the redirect home comes first in the address listener.
+        listener = view.split("_web.url.listen((url) {", 1)[1]
+        self.assertLess(listener.index("if (!isPanelUrl(url, DolphinBrand.portalUrl)) _web.loadUrl(_home);"),
+                        listener.index("signInExpiredAt("))
+
+    def test_the_file_window_drops_queues_pins_and_copies(self):
+        page = self.read("flutter", "lib", "desktop", "pages", "file_manager_page.dart")
+        drop = page.split("void handleDragDone(DropDoneDetails details, bool isLocal) {", 1)[1].split("class FileManagerView extends", 1)[0]
+        self.assertIn("final items = SelectedItems(isLocal: true);", drop)
+        self.assertIn("model.localController.sendFiles(items, remote);", drop)  # local to remote, as «ارسال»
+        self.assertNotIn("remoteController.sendFiles", drop)
+        self.assertIn("DolphinDropMask(", page)
+        self.assertIn("DolphinJobButtons(", page)
+        self.assertIn("jobController.dolphinJobAction(item.id, a)", page)
+        self.assertIn("DolphinPinMenu(", page)
+        self.assertIn("key: kDolphinPinsKey", page)
+        self.assertIn("Clipboard.setData(ClipboardData(text: entry.path));", page)
+        files = self.read("flutter", "lib", "models", "file_model.dart")
+        send = files.split("Future<void> sendFiles(", 1)[1]
+        self.assertLess(send.index("jobController.dolphinTransfers[jobID] = DolphinTransfer("),
+                        send.index("bind.sessionSendFiles("))
+        self.assertIn("transferFiles(handledFileCount, fileCount)", files)
+
+    def test_ci_analyzes_the_phase_3_hooked_files_and_runs_their_tests(self):
+        for f in ("lib/common/widgets/chat_page.dart", "lib/models/chat_model.dart", "lib/common/widgets/dialog.dart",
+                  "lib/desktop/pages/file_manager_page.dart"):
+            self.assertIn(f, ANALYZE)
+        for t in ("chat_test.dart", "file_transfer_test.dart", "request_outcome_test.dart", "signin_expired_test.dart"):
+            self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
+
+
 if __name__ == "__main__":
     unittest.main()

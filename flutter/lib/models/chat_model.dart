@@ -18,6 +18,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../consts.dart';
 import '../common.dart';
 import '../common/widgets/overlay.dart';
+import '../dolphin/chat.dart'; // Dolphin Connect (DD-29)
 import '../main.dart';
 import 'model.dart';
 
@@ -432,7 +433,13 @@ class ChatModel with ChangeNotifier {
     }
     insertMessage(messagekey,
         ChatMessage(text: text, user: chatUser, createdAt: DateTime.now()));
-    if (id == clientModeID || _currentKey.peerId.isEmpty) {
+    // Dolphin Connect (DD-29): also when the chat still shows a session that has ended, so the new message is seen.
+    if (id == clientModeID ||
+        _currentKey.peerId.isEmpty ||
+        chatFollowsIncoming(
+            sameAsCurrent: _currentKey == messagekey,
+            currentLive: session.serverModel.clients
+                .any((c) => c.id == _currentKey.connId && !c.disconnected))) {
       // client or invalid
       _currentKey = messagekey;
       mobileClearClientUnread(messagekey.connId);
