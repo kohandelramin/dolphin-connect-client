@@ -10,6 +10,7 @@ import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/remote_page.dart';
 import 'package:flutter_hbb/desktop/pages/view_camera_page.dart';
+import 'package:flutter_hbb/dolphin/presence.dart'; // Dolphin Connect: the close question (DD-35)
 import 'package:flutter_hbb/main.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -469,6 +470,14 @@ class _DesktopTabState extends State<DesktopTab>
 
     // hide window on close
     if (isMainWindow) {
+      // Dolphin Connect (DD-35, ADR-0016): the customer chooses «در دسترس بماند» (hidden, still active) or «بستن کامل»
+      // (upstream's close below, which ends the app once no window is active).
+      if (tabType == DesktopTabType.main &&
+          bind.isIncomingOnly() &&
+          await dolphinHandleMainWindowClose(context)) {
+        super.onWindowClose();
+        return;
+      }
       if (rustDeskWinManager.getActiveWindows().contains(kMainWindowId)) {
         await rustDeskWinManager.unregisterActiveWindow(kMainWindowId);
       }
