@@ -22,10 +22,14 @@ import 'package:flutter_hbb/dolphin/first_run_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/network_status.dart';
 import 'package:flutter_hbb/dolphin/presence.dart';
+import 'package:flutter_hbb/dolphin/printer.dart';
 import 'package:flutter_hbb/dolphin/recent_sessions.dart';
 import 'package:flutter_hbb/dolphin/share.dart';
+import 'package:flutter_hbb/dolphin/switches.dart';
 import 'package:flutter_hbb/dolphin/tech_card.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
+import 'package:flutter_hbb/dolphin/update_check.dart';
+import 'package:flutter_hbb/dolphin/update_view.dart';
 import 'package:flutter_hbb/dolphin/verify.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -158,6 +162,37 @@ void main() {
     await _shot(tester, '26-signin-expired', const Size(400, 360), DolphinSignInExpired(onSignIn: noop));
     await _shot(tester, '27-side-strip', const Size(80, 200),
         Center(child: DolphinSideStrip(open: true, onToggle: noop, onScreenshot: noop, onKeyboard: (_) {})));
+    await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+
+  // Plan 18 Phase 4: «بررسی نسخه‌ی تازه» (DD-20) and the remote printer (DD-41).
+  testWidgets('write install and update previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    Widget about(Widget row) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('دلفین کانکت', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const Text('نسخه‌ی ۲.۰.۰', style: TextStyle(color: DolphinColors.muted)),
+          const SizedBox(height: 8),
+          row,
+        ]));
+    await _shot(tester, '40-update-check', const Size(360, 200),
+        about(DolphinUpdateCheckView(phase: UpdateCheckPhase.latest, onCheck: noop, onUpdate: noop)));
+    await _shot(tester, '41-update-found', const Size(360, 200),
+        about(DolphinUpdateCheckView(phase: UpdateCheckPhase.found, version: '2.1.0', onCheck: noop, onUpdate: noop)));
+    await _shot(tester, '42-printer', const Size(360, 260), Padding(
+        padding: const EdgeInsets.all(16),
+        child: DolphinPrinterCard(
+            ui: PrinterUi.printerMissing, mode: SwitchMode.available, printerName: 'DolphinConnect Printer', on: true,
+            onInstall: noop, onChanged: (_) {})));
+    final found = ManualUpdateCheck.fromJson('{"state":"update","version":"2.1.0","lead":"",'
+        '"phone":"اگر درست نشد با پشتیبانی دلفین تماس بگیرید: ۰۲۱-۴۴۲۸۰۵۰۵","downloadPage":"https://support.dolphindev.ir/download"}');
+    await _shot(tester, '43-update-dialog', const Size(460, 260), DolphinUpdateView(
+        check: found.screen,
+        progress: const DolphinUpdateProgress(state: 'downloading', percent: 40, text: '۴۰ درصد'),
+        onRetry: noop, onDownloadPage: noop, onClose: noop, onContinue: noop));
     await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }
