@@ -23,7 +23,7 @@ void main() {
         onEnd: () {})));
     expect(find.text('۰۴:۱۲'), findsOneWidget);
     await tester.tap(find.text('ماوس و صفحه‌کلید'));
-    await tester.tap(find.text('کپی و چسباندن'));
+    await tester.tap(find.text('کلیپ‌بورد'));
     await tester.tap(find.text('انتقال فایل'));
     expect(got, {'keyboard': false, 'clipboard': false, 'file': true});
   });
@@ -42,8 +42,8 @@ void main() {
         verdict: const TechVerdict(TechCheck.verified, 'علی'),
         peerName: 'x',
         showElevate: true,
-        onAccept: (k, c, f) {},
-        onAcceptElevate: (k, c, f) => elevated = true,
+        onAccept: (_) {},
+        onAcceptElevate: (_) => elevated = true,
         onDeny: () {})));
     await tester.tap(find.text('پذیرفتن، با اجازه‌ی نصب برنامه'));
     expect(elevated, isTrue);

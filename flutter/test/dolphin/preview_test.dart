@@ -13,6 +13,7 @@ import 'package:flutter_hbb/dolphin/about.dart';
 import 'package:flutter_hbb/dolphin/call_status.dart';
 import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
+import 'package:flutter_hbb/dolphin/customer_settings.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
 import 'package:flutter_hbb/dolphin/no_picture.dart';
 import 'package:flutter_hbb/dolphin/request_outcome.dart';
@@ -91,9 +92,76 @@ Widget _bubble(Widget child) => Align(
         decoration: BoxDecoration(color: DolphinColors.azure, borderRadius: BorderRadius.circular(12)),
         child: child));
 
+/// Plan 19 C3: a made-up desktop with the coloured frame (src/dolphin_frame.rs draws it in the app) and the session
+/// window in the bottom corner, above the taskbar.
+Widget _desk(Widget session) => Container(
+      decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [Color(0xFF2C4A7C), Color(0xFF4F7FBF), Color(0xFF9CC3E8)])),
+      child: Stack(children: [
+        Positioned(
+            left: 60, top: 50, width: 360, height: 250,
+            child: Container(decoration: BoxDecoration(color: const Color(0xFFF4F6FA), borderRadius: BorderRadius.circular(4)))),
+        const Positioned(left: 0, right: 0, bottom: 0, height: 26, child: ColoredBox(color: Color(0xFF1D2333))),
+        Positioned(
+          right: 14,
+          bottom: 36,
+          width: 300,
+          height: 380,
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 18, offset: Offset(0, 6))]),
+            child: session,
+          ),
+        ),
+        // The frame: 5 physical pixels on every edge, in the frame token.
+        Positioned.fill(
+            child: IgnorePointer(
+                child: DecoratedBox(decoration: BoxDecoration(border: Border.all(color: DolphinColors.frame, width: 3))))),
+      ]),
+    );
+
+/// Plan 19 C7: what the tray menu says (src/dolphin_system_core.rs tray_state_line, TRAY_*). The real menu is Windows'
+/// own (drawn in Windows' theme); this is a drawing of its items.
+Widget _trayMenu() => DolphinLight(
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Center(
+          child: Container(
+            width: 250,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: DolphinColors.surface,
+              border: Border.all(color: DolphinColors.lineStrong),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 4))],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (final (text, color) in [
+                ('● در دسترس — آماده برای پشتیبانی', DolphinColors.muted),
+                ('باز کردن دلفین کانکت', DolphinColors.ink),
+                ('توقف اشتراک', DolphinColors.ink),
+                ('', DolphinColors.line),
+                ('بستن کامل', DolphinColors.dangerText),
+              ])
+                text.isEmpty
+                    ? Divider(height: 9, color: color)
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        child: Text(text, style: TextStyle(color: color, fontSize: 13)),
+                      ),
+            ]),
+          ),
+        ),
+      ),
+    );
+
 void main() {
-  const home = Size(340, 520);
-  const homeTall = Size(340, 900);
+  // Plan 19: the customer window 380 × 580 (C1), the prompt 320 × 520 (C2), the session window 300 × 380 (C3).
+  const home = Size(380, 580);
+  const homeTall = Size(380, 900);
+  const accept = Size(320, 520);
   const session = Size(300, 380);
   final now = DateTime.now();
   // The customer's network box: the state and this PC's IP only (owner 2026-11-13).
@@ -105,33 +173,82 @@ void main() {
     // The network box's soft glow is a real blurred shadow (tests draw shadows solid by default).
     debugDisableShadows = false;
     Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    Widget share({bool stopped = false}) => DolphinShareView(stopped: stopped, onToggle: noop);
 
     await _shot(tester, '01-home-ready', homeTall, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
-        network: net, recent: recent, version: '2.1.0', onStartHere: () {}, onCopyIp: () {}, onCopyDownload: () {}, onCopyGuide: () {},
-        onRequests: () {}, onCallback: () {}));
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        network: net, recent: recent, version: '2.1.0', onStartHere: noop, onCopyIp: noop, onCopyDownload: noop, onCopyGuide: noop,
+        onRequests: noop, onCallback: noop, onHealth: noop, onReport: noop, onScreenshot: noop, share: share(), onSettings: noop,
+        onAbout: noop));
     await _shot(tester, '02-home-tech-coming', home, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
-        coming: const TechComing('علی رضایی', null), network: net, version: '2.1.0'));
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        coming: const TechComing('علی رضایی', null), network: net, version: '2.1.0', onHealth: noop, onReport: noop,
+        onScreenshot: noop, share: share(), onSettings: noop, onAbout: noop));
     await _shot(tester, '03-home-connected', home, DolphinHomeView(
-        id: '123456789', state: DolphinServerState.ready, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
-        connected: 1, network: net, version: '2.1.0'));
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        coming: const TechComing('علی رضایی', null), connected: 1, network: net, version: '2.1.0', onHealth: noop,
+        onReport: noop, onScreenshot: noop, share: share(), onSettings: noop, onAbout: noop));
     await _shot(tester, '04-home-offline-id-changed', home, DolphinHomeView(
-        id: '987654321', state: DolphinServerState.offline, onCopy: () {}, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
-        idChanged: true, onDismissIdNotice: () {}, network: networkRows(server: DolphinServerState.offline, localIp: ''), version: '2.1.0'));
-    await _shot(tester, '05-first-run', home, DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () {}));
-    await _shot(tester, '06-share-stopped', const Size(340, 140), DolphinShareView(stopped: true, onToggle: () {}));
-    await _shot(tester, '07-close-question', const Size(360, 300), DolphinCloseDialogView(onChoose: (_, __) {}, onCancel: () {}));
-    await _shot(tester, '08-accept-verified', const Size(300, 490), DolphinAcceptView(
-        verdict: const TechVerdict(TechCheck.verified, 'علی رضایی'), peerName: 'علی رضایی', onAccept: (_, __, ___) {}, onDeny: () {},
+        id: '987654321', state: DolphinServerState.offline, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        idChanged: true, onDismissIdNotice: noop, network: networkRows(server: DolphinServerState.offline, localIp: ''),
+        version: '2.1.0', onHealth: noop, share: share(), onSettings: noop, onAbout: noop));
+    await _shot(tester, '05-first-run', home, DolphinFirstRunView(id: '123456789', onCopy: noop, onNext: noop));
+    await _shot(tester, '06-share-stopped', const Size(380, 110),
+        DolphinLight(child: Padding(padding: const EdgeInsets.all(14), child: share(stopped: true))));
+    await _shot(tester, '07-close-question', const Size(360, 330), DolphinCloseDialogView(onChoose: (_, __) {}, onCancel: noop));
+    await _shot(tester, '08-accept-verified', accept, DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.verified, 'علی رضایی'), peerName: 'علی رضایی', onAccept: (_) {}, onDeny: noop,
         phone: '021-44280505'));
     await _shot(tester, '09-session', session, DolphinSessionView(
         technician: 'علی رضایی', elapsed: const Duration(minutes: 7, seconds: 12), keyboard: true, clipboard: true, file: true,
-        onPause: (_) {}, onToggle: (_, __) {}, onEnd: () {}));
+        onPause: (_) {}, onToggle: (_, __) {}, onEnd: noop, onFrame: (_) {}));
     await _shot(tester, '10-session-paused-input-off', session, DolphinSessionView(
         technician: 'علی رضایی', elapsed: const Duration(minutes: 9), keyboard: false, clipboard: true, file: false, paused: true,
-        inputOff: 'علی رضایی خاموش کرد، ۳ دقیقه پیش', onPause: (_) {}, onToggle: (_, __) {}, onEnd: () {}));
-    await _shot(tester, '11-ended', session, DolphinEndedView(reason: DolphinEndReason.values.first, onClose: () {}));
+        inputOff: 'علی رضایی خاموش کرد، ۳ دقیقه پیش', onPause: (_) {}, onToggle: (_, __) {}, onEnd: noop, onFrame: (_) {},
+        onChat: noop));
+    await _shot(tester, '11-ended', session, DolphinEndedView(reason: DolphinEndReason.values.first, onClose: noop));
+
+    // Plan 19: the customer app's new look (C1–C7), light and dark.
+    Widget main() => DolphinHomeView(
+        id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
+        network: net, version: '2.2.0', onHealth: noop, onReport: noop, onScreenshot: noop, share: share(), onSettings: noop,
+        onAbout: noop);
+    Widget settings() => DolphinCustomerSettingsView(
+        askOnClose: true,
+        onAskOnClose: (_) {},
+        frame: true,
+        onFrame: (_) {},
+        receiveFolder: r'C:\Users\Ali\Downloads\دریافتی دلفین',
+        onOpenFolder: noop,
+        theme: DolphinThemeChoice.system,
+        onTheme: (_) {},
+        updateCheck: DolphinUpdateCheckView(phase: UpdateCheckPhase.idle, onCheck: noop, onUpdate: noop),
+        onClose: noop);
+    Widget accepting() => DolphinAcceptView(
+        verdict: const TechVerdict(TechCheck.verified, 'علی رضایی'), peerName: 'علی رضایی', onAccept: (_) {}, onDeny: noop);
+    for (final dark in [false, true]) {
+      DolphinCustomerTheme.apply(dark ? DolphinThemeChoice.dark : DolphinThemeChoice.light, platform: Brightness.light);
+      final tag = dark ? '-dark' : '';
+      await tester.pumpWidget(const SizedBox());
+      await _shot(tester, dark ? '101-c1-main-dark' : '100-c1-main-light', home, main());
+      await _shot(tester, '102-c2-accept$tag', accept, accepting());
+      await _shot(tester, '103-c3-session-frame$tag', const Size(760, 470), _desk(DolphinSessionView(
+          technician: 'علی رضایی', elapsed: const Duration(minutes: 7, seconds: 12), keyboard: true, clipboard: true, file: true,
+          soundOffered: true, onPause: (_) {}, onToggle: (_, __) {}, onEnd: noop, frame: true, onFrame: (_) {})));
+      // As ⚙ opens it: a dialog over the dimmed main window.
+      await _shot(tester, '104-c5-settings$tag', home, Container(
+          color: Colors.black54,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(12),
+          child: ClipRRect(borderRadius: BorderRadius.circular(DolphinRadii.card), child: settings())));
+      for (final step in [0, 1, 2]) {
+        await _shot(tester, '105-c6-firstrun-${step + 1}$tag', home,
+            DolphinFirstRunView(id: '123456789', onCopy: noop, onNext: noop, initialStep: step));
+      }
+      await _shot(tester, '106-c7-tray$tag', const Size(300, 230), _trayMenu());
+    }
+    DolphinCustomerTheme.reset();
     await tester.pumpWidget(const SizedBox());
     debugDisableShadows = true;
   }, skip: _dir == null);
@@ -312,7 +429,7 @@ void main() {
             '"surfaceAlt":"#E6F2EA","accent":"#198754","success":"#0F5132","radius":6,"radiusLarge":10}}'),
         ThemeOverrideResult.applied);
     final now = DateTime.now();
-    await _shot(tester, '82-theme-override', const Size(340, 900), DolphinHomeView(
+    await _shot(tester, '82-theme-override', const Size(380, 900), DolphinHomeView(
         id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505', siteLabel: 'support.dolphindev.ir',
         network: networkRows(server: DolphinServerState.ready, localIp: '192.168.1.24'),
         recent: [RecentSession(now.subtract(const Duration(hours: 3)), 12, 'علی رضایی')],

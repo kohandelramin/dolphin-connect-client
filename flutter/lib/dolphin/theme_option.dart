@@ -37,3 +37,14 @@ void themeFromMainWindow() {
 
 /// The first read always counts; afterwards only a different text does (a JSON parse every 2 s would be waste).
 bool themeValueChanged(String? last, String now) => last == null || last != now;
+
+/// C5: the customer's own «مثل ویندوز» / «روشن» / «تیره» (a local option), in the main window at start and in the
+/// session window when it opens.
+void applyCustomerThemeChoice() =>
+    DolphinCustomerTheme.apply(themeChoiceFrom(bind.mainGetLocalOption(key: kDolphinThemeChoiceLocal)));
+
+/// C5: the customer picked a look; it is used at once and kept for the next start and the session window.
+Future<void> setCustomerThemeChoice(DolphinThemeChoice c) async {
+  DolphinCustomerTheme.apply(c);
+  await bind.mainSetLocalOption(key: kDolphinThemeChoiceLocal, value: themeChoiceValue(c));
+}

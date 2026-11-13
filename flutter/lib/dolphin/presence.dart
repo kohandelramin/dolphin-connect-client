@@ -57,7 +57,7 @@ class _DolphinCloseDialogViewState extends State<DolphinCloseDialogView> {
   bool _remember = false;
 
   Widget _option(CloseChoice choice, IconData icon, String label, String hint, {required bool primary}) {
-    final fg = primary ? Colors.white : DolphinColors.ink;
+    final fg = primary ? DolphinColors.onFill : DolphinColors.ink;
     return Semantics(
       button: true,
       label: label,
@@ -79,7 +79,7 @@ class _DolphinCloseDialogViewState extends State<DolphinCloseDialogView> {
                   const SizedBox(height: 2),
                   Text(hint,
                       style: TextStyle(
-                          color: primary ? Colors.white : DolphinColors.muted, fontSize: 12, height: 1.5)),
+                          color: primary ? DolphinColors.onFill : DolphinColors.muted, fontSize: 12, height: 1.5)),
                 ]),
               ),
             ]),
@@ -90,13 +90,15 @@ class _DolphinCloseDialogViewState extends State<DolphinCloseDialogView> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => DolphinLight(child: Builder(builder: _build));
+
+  Widget _build(BuildContext context) {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text(kCloseTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(kCloseTitle, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
           const SizedBox(height: 12),
           _option(CloseChoice.stay, Icons.schedule, kCloseStay, kCloseStayHint, primary: true),
           const SizedBox(height: 8),
@@ -109,7 +111,7 @@ class _DolphinCloseDialogViewState extends State<DolphinCloseDialogView> {
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,
             dense: true,
-            title: const Text(kCloseRemember, style: TextStyle(fontSize: 13)),
+            title: Text(kCloseRemember, style: TextStyle(fontSize: 13, color: DolphinColors.ink)),
           ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
@@ -137,6 +139,7 @@ Future<bool> dolphinHandleMainWindowClose(BuildContext context) async {
     final answer = await showDialog<(CloseChoice, bool)>(
       context: context,
       builder: (context) => Dialog(
+        clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 300),
           child: DolphinCloseDialogView(

@@ -18,6 +18,7 @@ import 'about.dart';
 import 'brand.dart';
 import 'callback.dart';
 import 'customer_requests.dart';
+import 'customer_settings.dart';
 import 'digits.dart';
 import 'first_run_view.dart';
 import 'health.dart';
@@ -44,10 +45,16 @@ import 'window_sizes.dart';
 /// so admins change the numbers without a new release.
 const kDolphinSupportPhoneOption = 'dolphin-support-phone';
 
-/// The ID screen's content size; upstream adds the title bar (common.dart getIncomingOnlyHomeSize). Plan 18 Phase 2
-/// added the status bar, the network panel and the helpers (the rest scrolls); 520 + the title bar still fits a
-/// 1366 × 768 laptop.
-const kDolphinHomeSize = Size(340, 520);
+/// Upstream sizes the incoming-only window as its content plus the title bar (common.dart getIncomingOnlyHomeSize);
+/// the content that gives [window] (Plan 19 C1: 380 × 580, window_sizes.dart homeWindowSize).
+Size homeContentSize(Size window) =>
+    Size(window.width - (Platform.isWindows ? 11.0 : 2.0), window.height - kDesktopRemoteTabBarHeight - 10);
+
+/// The screen's logical size (the first display), for the window sizes.
+Size _screenSize() {
+  final displays = WidgetsBinding.instance.platformDispatcher.displays;
+  return displays.isEmpty ? kDolphinRequestsSize : displays.first.size / displays.first.devicePixelRatio;
+}
 
 
 /// Customer build's main window: the ID screen, or the request section (the customer portal).
@@ -78,8 +85,10 @@ class _DolphinHomeState extends State<DolphinHome> {
   @override
   void initState() {
     super.initState();
+    // Plan 19 C5: the customer's own light or dark, before the first frame.
+    applyCustomerThemeChoice();
     // Upstream sizes the incoming-only window from its own home page, which this build does not show.
-    imcomingOnlyHomeSize = kDolphinHomeSize;
+    imcomingOnlyHomeSize = homeContentSize(homeWindowSize(_screenSize()));
     WidgetsBinding.instance.addPostFrameCallback((_) => _fitWindow());
     // Options the portal pushes (support phone, whether to show the code) change without the server model noticing.
     // No immediate read: the count reaches the app about 1 s after the status sync starts, and an early read would be
@@ -291,11 +300,11 @@ class _DolphinHomeState extends State<DolphinHome> {
     if (_requests) {
       setResizable(true);
       // UX-18: fit the screen (a 1366 × 768 laptop cannot take 980 × 720 plus the title bar).
-      final displays = WidgetsBinding.instance.platformDispatcher.displays;
-      final screen = displays.isEmpty ? kDolphinRequestsSize : displays.first.size / displays.first.devicePixelRatio;
-      await windowManager.setSize(requestsSize(screen));
+      await windowManager.setSize(requestsSize(_screenSize()));
       await windowManager.center();
     } else {
+      // Plan 19 C1: 380 × 580, smaller only on a screen that cannot hold it (never under 360 × 540).
+      imcomingOnlyHomeSize = homeContentSize(homeWindowSize(_screenSize()));
       await windowManager.setSize(getIncomingOnlyHomeSize());
       setResizable(false);
     }
@@ -331,12 +340,11 @@ class _DolphinHomeState extends State<DolphinHome> {
     _fitWindow();
   }
 
-  // Dolphin Connect (DD-34): «شروع / توقف اشتراک» above the ID screen (share.dart; nothing when the portal hides it).
   // DD-11: in Safe Mode, «حالت امن» with «بازگشت به حالت عادی» (safe_mode_hooks.dart; nothing on a normal boot).
+  // DD-34 «اشتراک‌گذاری» is a switch inside the home since Plan 19 C1 (share.dart; nothing when the portal hides it).
   @override
   Widget build(BuildContext context) => Column(children: [
         if (!_requests) const DolphinSafeModeHome(),
-        if (!_requests) const DolphinShareControl(),
         Expanded(child: _buildHome(context)),
       ]);
 
@@ -392,6 +400,8 @@ class _DolphinHomeState extends State<DolphinHome> {
           onScreenshot: isWindows && _uploadShown ? _takeScreenshot : null,
           headlessFix: _headlessFix,
           onAbout: () => showDolphinAboutDialog(context), // DD-20
+          share: const DolphinShareControl(), // DD-34
+          onSettings: () => showDolphinCustomerSettings(context), // Plan 19 C5
         );
       }),
     );

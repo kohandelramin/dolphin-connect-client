@@ -6,6 +6,9 @@ import 'verify.dart';
 enum HomeBar { ready, coming, connected, connecting, offline, stopped }
 
 const kBarReady = 'آماده برای پشتیبانی';
+
+/// Under «آماده برای پشتیبانی» (design C1).
+const kBarReadyHint = 'کارشناس دلفین فقط وقتی این پنجره باز است وصل می‌شود.';
 const kBarComing = 'کارشناس در راه است';
 const kBarConnected = 'کارشناس وصل است';
 const kBarConnecting = 'در حال اتصال به سرور دلفین…';
@@ -78,17 +81,29 @@ HomeStatus homeStatus({required DolphinServerState server, required int? connect
   return const HomeStatus(HomeBar.ready, online: true);
 }
 
-/// The bar's second line, or '' for none.
+/// The card's title (design C1): «آماده برای پشتیبانی», «کارشناس در راه است», «علی رضایی وصل است» (or «کارشناس وصل
+/// است» when the portal named nobody), «بدون اینترنت».
+String homeBarTitle(HomeStatus s) => switch (s.bar) {
+      HomeBar.ready => kBarReady,
+      HomeBar.coming => kBarComing,
+      HomeBar.connected => s.techName.isEmpty ? kBarConnected : '${s.techName} وصل است',
+      HomeBar.connecting => kBarConnecting,
+      HomeBar.offline => kBarOffline,
+      HomeBar.stopped => kServiceStoppedLabel,
+    };
+
+/// The card's second line, or '' for none.
 String homeBarDetail(HomeStatus s) {
   final who = s.techName.isEmpty ? 'کارشناس دلفین' : s.techName;
   switch (s.bar) {
+    case HomeBar.ready:
+      return kBarReadyHint;
     case HomeBar.coming:
       return '$who اجازه‌ی اتصال دارد؛ اگر پیام اتصال آمد، «پذیرفتن» را بزنید.';
     case HomeBar.connected:
-      return s.techName.isEmpty ? '' : '${s.techName} به این رایانه وصل است.';
+      return 'هر وقت خواستید، «پایان» را در پنجره‌ی جلسه بزنید.';
     case HomeBar.offline:
       return kBarOfflineHint;
-    case HomeBar.ready:
     case HomeBar.connecting:
     case HomeBar.stopped:
       return '';

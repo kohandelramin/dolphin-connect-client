@@ -13,25 +13,22 @@ import 'contrast.dart';
 // DR-1: one theme for all our screens, light as the portal. Whatever Windows' theme is, upstream's dark theme must not
 // leak into the prompt, the chips, the session and ended screens, the home, the installer or the update screen.
 void main() {
-  testWidgets('consent prompt on a dark Windows: every text reaches AA, chips included', (tester) async {
+  testWidgets('consent prompt on a dark Windows: every text reaches AA, the profile segments included', (tester) async {
     await tester.pumpWidget(darkApp(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.verified, 'رحمت کهندل'),
         peerName: 'x',
-        onAccept: (k, c, f) {},
+        onAccept: (_) {},
         onDeny: () {})));
     expectAllTextReadable(tester);
-    // The selected chip: label on azureTint.
-    // The chip paints its own selectedColor (azureTint); the label colour is what the theme gives it.
-    final label = tester.widget<RichText>(find.descendant(of: find.text('کپی و چسباندن'), matching: find.byType(RichText)).first);
-    expect(contrast(Color.alphaBlend(label.text.style!.color!, DolphinColors.azureTint), DolphinColors.azureTint),
-        greaterThanOrEqualTo(4.5));
+    // «پذیرفتن» is aqua under white text: darkened just enough to read (the accent itself is 3.74:1).
+    expect(contrast(DolphinColors.onFill, DolphinColors.accentFill), greaterThanOrEqualTo(4.5));
   });
 
   testWidgets('rejected prompt on a dark Windows: the danger title is readable', (tester) async {
     await tester.pumpWidget(darkApp(DolphinAcceptView(
         verdict: const TechVerdict(TechCheck.rejected),
         peerName: 'x',
-        onAccept: (k, c, f) {},
+        onAccept: (_) {},
         onDeny: () {})));
     expectAllTextReadable(tester);
   });

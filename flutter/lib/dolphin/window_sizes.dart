@@ -9,3 +9,14 @@ Size requestsSize(Size screen) => Size(
       (screen.width - 40).clamp(640.0, kDolphinRequestsSize.width),
       (screen.height - 90).clamp(480.0, kDolphinRequestsSize.height),
     );
+
+/// Plan 19 C1: the customer window is 380 × 580, as approved. A screen that cannot hold that (a 1366 × 768 laptop at
+/// 125 % has about 614 logical pixels under the taskbar's edge) gets a smaller one, never under 360 × 540; the content
+/// scrolls and the footer stays.
+const kDolphinHomeWindowSize = Size(380, 580);
+const kDolphinHomeMinSize = Size(360, 540);
+
+Size homeWindowSize(Size screen) => Size(
+      (screen.width - 20).clamp(kDolphinHomeMinSize.width, kDolphinHomeWindowSize.width),
+      (screen.height - 60).clamp(kDolphinHomeMinSize.height, kDolphinHomeWindowSize.height),
+    );

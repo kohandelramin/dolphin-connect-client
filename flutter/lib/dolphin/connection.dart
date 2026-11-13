@@ -9,6 +9,7 @@ import '../common.dart';
 import '../models/chat_model.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
+import 'access_profile.dart';
 import 'brand.dart';
 import 'connection_view.dart';
 import 'home.dart';
@@ -16,7 +17,10 @@ import 'home_view.dart';
 import 'reconnect.dart';
 import 'safe_mode.dart';
 import 'session_controls.dart';
+import 'session_frame.dart';
+import 'switches.dart';
 import 'tech_card.dart';
+import 'theme.dart';
 import 'theme_option.dart';
 import 'verify.dart';
 
@@ -33,6 +37,38 @@ DolphinWindowMode? _windowMode;
 Size? _compactSeen;
 bool _fitting = false;
 bool _fitAgain = false;
+
+/// C3: «کادر رنگی دور صفحه», the customer's choice (a local option), and the last command sent to the Rust side, so it
+/// is sent only when it changes. One frame for the whole window: it shows while any technician is connected.
+bool? _frameEnabled;
+String? _frameSent;
+
+bool get _frameOn => _frameEnabled ??= frameOn(bind.mainGetLocalOption(key: kDolphinFrameLocal));
+
+void _syncFrame(ServerModel model) {
+  final live = model.clients.any((c) => c.authorized && !c.disconnected);
+  final cmd = frameCommand(show: frameWanted(enabled: _frameOn, liveSession: live), color: DolphinColors.frame);
+  if (cmd == _frameSent) return;
+  _frameSent = cmd;
+  bind.mainSetCommon(key: kDolphinFrameCommon, value: cmd);
+}
+
+/// C2: the technician cannot press anything in this window from his side. Upstream already blocks his pointer when it
+/// enters the window (server_page.dart `buildRemoteBlock`, because the portal pushes `allow-remote-cm-modification`
+/// "N"); this is upstream's second check (`checkClickTime`) for a press made while the pointer was already inside: the
+/// connection says when the technician last clicked, and a press within [kDolphinRemoteClickMs] of it is ignored.
+Future<void> _localOnly(int connId, VoidCallback action) async {
+  if (bind.mainGetLocalOption(key: kOptionAllowRemoteCmModification) == 'Y') {
+    action();
+    return;
+  }
+  final pressed = DateTime.now().millisecondsSinceEpoch;
+  await bind.cmCheckClickTime(connId: connId);
+  Timer(const Duration(milliseconds: kDolphinRemoteClickMs), () async {
+    final remote = (await bind.cmGetClickTime()).toInt();
+    if (clickIsLocal(pressedMs: pressed, remoteClickMs: remote)) action();
+  });
+}
 
 /// Customer build's connection window for one incoming client. Unlike upstream, accepting does not
 /// minimize the window: the customer keeps seeing who is connected and the End button (SECURITY control 2).
@@ -64,6 +100,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     super.initState();
     // Plan 19: the theme the main window last applied (this window has no option sync of its own).
     themeFromMainWindow();
+    applyCustomerThemeChoice(); // C5: the customer's own light or dark
     // Remote control only: a file-transfer tab opened beside a live session is not a comeback.
     _resumed = widget.client.type_() == ClientType.remote && dolphinResumed(_lastLive[widget.client.peerId], DateTime.now());
     // Twice a second: re-check what the portal said about this peer, and note when the session started.
@@ -80,6 +117,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         _noteRestart();
       });
       _keepCompact();
+      _syncFrame(gFFI.serverModel);
     });
   }
 
@@ -129,15 +167,24 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     }
   }
 
-  void _permissions(bool keyboard, bool clipboard, bool file) {
+  /// C2: what the customer allowed in the prompt, sound included (DD-31: off unless they turned it on).
+  void _permissions(DolphinGrant g) {
     final c = widget.client;
-    bind.cmSwitchPermission(connId: c.id, name: 'keyboard', enabled: keyboard);
-    bind.cmSwitchPermission(connId: c.id, name: 'clipboard', enabled: clipboard);
-    bind.cmSwitchPermission(connId: c.id, name: 'file', enabled: file);
-    c.keyboard = keyboard;
-    c.clipboard = clipboard;
-    c.file = file;
+    bind.cmSwitchPermission(connId: c.id, name: 'keyboard', enabled: g.keyboard);
+    bind.cmSwitchPermission(connId: c.id, name: 'clipboard', enabled: g.clipboard);
+    bind.cmSwitchPermission(connId: c.id, name: 'file', enabled: g.file);
+    bind.cmSwitchPermission(connId: c.id, name: 'audio', enabled: g.audio);
+    c.keyboard = g.keyboard;
+    c.clipboard = g.clipboard;
+    c.file = g.file;
+    c.audio = g.audio;
   }
+
+  /// DD-31: whether the organization offers the PC's sound (`remote-sound` not hidden).
+  bool get _soundOffered =>
+      DolphinSwitches.parse(bind.mainGetOptionSync(key: kDolphinSwitchesOption)).shown(DolphinSwitch.remoteSound);
+
+  void _local(VoidCallback action) => _localOnly(widget.client.id, action);
 
   /// DD-36: the small window in the corner during a session, the full one for the prompt and the ended screen. Only the
   /// tab on screen decides. The chat side panel (upstream) still sets its own size when it opens or closes.
@@ -164,7 +211,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       do {
         _fitAgain = false;
         if (_windowMode == DolphinWindowMode.compact) {
-          await windowManager.setSizeAlignment(kDolphinSessionWindowSize, Alignment.topRight);
+          // C3: the session window sits in the bottom corner, above the taskbar (design C3); the prompt stays top right.
+          await windowManager.setSizeAlignment(kDolphinSessionWindowSize, Alignment.bottomRight);
           _compactSeen = await windowManager.getSize();
         } else {
           await windowManager.setSizeAlignment(kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
@@ -225,26 +273,27 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
         // Plan 14 (B5): pushed only to the PC that technician may connect to (app/src/lib/engine/policy.ts).
         photo: verdict.state == TechCheck.verified ? techPhoto(bind.mainGetOptionSync(key: kDolphinTechPhotoOption)) : null,
-        onAccept: (keyboard, clipboard, file) {
+        soundOffered: _soundOffered,
+        onAccept: (grant) => _local(() {
           // The button can be up to 500 ms stale: ask again at the moment of the press.
           if (!acceptAllowed(_verdict())) return;
           _sessionStart = DateTime.now();
-          _permissions(keyboard, clipboard, file);
+          _permissions(grant);
           model.sendLoginResponse(c, true);
-        },
-        onAcceptElevate: (keyboard, clipboard, file) {
+        }),
+        onAcceptElevate: (grant) => _local(() {
           if (!acceptAllowed(_verdict())) return;
           _sessionStart = DateTime.now();
-          _permissions(keyboard, clipboard, file);
+          _permissions(grant);
           model.sendLoginResponse(c, true);
           model.setShowElevation(false);
           bind.cmElevatePortable(connId: c.id);
-        },
-        onDeny: () {
+        }),
+        onDeny: () => _local(() {
           _endedByCustomer.add(c.id);
           _lastLive.remove(c.peerId);
           bind.cmCloseConnection(connId: c.id);
-        },
+        }),
       );
     }
     // DD-11: the technician asked for a Safe Mode or normal restart; «لغو» tells him (src/server/connection.rs).
@@ -253,13 +302,13 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       return DolphinRestartNoticeView(
         kind: restart,
         secondsLeft: restartSecondsLeft(_restartSeenAt ?? DateTime.now(), DateTime.now()),
-        onCancel: () {
+        onCancel: () => _local(() {
           bind.cmSwitchPermission(connId: c.id, name: kDolphinRestartCancel, enabled: false);
           setState(() {
             c.dolphinRestart = '';
             _restartSeenAt = null;
           });
-        },
+        }),
       );
     }
     final technician = verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName;
@@ -270,22 +319,24 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       keyboard: c.keyboard,
       clipboard: c.clipboard,
       file: c.file,
+      audio: c.audio,
+      soundOffered: _soundOffered,
       resumed: _resumed,
       // DD-37: at once, from the connection's own word (src/server/connection.rs handle_input).
       inputOff: c.dolphinInputBlocked ? inputOffDetail(technician, inputOffAt ?? DateTime.now(), DateTime.now()) : null,
       // DD-46: only a remote-control session has a picture and input to stop.
       paused: c.dolphinPaused,
       onPause: c.type_() == ClientType.remote
-          ? (paused) {
-              bind.cmSwitchPermission(connId: c.id, name: kDolphinPauseSwitch, enabled: paused);
-              setState(() {
-                c.dolphinPaused = paused;
-                // Pausing gives the customer their input back (the connection lifts the block).
-                if (paused) c.dolphinInputBlocked = false;
-              });
-            }
+          ? (paused) => _local(() {
+                bind.cmSwitchPermission(connId: c.id, name: kDolphinPauseSwitch, enabled: paused);
+                setState(() {
+                  c.dolphinPaused = paused;
+                  // Pausing gives the customer their input back (the connection lifts the block).
+                  if (paused) c.dolphinInputBlocked = false;
+                });
+              })
           : null,
-      onToggle: (name, enabled) {
+      onToggle: (name, enabled) => _local(() {
         bind.cmSwitchPermission(connId: c.id, name: name, enabled: enabled);
         setState(() {
           if (name == 'keyboard') c.keyboard = enabled;
@@ -293,13 +344,22 @@ class _DolphinConnectionState extends State<DolphinConnection> {
           if (name == 'keyboard' && !enabled) c.dolphinInputBlocked = false;
           if (name == 'clipboard') c.clipboard = enabled;
           if (name == 'file') c.file = enabled;
+          if (name == 'audio') c.audio = enabled;
         });
-      },
-      onEnd: () {
+      }),
+      // C3: the customer's own choice, kept for the next session and shown in «تنظیمات» (C5).
+      frame: _frameOn,
+      onFrame: (on) => _local(() {
+        _frameEnabled = on;
+        bind.mainSetLocalOption(key: kDolphinFrameLocal, value: frameValue(on));
+        setState(() {});
+        _syncFrame(model);
+      }),
+      onEnd: () => _local(() {
         _endedByCustomer.add(c.id);
         _lastLive.remove(c.peerId);
         bind.cmCloseConnection(connId: c.id);
-      },
+      }),
       // DD-29: the customer opens and closes the chat beside the session (upstream's CM side page).
       onChat: c.type_() == ClientType.remote
           ? () => gFFI.chatModel.toggleCMChatPage(MessageKey(c.peerId, c.id))

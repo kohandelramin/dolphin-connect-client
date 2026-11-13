@@ -6,29 +6,30 @@ import 'network_status.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 
-/// DD-43: one large coloured bar at the top of the customer window, with the status dot (DD-33) and, while a
-/// technician is on the way or connected, their photo and name. Pure: the status comes in as a value.
+/// DD-43, Plan 19 C1: one big status card at the top of the customer window: the status dot (DD-33), the title
+/// («آماده برای پشتیبانی», «کارشناس در راه است», «… وصل است», «بدون اینترنت»), a second line and, while a technician
+/// is on the way or connected, their photo. Centred, as the approved design. Pure: the status comes in as a value.
 class DolphinStatusBar extends StatelessWidget {
   final HomeStatus status;
   const DolphinStatusBar({super.key, required this.status});
 
-  static String title(HomeBar bar) => switch (bar) {
-        HomeBar.ready => kBarReady,
-        HomeBar.coming => kBarComing,
-        HomeBar.connected => kBarConnected,
-        HomeBar.connecting => kBarConnecting,
-        HomeBar.offline => kBarOffline,
-        HomeBar.stopped => kServiceStoppedLabel,
-      };
+  static String title(HomeBar bar) => homeBarTitle(HomeStatus(bar));
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg) = switch (status.bar) {
-      HomeBar.ready => (DolphinColors.aquaText, DolphinColors.aquaSoft),
-      HomeBar.coming => (DolphinColors.azureText, DolphinColors.azureSoft),
-      HomeBar.connected => (Colors.white, DolphinColors.azure),
-      HomeBar.connecting => (DolphinColors.muted, DolphinColors.azureSoft),
-      HomeBar.offline || HomeBar.stopped => (DolphinColors.dangerText, DolphinColors.dangerSoft),
+    final (fg, sub, bg) = switch (status.bar) {
+      HomeBar.ready => (DolphinColors.aquaText, DolphinColors.muted, DolphinColors.aquaSoft),
+      HomeBar.coming => (DolphinColors.azureText, DolphinColors.ink, DolphinColors.azureSoft),
+      HomeBar.connected => (DolphinColors.onFill, DolphinColors.onFill, DolphinColors.azure),
+      HomeBar.connecting => (DolphinColors.muted, DolphinColors.muted, DolphinColors.azureSoft),
+      HomeBar.offline || HomeBar.stopped => (DolphinColors.dangerText, DolphinColors.dangerText, DolphinColors.dangerSoft),
+    };
+    // A quiet edge in the card's own hue (the filled card needs none).
+    final edge = switch (status.bar) {
+      HomeBar.ready => Color.lerp(DolphinColors.aquaSoft, DolphinColors.aqua, 0.3)!,
+      HomeBar.connected => DolphinColors.azure,
+      HomeBar.offline || HomeBar.stopped => Color.lerp(DolphinColors.dangerSoft, DolphinColors.danger, 0.3)!,
+      _ => DolphinColors.line,
     };
     final detail = homeBarDetail(status);
     final withTech = status.bar == HomeBar.coming || status.bar == HomeBar.connected;
@@ -39,40 +40,39 @@ class DolphinStatusBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: status.online ? DolphinColors.aqua : DolphinColors.fieldEdge,
         shape: BoxShape.circle,
-        border: status.bar == HomeBar.connected ? Border.all(color: Colors.white, width: 1.5) : null,
+        border: status.bar == HomeBar.connected ? Border.all(color: DolphinColors.onFill, width: 1.5) : null,
       ),
     );
     return Semantics(
       liveRegion: true,
       child: Container(
+        key: const ValueKey('dolphin-status-card'),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(DolphinRadii.card)),
-        child: Row(children: [
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+            color: bg, borderRadius: BorderRadius.circular(DolphinRadii.card), border: Border.all(color: edge)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (withTech) ...[
-            DolphinTechAvatar(photo: status.tech?.photo, radius: 20),
-            const SizedBox(width: 12),
+            DolphinTechAvatar(photo: status.tech?.photo, radius: 22),
+            const SizedBox(height: 8),
           ],
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Row(children: [
-                dot,
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(title(status.bar),
-                      style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15.5)),
-                ),
-              ]),
-              if (detail.isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Text(detail, style: TextStyle(color: fg, fontSize: 12.5, height: 1.6)),
-              ],
-              if (status.quietOffline) ...[
-                const SizedBox(height: 3),
-                Text(kBarOfflineQuiet, style: TextStyle(color: fg, fontSize: 12, height: 1.6)),
-              ],
-            ]),
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            dot,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(homeBarTitle(status),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 16.5)),
+            ),
+          ]),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(detail, textAlign: TextAlign.center, style: TextStyle(color: sub, fontSize: 12.5, height: 1.6)),
+          ],
+          if (status.quietOffline) ...[
+            const SizedBox(height: 3),
+            Text(kBarOfflineQuiet, textAlign: TextAlign.center, style: TextStyle(color: sub, fontSize: 12, height: 1.6)),
+          ],
         ]),
       ),
     );
@@ -112,10 +112,11 @@ class DolphinIdNotice extends StatelessWidget {
   }
 }
 
-/// DD-8: the network box under the ID, two short lines a customer reads out on the phone (owner 2026-11-13):
-/// «وضعیت شبکه: متصل» with a Wi-Fi icon that glows softly while connected, and «IP رایانه: …». No title above them:
-/// the first line already says «وضعیت شبکه». The glow is still (no animation), so there is nothing to reduce for
-/// people who turn animations off.
+/// DD-8: the network box, two short lines a customer reads out on the phone (owner 2026-11-13): «وضعیت شبکه: متصل»
+/// with a Wi-Fi icon that glows softly while connected, and «IP رایانه: …». Plan 19 C1: side by side in one box under
+/// the helper tiles; on a narrow window the second goes under the first. No title above them: the first line already
+/// says «وضعیت شبکه». The glow is still (no animation), so there is nothing to reduce for people who turn animations
+/// off.
 class DolphinNetworkPanel extends StatelessWidget {
   final List<NetRow> rows;
   const DolphinNetworkPanel({super.key, required this.rows});
@@ -161,31 +162,34 @@ class DolphinNetworkPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(DolphinRadii.card),
+          color: DolphinColors.surface,
+          borderRadius: BorderRadius.circular(DolphinRadii.control),
           border: Border.all(color: DolphinColors.line),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          for (final (i, r) in rows.indexed)
-            Padding(
-              padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
-              child: Row(children: [
-                KeyedSubtree(
-                    key: r.kind == NetKind.status ? const ValueKey('dolphin-net-status-icon') : null, child: _icon(r)),
-                if (r.kind != NetKind.plain) const SizedBox(width: 10),
-                Text('${r.label}:', style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(r.value,
-                      textDirection: r.ltr ? TextDirection.ltr : null,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colorOf(r.tone), fontSize: 12.5, fontWeight: FontWeight.w700)),
-                ),
-              ]),
-            ),
-        ]),
+        // Each line keeps to the box's width (a long IPv6 address ends in «…» instead of spilling out).
+        child: LayoutBuilder(
+          builder: (context, box) => Wrap(alignment: WrapAlignment.spaceBetween, runSpacing: 2, spacing: 12, children: [
+            for (final r in rows)
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: box.maxWidth),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  KeyedSubtree(
+                      key: r.kind == NetKind.status ? const ValueKey('dolphin-net-status-icon') : null, child: _icon(r)),
+                  if (r.kind != NetKind.plain) const SizedBox(width: 6),
+                  Text('${r.label}:', style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(r.value,
+                        textDirection: r.ltr ? TextDirection.ltr : null,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colorOf(r.tone), fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
+          ]),
+        ),
       );
 }
 
@@ -209,6 +213,7 @@ class DolphinHomeHelpers extends StatelessWidget {
           label: Text(label, style: const TextStyle(fontSize: 12.5)),
           style: OutlinedButton.styleFrom(
             foregroundColor: DolphinColors.azureText,
+            backgroundColor: DolphinColors.surface,
             padding: const EdgeInsets.symmetric(horizontal: 10),
           ),
         );

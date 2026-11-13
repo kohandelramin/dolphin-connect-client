@@ -4,6 +4,8 @@ import 'package:flutter_hbb/dolphin/switches.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'contrast.dart';
+
 Widget _app(Widget child) => MaterialApp(
       theme: dolphinTheme(ThemeData.light()),
       home: Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: child)),
@@ -34,21 +36,37 @@ void main() {
     expect(shareShownStopped(read: false, pending: true, sincePress: const Duration(seconds: 6)), isFalse);
   });
 
-  testWidgets('the strip says what holds now and offers the other action', (tester) async {
+  testWidgets('Plan 19 C1: the «اشتراک‌گذاری» switch says what holds now; on while sharing, off when stopped',
+      (tester) async {
     var pressed = 0;
     await tester.pumpWidget(_app(DolphinShareView(stopped: false, onToggle: () => pressed++)));
-    expect(find.text(kShareOnLabel), findsOneWidget);
-    expect(find.text(kShareStop), findsOneWidget);
-    expect(find.text(kShareStart), findsNothing);
+    expect(find.text(kShareRowLabel), findsOneWidget);
+    expect(find.text(kShareOnHint), findsOneWidget);
+    expect(tester.widget<Switch>(find.byKey(const ValueKey('dolphin-share-toggle'))).value, isTrue);
     await tester.tap(find.byKey(const ValueKey('dolphin-share-toggle')));
     expect(pressed, 1);
+    // The whole row is the target.
+    await tester.tap(find.text(kShareRowLabel));
+    expect(pressed, 2);
 
     await tester.pumpWidget(_app(DolphinShareView(stopped: true, onToggle: () => pressed++)));
-    expect(find.text(kShareOffLabel), findsOneWidget);
-    expect(find.text(kShareOffHint), findsOneWidget);
-    expect(find.text(kShareStart), findsOneWidget);
+    expect(find.textContaining(kShareOffLabel), findsOneWidget);
+    expect(find.textContaining(kShareOffHint), findsOneWidget);
+    expect(tester.widget<Switch>(find.byKey(const ValueKey('dolphin-share-toggle'))).value, isFalse);
     await tester.tap(find.byKey(const ValueKey('dolphin-share-toggle')));
-    expect(pressed, 2);
+    expect(pressed, 3);
+  });
+
+  testWidgets('the switch reads in light and dark', (tester) async {
+    for (final b in [Brightness.light, Brightness.dark]) {
+      DolphinCustomerTheme.apply(b == Brightness.dark ? DolphinThemeChoice.dark : DolphinThemeChoice.light,
+          platform: Brightness.light);
+      for (final stopped in [false, true]) {
+        await tester.pumpWidget(_app(DolphinLight(child: DolphinShareView(stopped: stopped, onToggle: () {}))));
+        expectAllTextReadable(tester);
+      }
+    }
+    DolphinCustomerTheme.reset();
   });
 
   testWidgets('the strip fits the 320 px customer window', (tester) async {

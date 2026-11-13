@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/platform_model.dart';
+import 'switch_row.dart';
 import 'switches.dart';
 import 'theme.dart';
 
@@ -28,62 +29,42 @@ const kShareOffLabel = 'اشتراک متوقف است';
 const kShareOffHint = 'هیچ کس نمی‌تواند وصل شود، حتی کارشناس دلفین.';
 const kShareStart = 'شروع اشتراک';
 
-/// The strip on the home screen. Pure: [onToggle] does the work.
+/// Plan 19 C1: the switch's label on the home.
+const kShareRowLabel = 'اشتراک‌گذاری';
+
+/// The «اشتراک‌گذاری» switch on the home (Plan 19 C1, above the footer): on while sharing, with a short line under it
+/// that says what holds; off (stopped) in the danger colour. Pure: [onToggle] does the work.
 class DolphinShareView extends StatelessWidget {
   final bool stopped;
   final VoidCallback onToggle;
   const DolphinShareView({super.key, required this.stopped, required this.onToggle});
 
   @override
-  Widget build(BuildContext context) {
-    final fg = stopped ? DolphinColors.dangerText : DolphinColors.aquaText;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Semantics(
-        container: true,
-        liveRegion: true,
-        label: stopped ? kShareOffLabel : kShareOnLabel,
-        child: Container(
-          key: const ValueKey('dolphin-share'),
-          padding: const EdgeInsetsDirectional.fromSTEB(12, 6, 8, 6),
-          decoration: BoxDecoration(
-            color: stopped ? DolphinColors.dangerSoft : DolphinColors.aquaSoft,
-            border: Border(bottom: BorderSide(color: stopped ? DolphinColors.danger : DolphinColors.line)),
-          ),
-          child: Row(children: [
-            Icon(stopped ? Icons.block : Icons.wifi_tethering, color: fg, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(stopped ? kShareOffLabel : kShareOnLabel,
-                    style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                Text(stopped ? kShareOffHint : kShareOnHint,
-                    style: TextStyle(color: DolphinColors.muted, fontSize: 11, height: 1.4)),
-              ]),
+  Widget build(BuildContext context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Semantics(
+          container: true,
+          liveRegion: true,
+          label: stopped ? kShareOffLabel : kShareOnLabel,
+          child: Container(
+            key: const ValueKey('dolphin-share'),
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 2, 8, 2),
+            decoration: BoxDecoration(
+              color: stopped ? DolphinColors.dangerSoft : DolphinColors.surface,
+              borderRadius: BorderRadius.circular(DolphinRadii.control),
+              border: Border.all(color: stopped ? DolphinColors.danger : DolphinColors.line),
             ),
-            const SizedBox(width: 6),
-            stopped
-                ? FilledButton(
-                    key: const ValueKey('dolphin-share-toggle'),
-                    onPressed: onToggle,
-                    style: FilledButton.styleFrom(
-                        backgroundColor: DolphinColors.azure,
-                        foregroundColor: Colors.white,
-                        visualDensity: VisualDensity.compact),
-                    child: const Text(kShareStart),
-                  )
-                : OutlinedButton(
-                    key: const ValueKey('dolphin-share-toggle'),
-                    onPressed: onToggle,
-                    style: OutlinedButton.styleFrom(
-                        foregroundColor: DolphinColors.dangerText, visualDensity: VisualDensity.compact),
-                    child: const Text(kShareStop),
-                  ),
-          ]),
+            child: DolphinSwitchRow(
+              switchKey: const ValueKey('dolphin-share-toggle'),
+              label: kShareRowLabel,
+              value: !stopped,
+              onChanged: (_) => onToggle(),
+              note: stopped ? '$kShareOffLabel؛ $kShareOffHint' : kShareOnHint,
+              noteColor: stopped ? DolphinColors.dangerText : DolphinColors.muted,
+            ),
+          ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 // Each start of the app shares again: opening Dolphin Connect is the customer's consent (ADR-0015), and a stop

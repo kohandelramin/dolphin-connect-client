@@ -157,7 +157,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_safe_mode_core.rs",
                     "src/dolphin_wake_core.rs",
                     "src/dolphin_net_core.rs",
-                    "src/dolphin_ws_core.rs")
+                    "src/dolphin_ws_core.rs",
+                    "src/dolphin_frame_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -210,8 +211,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 16)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 16)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 17)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 17)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -1244,7 +1245,11 @@ class ThemeTokensWiringTest(unittest.TestCase):
     def test_the_palettes_read_the_tokens(self):
         theme = self.read("flutter", "lib", "dolphin", "theme.dart")
         tech = self.read("flutter", "lib", "dolphin", "tech_theme.dart")
-        self.assertIn("static DolphinThemeTokens get _t => DolphinTheme.light;", theme)
+        # Plan 19 C5: the customer's own light or dark; the technician app never applies one, so it stays light.
+        self.assertIn("static DolphinThemeTokens get _t => dolphinCustomerTokens;", theme)
+        self.assertIn(
+            "DolphinThemeTokens get dolphinCustomerTokens => DolphinTheme.of(DolphinCustomerTheme.brightness.value);", theme)
+        self.assertIn("static final ValueNotifier<Brightness> brightness = ValueNotifier(Brightness.light);", theme)
         self.assertNotIn("static const azure", theme)
         self.assertIn("static DolphinTechPalette get dark => DolphinTechPalette.fromTokens(DolphinTheme.dark);", tech)
         # no hard-coded brand colour left in the views
@@ -1260,6 +1265,51 @@ class ThemeTokensWiringTest(unittest.TestCase):
         self.assertEqual(home.count("syncThemeFromPortal();"), 2)  # at start and on the 2 s read
         self.assertIn("themeFromMainWindow();", self.read("flutter", "lib", "dolphin", "connection.dart"))
         self.assertIn("ThemeOverrideResult applyThemeOverrides(Object? json)", tokens)
+
+
+class CustomerLookWiringTest(unittest.TestCase):
+    """Plan 19 C1–C7: the customer app's new look. The hooks in upstream files and the Rust side, proven by their
+    text (the views themselves are tested in flutter/test/dolphin/customer_look_test.dart)."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_frame_core_is_a_module_and_tested_in_ci(self):
+        lib = self.read("src", "lib.rs")
+        self.assertIn("#[cfg(windows)]\nmod dolphin_frame_core;\n#[cfg(windows)]\nmod dolphin_frame;\n", lib)
+        self.assertIn("rustc --edition 2021 --test src/dolphin_frame_core.rs", CHECK)
+        ffi = self.read("src", "flutter_ffi.rs")
+        self.assertIn('if _key == "dolphin-frame" {\n        crate::dolphin_frame::set(&_value);', ffi)
+
+    def test_the_frame_is_click_through_and_never_activated(self):
+        frame = self.read("src", "dolphin_frame.rs")
+        for flag in ["WS_EX_TOPMOST", "WS_EX_TOOLWINDOW", "WS_EX_NOACTIVATE", "WS_EX_LAYERED", "WS_EX_TRANSPARENT",
+                     "HTTRANSPARENT", "MA_NOACTIVATE", "WS_POPUP"]:
+            self.assertIn(flag, frame)
+
+    def test_the_session_window_guards_every_press_and_sends_the_frame(self):
+        conn = self.read("flutter", "lib", "dolphin", "connection.dart")
+        for hook in ["onAccept: (grant) => _local(() {", "onDeny: () => _local(() {", "onToggle: (name, enabled) => _local(() {",
+                     "onEnd: () => _local(() {", "onFrame: (on) => _local(() {", "await bind.cmCheckClickTime(connId: connId);",
+                     "bind.mainSetCommon(key: kDolphinFrameCommon, value: cmd);",
+                     "bind.cmSwitchPermission(connId: c.id, name: 'audio', enabled: g.audio);"]:
+            self.assertIn(hook, conn)
+
+    def test_the_tray_menu_is_the_approved_one(self):
+        core = self.read("src", "dolphin_system_core.rs")
+        for text in ["باز کردن دلفین کانکت", "توقف اشتراک", "شروع اشتراک", "بستن کامل", "● در دسترس — آماده برای پشتیبانی"]:
+            self.assertIn(text, core)
+        tray = self.read("src", "dolphin_system.rs")
+        self.assertIn("menu.append_items(&[&state_i, &open_i, &PredefinedMenuItem::separator(), &quit_i]).ok();", tray)
+        self.assertIn("set_share_off(rules::tray_share_press_stops(shown_state));", tray)
+
+    def test_the_prompt_and_windows_have_the_approved_sizes(self):
+        consts = self.read("flutter", "lib", "consts.dart")
+        self.assertIn("const Size kConnectionManagerWindowSizeClosedChat = Size(320, 520);", consts)
+        sizes = self.read("flutter", "lib", "dolphin", "window_sizes.dart")
+        self.assertIn("const kDolphinHomeWindowSize = Size(380, 580);", sizes)
+        self.assertIn("const kDolphinSessionWindowSize = Size(300, 380);",
+                      self.read("flutter", "lib", "dolphin", "session_controls.dart"))
 
 
 class StartUpdatePopupWiringTest(unittest.TestCase):

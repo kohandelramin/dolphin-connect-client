@@ -129,10 +129,18 @@ void main() {
     test('the second line names the technician', () {
       expect(homeBarDetail(HomeStatus(HomeBar.coming, tech: tech)), startsWith('رحمت اجازه‌ی اتصال دارد'));
       expect(homeBarDetail(const HomeStatus(HomeBar.coming)), startsWith('کارشناس دلفین'));
-      expect(homeBarDetail(HomeStatus(HomeBar.connected, tech: tech)), 'رحمت به این رایانه وصل است.');
-      expect(homeBarDetail(const HomeStatus(HomeBar.connected)), '');
       expect(homeBarDetail(const HomeStatus(HomeBar.offline)), kBarOfflineHint);
-      expect(homeBarDetail(const HomeStatus(HomeBar.ready)), '');
+      expect(homeBarDetail(const HomeStatus(HomeBar.ready)), kBarReadyHint);
+      expect(homeBarDetail(const HomeStatus(HomeBar.connecting)), '');
+    });
+
+    test('Plan 19 C1: the title names the connected technician («… وصل است»)', () {
+      expect(homeBarTitle(HomeStatus(HomeBar.connected, tech: tech)), 'رحمت وصل است');
+      expect(homeBarTitle(const HomeStatus(HomeBar.connected)), kBarConnected);
+      expect(homeBarTitle(const HomeStatus(HomeBar.ready)), kBarReady);
+      expect(homeBarTitle(const HomeStatus(HomeBar.coming)), kBarComing);
+      expect(homeBarTitle(const HomeStatus(HomeBar.offline)), kBarOffline);
+      expect(homeBarTitle(const HomeStatus(HomeBar.stopped)), kServiceStoppedLabel);
     });
 
     testWidgets('ready, on the way and connected, with the technician\'s name and photo', (tester) async {
@@ -146,8 +154,7 @@ void main() {
       expect(find.byType(DolphinTechAvatar), findsOneWidget);
 
       await tester.pumpWidget(_app(_home(coming: _rahmat, connected: 1)));
-      expect(find.text(kBarConnected), findsOneWidget);
-      expect(find.text('رحمت کهندل به این رایانه وصل است.'), findsOneWidget);
+      expect(find.text('رحمت کهندل وصل است'), findsOneWidget);
       expect(find.text(kBarComing), findsNothing);
       expect(find.byType(DolphinTechAvatar), findsOneWidget);
     });
@@ -156,14 +163,14 @@ void main() {
       await tester.pumpWidget(_app(_home(state: DolphinServerState.offline)));
       expect(find.text(kBarOffline), findsOneWidget);
       expect(find.text(kBarOfflineHint), findsOneWidget);
-      expect(find.text(kWindowOpenLine), findsNothing);
+      expect(find.text(kBarReadyHint), findsNothing);
       final bar = tester.widget<Container>(
           find.descendant(of: find.byType(DolphinStatusBar), matching: find.byType(Container)).first);
       expect((bar.decoration as BoxDecoration).color, DolphinColors.dangerSoft);
 
       await tester.pumpWidget(_app(_home(state: DolphinServerState.offline, connected: 1, coming: _rahmat)));
       expect(find.text(kBarOffline), findsNothing);
-      expect(find.text(kBarConnected), findsOneWidget);
+      expect(find.text('رحمت کهندل وصل است'), findsOneWidget);
       expect(find.text(kBarOfflineQuiet), findsOneWidget);
     });
 
@@ -360,18 +367,47 @@ void main() {
       expect(firstRunShown('Y'), isFalse);
     });
 
-    testWidgets('the ID to copy, two lines of what happens next, «بعدی»', (tester) async {
-      var copied = false, next = false;
+    test('Plan 19 C6: three steps, then the end', () {
+      expect(firstRunNextStep(0), 1);
+      expect(firstRunNextStep(1), 2);
+      expect(firstRunNextStep(2), isNull);
+    });
+
+    testWidgets('Plan 19 C6: the ID to copy → how support works → permissions and «پایان», with dots', (tester) async {
+      var copied = false, done = 0;
       await tester.pumpWidget(_app(DolphinFirstRunView(
-          id: '123456789', onCopy: () => copied = true, onNext: () => next = true)));
+          id: '123456789', onCopy: () => copied = true, onNext: () => done++)));
+      Color dot(int i) =>
+          (tester.widget<Container>(find.byKey(ValueKey('dolphin-firstrun-dot-$i'))).decoration as BoxDecoration).color!;
       expect(find.text(kFirstRunTitle), findsOneWidget);
       expect(find.text('۱۲۳ ۴۵۶ ۷۸۹'), findsOneWidget);
-      expect(find.text(kFirstRunNext1), findsOneWidget);
-      expect(find.text(kFirstRunNext2), findsOneWidget);
+      expect(find.text(kFirstRunIdHint), findsOneWidget);
+      expect(dot(0), DolphinColors.azure);
+      expect(dot(1), DolphinColors.fieldEdge);
       await tester.tap(find.text('کپی شناسه'));
       expect(copied, isTrue);
+
       await tester.tap(find.text(kFirstRunNextLabel));
-      expect(next, isTrue);
+      await tester.pump();
+      expect(find.text(kFirstRunHowTitle), findsOneWidget);
+      expect(find.text(kFirstRunNext1), findsOneWidget);
+      expect(find.text(kFirstRunNext2), findsOneWidget);
+      expect(dot(1), DolphinColors.azure);
+      expect(done, 0);
+
+      await tester.tap(find.text(kFirstRunNextLabel));
+      await tester.pump();
+      expect(find.text(kFirstRunPermTitle), findsOneWidget);
+      expect(find.text(kFirstRunSkipLabel), findsNothing); // the last step only ends
+      await tester.tap(find.text(kFirstRunDoneLabel));
+      expect(done, 1);
+    });
+
+    testWidgets('Plan 19 C6: «رد کردن» ends the guide at once', (tester) async {
+      var done = 0;
+      await tester.pumpWidget(_app(DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () => done++)));
+      await tester.tap(find.text(kFirstRunSkipLabel));
+      expect(done, 1);
     });
   });
 
@@ -389,8 +425,10 @@ void main() {
         await tester.pumpWidget(darkApp(view));
         expectAllTextReadable(tester);
       }
-      await tester.pumpWidget(darkApp(DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () {})));
-      expectAllTextReadable(tester);
+      for (final step in [0, 1, 2]) {
+        await tester.pumpWidget(darkApp(DolphinFirstRunView(id: '123456789', onCopy: () {}, onNext: () {}, initialStep: step)));
+        expectAllTextReadable(tester);
+      }
     });
 
     test('the new colour pairs reach AA', () {

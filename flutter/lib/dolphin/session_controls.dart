@@ -9,9 +9,9 @@ import 'digits.dart';
 /// `bind.cmSwitchPermission` name for «مکث» (enabled) and «ادامه» (disabled); src/dolphin_session_core.rs PAUSE_SWITCH.
 const kDolphinPauseSwitch = 'dolphin_pause';
 
-/// DD-36: the session window. Upstream's connection window is 300 × 490 in the top-right corner
-/// (kConnectionManagerWindowSizeClosedChat); during a session ours keeps the width and corner and gets shorter, so it
-/// covers less of the customer's screen. «پایان» stays pinned at its bottom.
+/// DD-36: the session window. The connection window is 320 × 520 in the top-right corner for the prompt
+/// (kConnectionManagerWindowSizeClosedChat, Plan 19 C2); during a session ours is 300 × 380 in the bottom-right corner,
+/// above the taskbar (Plan 19 C3), so it covers less of the customer's screen. «پایان» stays pinned at its bottom.
 const kDolphinSessionWindowSize = Size(300, 380);
 
 enum DolphinWindowMode { full, compact }
@@ -60,9 +60,10 @@ const kDolphinPausedTitle = 'مکث است';
 const kDolphinPausedNote = 'کارشناس تصویر را نمی‌بیند و کنترلی ندارد. برای ادامه، «ادامه» را بزنید.';
 const kDolphinPauseHint = 'مثلاً هنگام نوشتن رمز بانک، «مکث» را بزنید.';
 
-/// DD-45: the three permissions, by `bind.cmSwitchPermission` name, with the label the customer reads.
+/// DD-45: the three permissions, by `bind.cmSwitchPermission` name, with the label the customer reads (Plan 19 C2/C3
+/// labels, access_profile.dart kGrantLabels; sound is the fourth, shown when the organization offers it).
 const kDolphinPermissionLabels = [
   ('keyboard', 'ماوس و صفحه‌کلید'),
-  ('clipboard', 'کپی و چسباندن'),
+  ('clipboard', 'کلیپ‌بورد'),
   ('file', 'انتقال فایل'),
 ];

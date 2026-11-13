@@ -3,17 +3,36 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import 'access_profile.dart';
 import 'digits.dart';
 import 'reconnect.dart';
 import 'session_controls.dart';
+import 'session_frame.dart';
+import 'switch_row.dart';
 import 'tech_card.dart';
 import 'theme.dart';
 import 'verify.dart';
 
-typedef DolphinAccept = void Function(bool keyboard, bool clipboard, bool file);
+export 'access_profile.dart' show DolphinGrant, DolphinProfile;
 
-/// The prompt a customer answers before a technician gets in. File transfer starts off. The name shown is the
-/// one the portal vouches for ([verdict]); a peer the portal did not authorize gets no Accept button.
+typedef DolphinAccept = void Function(DolphinGrant grant);
+
+/// Under the technician's name in the prompt (design C2), with a ✓ mark drawn as an icon (Vazirmatn has no ✓).
+const kVerifiedTechLine = 'کارشناس تأییدشده‌ی دلفین';
+const kWantsToConnectLine = 'می‌خواهد به این رایانه وصل شود.';
+const kAcceptLabel = 'پذیرفتن';
+const kDenyLabel = 'رد';
+const kAcceptElevateLabel = 'پذیرفتن، با اجازه‌ی نصب برنامه';
+
+/// The first letter of a name for the round avatar when the portal sent no photo («ع» for «علی رضایی»).
+String nameInitial(String name) {
+  final t = name.trim();
+  return t.isEmpty ? '' : String.fromCharCode(t.runes.first);
+}
+
+/// The prompt a customer answers before a technician gets in (C2, 320 × 520): who (the name the portal vouches for,
+/// [verdict]), the two profiles «کامل» / «فقط تماشا», one switch per permission (sound off by default, DD-31), and
+/// «پذیرفتن» / «رد». A peer the portal did not authorize gets no Accept button and no switches.
 class DolphinAcceptView extends StatefulWidget {
   final TechVerdict verdict;
   final String peerName;
@@ -28,6 +47,9 @@ class DolphinAcceptView extends StatefulWidget {
   /// Plan 14 (B5): the verified technician's photo from the portal; shown only with a verified name.
   final Uint8List? photo;
 
+  /// DD-31: false when the organization does not offer the PC's sound (`remote-sound` hidden): no sound switch.
+  final bool soundOffered;
+
   const DolphinAcceptView(
       {super.key,
       required this.verdict,
@@ -37,42 +59,54 @@ class DolphinAcceptView extends StatefulWidget {
       this.showElevate = false,
       this.onAcceptElevate,
       this.phone = '',
-      this.photo});
+      this.photo,
+      this.soundOffered = true});
 
   @override
   State<DolphinAcceptView> createState() => _DolphinAcceptViewState();
 }
 
 class _DolphinAcceptViewState extends State<DolphinAcceptView> {
-  bool keyboard = true;
-  bool clipboard = true;
-  // ADR-0012: on by default, so copy and paste of files works without an extra step; the customer can untick it here
-  // or switch it off in the session bar.
-  bool file = true;
+  DolphinGrant _grant = DolphinGrant.initial;
 
-  Widget _toggle(String label, bool value, ValueChanged<bool> set) => FilterChip(
-        label: Text(label),
-        selected: value,
-        onSelected: (v) => setState(() => set(v)),
-        selectedColor: DolphinColors.azureTint,
-        checkmarkColor: DolphinColors.azureText,
-      );
+  DolphinGrant get _granted => _grant.offered(sound: widget.soundOffered);
 
   @override
   Widget build(BuildContext context) =>
-      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: the customer's own look on any Windows theme
 
-  Widget _build(BuildContext context) {
-    final onAcceptElevate = widget.onAcceptElevate;
-    final state = widget.verdict.state;
-    final canAccept = acceptAllowed(widget.verdict);
-    final (String title, String note, Color color, IconData icon) = switch (state) {
-      TechCheck.verified => (
-          '${widget.verdict.name.isEmpty ? widget.peerName : widget.verdict.name} از دلفین',
-          'کارشناس تأییدشده‌ی دلفین می‌خواهد به این رایانه وصل شود',
-          DolphinColors.azure,
-          Icons.verified_user,
+  Widget _who(String name) => Row(children: [
+        if (widget.photo != null)
+          DolphinTechAvatar(photo: widget.photo, radius: 22)
+        else
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: DolphinColors.azureSoft,
+            child: Text(nameInitial(name),
+                style: TextStyle(color: DolphinColors.azureText, fontWeight: FontWeight.w800, fontSize: 17)),
+          ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+            Row(children: [
+              Flexible(
+                child: Text(kVerifiedTechLine,
+                    style: TextStyle(fontSize: 12, color: DolphinColors.aquaText, fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 3),
+              Icon(Icons.verified, size: 14, color: DolphinColors.aquaText, semanticLabel: '✓'),
+            ]),
+          ]),
         ),
+      ]);
+
+  /// Checking, unverifiable or rejected: what holds, and only «رد».
+  Widget _notVerified(TechCheck state) {
+    final (String title, String note, Color color, IconData icon) = switch (state) {
       TechCheck.checking => ('در حال بررسی هویت کارشناس…', 'چند لحظه صبر کنید', DolphinColors.muted, Icons.hourglass_top),
       TechCheck.unverifiable => (
           'پورتال دلفین در دسترس نیست؛ با دلفین تماس بگیرید.',
@@ -80,62 +114,106 @@ class _DolphinAcceptViewState extends State<DolphinAcceptView> {
           DolphinColors.danger,
           Icons.cloud_off,
         ),
-      TechCheck.rejected => (
+      _ => (
           'این اتصال از کارشناس دلفین نیست',
           'دلفین برای این رایانه اتصالی ثبت نکرده است؛ «رد» را بزنید',
           DolphinColors.danger,
           Icons.gpp_bad,
         ),
     };
+    return Column(children: [
+      const SizedBox(height: 12),
+      CircleAvatar(radius: 24, backgroundColor: color, child: Icon(icon, color: DolphinColors.onFill)),
+      const SizedBox(height: 12),
+      Text(title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w800,
+              color: state == TechCheck.rejected ? DolphinColors.dangerText : DolphinColors.ink)),
+      const SizedBox(height: 4),
+      Text(note, textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted, fontSize: 13, height: 1.6)),
+    ]);
+  }
+
+  Widget _build(BuildContext context) {
+    final onAcceptElevate = widget.onAcceptElevate;
+    final state = widget.verdict.state;
+    final canAccept = acceptAllowed(widget.verdict);
+    final name = widget.verdict.name.isEmpty ? widget.peerName : widget.verdict.name;
+    final profile = profileOf(_grant);
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            if (state == TechCheck.verified && widget.photo != null)
-              DolphinTechAvatar(photo: widget.photo, radius: 32)
-            else
-              CircleAvatar(radius: 22, backgroundColor: color, child: Icon(icon, color: Colors.white)),
-            const SizedBox(height: 10),
-            Text(title,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: state == TechCheck.rejected ? DolphinColors.dangerText : null)),
-            Text(note, textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
-            const SizedBox(height: 12),
-            if (canAccept)
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                alignment: WrapAlignment.center,
-                children: [
-                  _toggle('ماوس و صفحه‌کلید', keyboard, (v) => keyboard = v),
-                  _toggle('کپی و چسباندن', clipboard, (v) => clipboard = v),
-                  _toggle('انتقال فایل', file, (v) => file = v),
-                ]),
-            const SizedBox(height: 14),
-            Row(children: [
-              if (canAccept)
-                Expanded(
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: DolphinColors.azure),
-                    onPressed: () => widget.onAccept(keyboard, clipboard, file),
-                    child: const Text('پذیرفتن'),
+      child: Column(children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (state == TechCheck.verified) ...[
+                _who(name),
+                const SizedBox(height: 10),
+                Text(kWantsToConnectLine, style: TextStyle(color: DolphinColors.ink, fontSize: 13.5)),
+              ] else
+                _notVerified(state),
+              if (canAccept) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: DolphinSegmented<DolphinProfile>(
+                    keyPrefix: 'dolphin-profile',
+                    options: const [(DolphinProfile.full, kProfileFullLabel), (DolphinProfile.viewOnly, kProfileViewOnlyLabel)],
+                    selected: profile == DolphinProfile.custom ? null : profile,
+                    onSelected: (p) => setState(() => _grant = grantFor(p, _grant)),
                   ),
                 ),
-              if (canAccept) const SizedBox(width: 8),
+                const SizedBox(height: 6),
+                for (final (permission, label) in grantLabels(sound: widget.soundOffered))
+                  DolphinSwitchRow(
+                    switchKey: ValueKey('dolphin-grant-$permission'),
+                    label: label,
+                    value: _grant.of(permission),
+                    onChanged: (v) => setState(() => _grant = _grant.withPermission(permission, v)),
+                  ),
+                const SizedBox(height: 4),
+                Text(kGrantOnlyYouLine, style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
+              ],
+            ]),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              if (canAccept) ...[
+                Expanded(
+                  child: FilledButton(
+                    key: const ValueKey('dolphin-accept'),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: DolphinColors.accentFill, foregroundColor: DolphinColors.onFill),
+                    onPressed: () => widget.onAccept(_granted),
+                    child: const Text(kAcceptLabel),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
-                  child: OutlinedButton(
-                      onPressed: widget.onDeny, child: const Text('رد'))),
+                child: OutlinedButton(
+                  key: const ValueKey('dolphin-deny'),
+                  style: OutlinedButton.styleFrom(foregroundColor: DolphinColors.ink, backgroundColor: DolphinColors.surface),
+                  onPressed: widget.onDeny,
+                  child: const Text(kDenyLabel),
+                ),
+              ),
             ]),
             if (canAccept && widget.showElevate && onAcceptElevate != null)
               TextButton(
-                onPressed: () => onAcceptElevate(keyboard, clipboard, file),
-                child: const Text('پذیرفتن، با اجازه‌ی نصب برنامه'),
+                onPressed: () => onAcceptElevate(_granted),
+                style: TextButton.styleFrom(foregroundColor: DolphinColors.azureText),
+                child: const Text(kAcceptElevateLabel),
               ),
-          ],
+          ]),
         ),
-      ),
+      ]),
     );
   }
 }
@@ -153,16 +231,23 @@ String sessionClock(Duration d) {
   return faDigits(h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}');
 }
 
-/// While a technician is connected: who, for how long, what he may do, «مکث» and the End button. Every permission stays
-/// in the customer's hands for the whole session (SECURITY.md control 1; UX-13, DD-45): each has its own switch, and the
-/// technician's strip shows the change at once. Made for the small window in the corner (DD-36,
-/// [kDolphinSessionWindowSize]): the content scrolls and «پایان» stays pinned at the bottom, always visible.
+/// The session window's title (C3): «علی رضایی وصل است».
+String connectedTitle(String technician) => '$technician وصل است';
+
+/// While a technician is connected (C3, the small window in the corner, DD-36 [kDolphinSessionWindowSize]): who and
+/// for how long, one switch per permission (SECURITY.md control 1; UX-13, DD-45: every permission stays in the
+/// customer's hands, and the technician's strip shows a change at once), «کادر رنگی دور صفحه», «مکث» and «پایان».
+/// The content scrolls; «مکث» and «پایان» stay pinned at the bottom, always visible.
 class DolphinSessionView extends StatelessWidget {
   final String technician;
   final Duration elapsed;
   final bool keyboard;
   final bool clipboard;
   final bool file;
+
+  /// DD-31: the PC's sound (upstream's audio permission); the switch shows only when [soundOffered].
+  final bool audio;
+  final bool soundOffered;
 
   /// D23: the same technician came back within 2 minutes of a drop; the badge says «دوباره وصل شد».
   final bool resumed;
@@ -176,12 +261,16 @@ class DolphinSessionView extends StatelessWidget {
   /// DD-37: who blocked the customer's mouse and keyboard and since when ([inputOffDetail]); null while not blocked.
   final String? inputOff;
 
-  /// `permission` is `keyboard`, `clipboard` or `file` (bind.cmSwitchPermission names).
+  /// `permission` is `keyboard`, `clipboard`, `file` or `audio` (bind.cmSwitchPermission names).
   final void Function(String permission, bool enabled) onToggle;
   final VoidCallback onEnd;
 
   /// DD-29: opens or closes the chat beside the session; null hides «گفتگو» (a file-transfer tab has no chat).
   final VoidCallback? onChat;
+
+  /// C3: «کادر رنگی دور صفحه» (session_frame.dart); a null [onFrame] hides the switch.
+  final bool frame;
+  final ValueChanged<bool>? onFrame;
 
   const DolphinSessionView(
       {super.key,
@@ -190,24 +279,24 @@ class DolphinSessionView extends StatelessWidget {
       required this.keyboard,
       required this.clipboard,
       required this.file,
+      this.audio = false,
+      this.soundOffered = false,
       this.resumed = false,
       this.paused = false,
       this.onPause,
       this.inputOff,
       required this.onToggle,
       required this.onEnd,
-      this.onChat});
+      this.onChat,
+      this.frame = false,
+      this.onFrame});
 
-  bool _value(String name) => switch (name) { 'keyboard' => keyboard, 'clipboard' => clipboard, _ => file };
-
-  Widget _switch(String name, String label) => SwitchListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        title: Text(label, style: TextStyle(fontSize: 13.5, color: DolphinColors.ink)),
-        value: _value(name),
-        onChanged: (v) => onToggle(name, v),
-      );
+  bool _value(String name) => switch (name) {
+        'keyboard' => keyboard,
+        'clipboard' => clipboard,
+        'audio' => audio,
+        _ => file,
+      };
 
   Widget _notice({required Color ground, required Color titleColor, required IconData icon, required String title,
           required List<String> lines}) =>
@@ -220,7 +309,7 @@ class DolphinSessionView extends StatelessWidget {
           Row(children: [
             Icon(icon, size: 18, color: titleColor),
             const SizedBox(width: 6),
-            Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: titleColor))),
+            Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: titleColor, fontSize: 13))),
           ]),
           for (final l in lines)
             Padding(
@@ -232,46 +321,62 @@ class DolphinSessionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: the customer's own look on any Windows theme
 
   Widget _build(BuildContext context) {
     final onPause = this.onPause;
+    final onFrame = this.onFrame;
     final inputOff = this.inputOff;
-    final badge = paused ? '❚❚ $kDolphinPausedTitle' : (resumed ? '● $kDolphinReconnected' : '● در جلسه');
+    final badge = paused ? '❚❚ $kDolphinPausedTitle' : (resumed ? '● $kDolphinReconnected' : null);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Column(children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
+                Expanded(
+                  child: Text(connectedTitle(technician),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
+                ),
+                const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  key: const ValueKey('dolphin-session-clock'),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
                   decoration: BoxDecoration(color: DolphinColors.azureSoft, borderRadius: BorderRadius.circular(99)),
-                  child: Text(badge,
-                      style: TextStyle(color: DolphinColors.azureText, fontWeight: FontWeight.w700, fontSize: 12)),
+                  child: Text(sessionClock(elapsed),
+                      textDirection: TextDirection.ltr,
+                      style: TextStyle(color: DolphinColors.azureText, fontSize: 12, fontWeight: FontWeight.w700)),
                 ),
-                const Spacer(),
-                Text(sessionClock(elapsed),
-                    textDirection: TextDirection.ltr, style: TextStyle(color: DolphinColors.muted, fontSize: 12.5)),
               ]),
-              const SizedBox(height: 6),
-              Text(technician,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: DolphinColors.ink)),
-              if (onChat != null)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: TextButton.icon(
-                    key: const ValueKey('dolphin-session-chat'),
-                    onPressed: onChat,
-                    style: TextButton.styleFrom(minimumSize: const Size(0, 36), padding: const EdgeInsets.symmetric(horizontal: 4)),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                    label: const Text(kDolphinChatLabel),
+              if (badge != null || onChat != null)
+                Row(children: [
+                  Expanded(
+                    child: badge == null
+                        ? const SizedBox.shrink()
+                        : Text(badge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: DolphinColors.azureText, fontWeight: FontWeight.w700, fontSize: 12)),
                   ),
-                ),
+                  if (onChat != null)
+                    Flexible(
+                      child: TextButton.icon(
+                        key: const ValueKey('dolphin-session-chat'),
+                        onPressed: onChat,
+                        style: TextButton.styleFrom(
+                            foregroundColor: DolphinColors.azureText,
+                            minimumSize: const Size(0, 32),
+                            padding: const EdgeInsets.symmetric(horizontal: 4)),
+                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                        label: const Text(kDolphinChatLabel,
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ),
+                ]),
               if (inputOff != null)
                 _notice(
                     ground: DolphinColors.dangerSoft,
@@ -287,23 +392,40 @@ class DolphinSessionView extends StatelessWidget {
                     title: kDolphinPausedTitle,
                     lines: const [kDolphinPausedNote]),
               const SizedBox(height: 4),
-              for (final (name, label) in kDolphinPermissionLabels) _switch(name, label),
+              for (final (name, label) in grantLabels(sound: soundOffered))
+                DolphinSwitchRow(
+                  switchKey: ValueKey('dolphin-session-$name'),
+                  label: label,
+                  value: _value(name),
+                  onChanged: (v) => onToggle(name, v),
+                ),
+              if (onFrame != null)
+                DolphinSwitchRow(
+                  switchKey: const ValueKey('dolphin-session-frame'),
+                  label: kFrameLabel,
+                  value: frame,
+                  onChanged: onFrame,
+                ),
+              const SizedBox(height: 2),
               Text(onPause != null && !paused ? kDolphinPauseHint : 'هر کدام را خاموش کنید، کارشناس دیگر نمی‌تواند از آن استفاده کند.',
                   style: TextStyle(color: DolphinColors.muted, fontSize: 11.5, height: 1.6)),
             ]),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
           child: Row(children: [
             if (onPause != null) ...[
               Expanded(
                 child: paused
                     ? FilledButton.icon(
+                        key: const ValueKey('dolphin-session-resume'),
                         onPressed: () => onPause(false),
                         icon: const Icon(Icons.play_arrow, size: 18),
                         label: const Text(kDolphinResumeLabel))
                     : OutlinedButton.icon(
+                        key: const ValueKey('dolphin-session-pause'),
+                        style: OutlinedButton.styleFrom(backgroundColor: DolphinColors.surface),
                         onPressed: () => onPause(true),
                         icon: const Icon(Icons.pause, size: 18),
                         label: const Text(kDolphinPauseLabel)),
@@ -312,7 +434,8 @@ class DolphinSessionView extends StatelessWidget {
             ],
             Expanded(
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: DolphinColors.danger),
+                key: const ValueKey('dolphin-session-end'),
+                style: FilledButton.styleFrom(backgroundColor: DolphinColors.danger, foregroundColor: DolphinColors.onFill),
                 onPressed: onEnd,
                 child: const Text('پایان'),
               ),
@@ -323,6 +446,7 @@ class DolphinSessionView extends StatelessWidget {
     );
   }
 }
+
 
 /// DD-29: the customer's button for the chat with the technician.
 const kDolphinChatLabel = 'گفتگو با کارشناس';
@@ -396,10 +520,14 @@ class _DolphinEndedViewState extends State<DolphinEndedView> {
     final r = widget.reason;
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Padding(
+      child: Container(
+        color: DolphinColors.ground,
+        alignment: Alignment.center,
         padding: const EdgeInsets.all(16),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('جلسه پایان یافت.', style: TextStyle(fontWeight: FontWeight.w700)),
+          Icon(Icons.check_circle_outline, size: 36, color: DolphinColors.aquaText),
+          const SizedBox(height: 8),
+          Text('جلسه پایان یافت.', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: DolphinColors.ink)),
           if (r != null) ...[
             const SizedBox(height: 4),
             Text(endReasonText(r), textAlign: TextAlign.center, style: TextStyle(color: DolphinColors.muted)),
