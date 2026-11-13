@@ -471,6 +471,10 @@ pub struct Connection {
     dolphin_cm_started: bool,
     // Dolphin Connect (DD-11): a Safe Mode or normal restart the customer was told about, and when (mono ms).
     dolphin_restart: Option<(crate::dolphin_safe_mode_core::Kind, u64)>,
+    // Dolphin Connect (demo): technician app, the demo connection (src/dolphin_demo_core.rs); whether all his screens.
+    dolphin_demo: Option<bool>,
+    // Dolphin Connect (demo): customer PC, the technician's uuid while «دیدن» / «نه» is asked, and since when (mono ms).
+    dolphin_demo_ask: Option<(String, u64)>,
 }
 
 /// Dolphin Connect (DD-46): paused sessions by technician ID, shared by this server's connections.
@@ -681,6 +685,8 @@ impl Connection {
             dolphin_block_on: false,
             dolphin_cm_started: false,
             dolphin_restart: None,
+            dolphin_demo: None,
+            dolphin_demo_ask: None,
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -827,6 +833,17 @@ impl Connection {
                             // Dolphin Connect (DD-11): «لغو» on the customer's restart notice.
                             if &name == crate::dolphin_safe_mode_core::CM_CANCEL {
                                 conn.dolphin_restart_cancel().await;
+                            }
+                            // Dolphin Connect (demo): «دیدن» / «نه» on the customer's prompt. The technician's demo
+                            // connection takes no permission from his own window: it stays view only.
+                            if &name == crate::dolphin_demo_core::CM_ANSWER {
+                                if !conn.dolphin_demo_answer(enabled).await {
+                                    break;
+                                }
+                                continue;
+                            }
+                            if conn.dolphin_demo.is_some() {
+                                continue;
                             }
                             if &name == crate::dolphin_session_core::PAUSE_SWITCH {
                                 // Dolphin Connect (DD-46): «مکث» / «ادامه» from the customer's window.
@@ -1248,6 +1265,10 @@ impl Connection {
                     }
                     // Dolphin Connect (DD-11): the customer's restart notice ran out.
                     conn.dolphin_restart_tick().await;
+                    // Dolphin Connect (demo): nobody answered the customer's prompt in time.
+                    if !conn.dolphin_demo_tick().await {
+                        break;
+                    }
                     if let Some((instant, minute)) = conn.auto_disconnect_timer.as_ref() {
                         if instant.elapsed().as_secs() > minute * 60 {
                             conn.send_close_reason_no_retry("Connection failed due to inactivity").await;
@@ -1322,6 +1343,10 @@ impl Connection {
             try_stop_record_cursor_pos();
         }
         conn.on_close("End", true).await;
+        // Dolphin Connect (demo): the technician's demo ended; his app can start another.
+        if conn.dolphin_demo.is_some() {
+            crate::dolphin_demo::ended();
+        }
         log::info!("#{} connection loop exited", id);
     }
 
@@ -2116,6 +2141,15 @@ impl Connection {
                     crate::dolphin_system_core::SWITCHES_OPTION
                 ))),
             );
+            // Dolphin Connect (demo): whether this PC can show «ارائه دمو» (not the x86 Sciter build), and on the
+            // technician's demo connection which of his screens the customer may pick (src/dolphin_demo_core.rs).
+            platform_additions.insert(crate::dolphin_demo_core::PLATFORM_ADDITION.into(), json!(cfg!(feature = "flutter")));
+            if let Some(all) = self.dolphin_demo {
+                platform_additions.insert(
+                    crate::dolphin_demo_core::PLATFORM_SCREENS.into(),
+                    json!(crate::dolphin_demo_core::screens_value(all)),
+                );
+            }
             if crate::platform::is_installed() {
                 platform_additions.extend(virtual_display_manager::get_platform_additions());
             }
@@ -2947,6 +2981,11 @@ impl Connection {
                     use crate::dolphin_safe_mode_core::{Answer, Refusal};
                     self.send(crate::dolphin_safe_mode::answer_message(Answer::Refused(Refusal::Paused))).await;
                 }
+                // Dolphin Connect (demo): «ارائه دمو» during the pause is refused, and the technician told why.
+                if crate::dolphin_demo_core::is_request(&p.id) {
+                    use crate::dolphin_demo_core::{Answer, Refusal};
+                    self.send(crate::dolphin_demo::answer_message(Answer::NotAsked(Refusal::Paused))).await;
+                }
             }
         }
         if let Some(message::Union::ScreenshotRequest(request)) = &msg.union {
@@ -3073,6 +3112,172 @@ impl Connection {
                 })
                 .ok();
         });
+    }
+
+    /// Dolphin Connect (demo): «ارائه دمو» from the technician's session, only for an authorised remote session
+    /// (src/dolphin_demo_core.rs `decide`). The customer's window asks «دیدن» / «نه» first; the x86 build, a pause or
+    /// another open prompt get a Persian refusal instead. Nothing is shown or started here.
+    async fn dolphin_demo_request(&mut self, content: &[u8]) {
+        use crate::dolphin_demo_core::{self as rules, Answer};
+        let Some(uuid) = rules::parse_uuid(content) else {
+            return;
+        };
+        if !self.is_authed_remote_conn() || self.view_camera {
+            return;
+        }
+        let scene = rules::Scene {
+            ui: cfg!(feature = "flutter"),
+            paused: self.dolphin_paused,
+            busy: self.dolphin_demo_ask.is_some() || self.dolphin_restart.is_some(),
+            window: self.dolphin_cm_started,
+        };
+        let answer = match rules::decide(&scene) {
+            Err(refusal) => Answer::NotAsked(refusal),
+            Ok(()) => {
+                self.dolphin_demo_ask = Some((uuid, crate::dolphin_session_core::mono_ms()));
+                self.send_to_cm(ipc::Data::SwitchPermission {
+                    name: rules::CM_ASK.to_owned(),
+                    enabled: true,
+                });
+                Answer::Asking
+            }
+        };
+        log::info!("Dolphin demo: asked by the technician: {}", answer.code());
+        self.send(crate::dolphin_demo::answer_message(answer)).await;
+    }
+
+    /// Dolphin Connect (demo): the customer's «دیدن» (`true`) or «نه». «دیدن» starts the demo window over upstream's
+    /// switch-back and is audited (the portal's engine.demo_viewed). False: the first connection ended.
+    async fn dolphin_demo_answer(&mut self, see: bool) -> bool {
+        use crate::dolphin_demo_core::{self as rules, Answer};
+        let Some((uuid, _)) = self.dolphin_demo_ask.take() else {
+            return true;
+        };
+        let answer = if !see {
+            Answer::Refused
+        } else if crate::dolphin_demo::launch_view(&self.lr.my_id, &uuid) {
+            self.post_conn_audit(json!({ "action": rules::AUDIT_ACTION }));
+            Answer::Accepted
+        } else {
+            Answer::NotStarted
+        };
+        log::info!("Dolphin demo: the customer answered: {}", answer.code());
+        self.send(crate::dolphin_demo::answer_message(answer)).await;
+        self.dolphin_demo_close_after(answer).await
+    }
+
+    /// Dolphin Connect (demo): the prompt ran out; the window hides it and the technician hears «جواب نداد».
+    async fn dolphin_demo_tick(&mut self) -> bool {
+        use crate::dolphin_demo_core::{self as rules, Answer};
+        let Some((_, asked)) = &self.dolphin_demo_ask else {
+            return true;
+        };
+        if !rules::ask_expired(*asked, crate::dolphin_session_core::mono_ms()) {
+            return true;
+        }
+        self.dolphin_demo_ask = None;
+        self.send_to_cm(ipc::Data::SwitchPermission {
+            name: rules::CM_ASK.to_owned(),
+            enabled: false,
+        });
+        self.send(crate::dolphin_demo::answer_message(Answer::NoAnswer)).await;
+        self.dolphin_demo_close_after(Answer::NoAnswer).await
+    }
+
+    /// Dolphin Connect (demo): a demo never leaves a control session behind. False: closed.
+    async fn dolphin_demo_close_after(&mut self, answer: crate::dolphin_demo_core::Answer) -> bool {
+        if !answer.ends_first_connection() {
+            return true;
+        }
+        self.send_close_reason_no_retry(crate::dolphin_demo_core::CLOSE_REASON).await;
+        self.on_close("Dolphin demo", false).await;
+        false
+    }
+
+    /// Dolphin Connect (demo): the technician app (outgoing-only) is never logged into: a `LoginRequest` is refused
+    /// before any password, code or approval is looked at. Its demo connection acts on nothing but watching
+    /// (src/dolphin_demo_core.rs `pre_login`, `inbound_allowed`). `Some(keep)`: handled here; `None`: upstream goes on.
+    async fn dolphin_demo_gate(&mut self, msg: &Message) -> Option<bool> {
+        use crate::dolphin_demo_core::{self as rules, Gate, Inbound, PreLogin};
+        if !self.authorized {
+            let kind = match &msg.union {
+                Some(message::Union::LoginRequest(_)) => PreLogin::Login,
+                Some(message::Union::SwitchSidesResponse(_)) => PreLogin::SwitchBack,
+                _ => PreLogin::Other,
+            };
+            if rules::pre_login(hbb_common::config::is_outgoing_only(), kind) == Gate::Refuse {
+                log::warn!("Dolphin demo: refused a login to the technician app");
+                self.send_login_error("Connection not allowed").await;
+                return Some(false);
+            }
+            return None;
+        }
+        let all = self.dolphin_demo?;
+        let kind = match &msg.union {
+            Some(message::Union::TestDelay(_)) | Some(message::Union::LoginRequest(_)) => Inbound::Upkeep,
+            Some(message::Union::Misc(m)) => match &m.union {
+                Some(misc::Union::CloseReason(_)) => Inbound::Upkeep,
+                Some(misc::Union::RefreshVideo(_))
+                | Some(misc::Union::RefreshVideoDisplay(_))
+                | Some(misc::Union::VideoReceived(_)) => Inbound::Picture,
+                Some(misc::Union::Option(o)) if Self::is_supported_decoding_only_option(o) => Inbound::Picture,
+                Some(misc::Union::SwitchDisplay(_)) | Some(misc::Union::CaptureDisplays(_)) => Inbound::Display,
+                _ => Inbound::Other,
+            },
+            _ => Inbound::Other,
+        };
+        if rules::inbound_allowed(kind, all) {
+            None
+        } else {
+            Some(true)
+        }
+    }
+
+    /// Dolphin Connect (demo): the technician app lets a switch-back in only when it is the awaited demo: that
+    /// customer's ID, that uuid, once, inside the wait (src/dolphin_demo_core.rs `DemoBook::claim`). Then nothing but
+    /// the picture: no input, clipboard, files, sound, restart, recording, block input or privacy mode, and no lock
+    /// when it ends. Other apps: true, upstream's switch sides unchanged. False: refused, the connection closes.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    async fn dolphin_demo_claim(&mut self, lr: &LoginRequest, uuid: &[u8]) -> bool {
+        if !hbb_common::config::is_outgoing_only() {
+            return true;
+        }
+        let claimed = uuid::Uuid::from_slice(uuid)
+            .ok()
+            .and_then(|u| crate::dolphin_demo::claim(&lr.my_id, &u).map(|all| (u, all)));
+        let Some((uuid, all)) = claimed else {
+            log::warn!("Dolphin demo: refused a switch-back that is not the awaited demo");
+            self.send_login_error("Connection not allowed").await;
+            return false;
+        };
+        log::info!("Dolphin demo: the customer's PC connected back to watch");
+        self.dolphin_demo = Some(all);
+        self.keyboard = false;
+        self.clipboard = false;
+        self.audio = false;
+        self.file = false;
+        self.restart = false;
+        self.recording = false;
+        self.block_input = false;
+        self.privacy_mode = false;
+        self.lock_after_session_end = false;
+        // Upstream's check right below then matches this uuid, and only this one.
+        insert_switch_sides_uuid(lr.my_id.clone(), uuid);
+        true
+    }
+
+    /// Dolphin Connect (demo): the demo window's login options keep image quality, frame rate and codecs only (as
+    /// upstream scopes a camera view); lock after the session, privacy mode, block input and the rest are dropped.
+    #[cfg(feature = "flutter")]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn dolphin_demo_scope_login(&mut self) {
+        if self.dolphin_demo.is_none() {
+            return;
+        }
+        if let Some(option) = self.options_in_login.take() {
+            self.options_in_login = Self::scoped_view_camera_option(&option).0;
+        }
     }
 
     /// Dolphin Connect (owner decision D21). `None`: not the fixed password, upstream decides as before. `Some(true)`:
@@ -3364,6 +3569,10 @@ impl Connection {
                 return self.handle_authorized_scope_violation(message).await;
             }
         }
+        // Dolphin Connect (demo): the technician app is never logged into, and its demo connection only watches.
+        if let Some(keep) = self.dolphin_demo_gate(&msg).await {
+            return keep;
+        }
         // After handling CloseReason messages, proceed to process other message types
         if let Some(message::Union::LoginRequest(lr)) = msg.union {
             if !self.check_login_scope(&lr).await {
@@ -3640,6 +3849,10 @@ impl Connection {
             #[cfg(feature = "flutter")]
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             if let Some(lr) = _s.lr.clone().take() {
+                // Dolphin Connect (demo): in the technician app only the awaited demo gets past here, view only.
+                if !self.dolphin_demo_claim(&lr, &_s.uuid).await {
+                    return false;
+                }
                 SWITCH_SIDES_UUID
                     .lock()
                     .unwrap()
@@ -3663,6 +3876,8 @@ impl Connection {
                                 return false;
                             }
                             self.from_switch = true;
+                            // Dolphin Connect (demo): the customer's login options keep only picture settings.
+                            self.dolphin_demo_scope_login();
                             self.set_conn_audit_primary_auth(ConnAuditPrimaryAuth::SwitchSides);
                             if !self.send_logon_response_and_keep_alive().await {
                                 return false;
@@ -4394,6 +4609,10 @@ impl Connection {
                         self.send_to_cm(ipc::Data::ChatMessage { text: c.text });
                         self.chat_unanswered = true;
                         self.update_auto_disconnect_timer();
+                    }
+                    // Dolphin Connect (demo): «ارائه دمو»; the customer is asked first (src/dolphin_demo_core.rs).
+                    Some(misc::Union::PluginRequest(p)) if crate::dolphin_demo_core::is_request(&p.id) => {
+                        self.dolphin_demo_request(&p.content).await;
                     }
                     // Dolphin Connect (DD-50, DD-6): the technician's paste or keyboard language (src/dolphin_panel.rs).
                     Some(misc::Union::PluginRequest(p)) => {

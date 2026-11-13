@@ -784,6 +784,20 @@ impl<T: InvokeUiSession> Session<T> {
     /// existing `Misc::PluginRequest` (src/dolphin_panel_core.rs). False: not one of ours, nothing sent.
     /// DD-11: the toolbar's Safe Mode restart and its return go the same way (src/dolphin_safe_mode_core.rs).
     pub fn dolphin_panel_request(&self, key: &str, value: &str) -> bool {
+        // Dolphin Connect (demo): «ارائه دمو» starts its wait and asks the customer's PC, or gives the wait up.
+        if let Some(step) = crate::dolphin_demo::session_request(&self.get_id(), key, value) {
+            match step {
+                crate::dolphin_demo::SessionStep::Send(msg) => self.send(Data::Message(msg)),
+                crate::dolphin_demo::SessionStep::Tell(answer) => self.msgbox(
+                    crate::dolphin_demo_core::ANSWER_MSGTYPE,
+                    answer.code(),
+                    answer.text(),
+                    "",
+                ),
+                crate::dolphin_demo::SessionStep::Nothing => {}
+            }
+            return true;
+        }
         let Some((id, content)) = crate::dolphin_panel_core::client_request(key, value)
             .or_else(|| crate::dolphin_safe_mode_core::client_request(key, value))
         else {
