@@ -109,6 +109,11 @@ async fn start_hbbs_sync_async() {
                     info_uploaded.uploaded = false;
                     *PRO.lock().unwrap() = false;
                 }
+                // Dolphin Connect (DD-10): a PC that moved to another network sends its adapters again (looked at
+                // every 10 minutes, src/dolphin_wake.rs).
+                if info_uploaded.uploaded && crate::dolphin_wake::lan_changed() {
+                    info_uploaded.uploaded = false;
+                }
                 // For Windows:
                 // We can't skip uploading sysinfo when the username is empty, because the username may
                 // always be empty before login. We also need to upload the other sysinfo info.
@@ -133,6 +138,9 @@ async fn start_hbbs_sync_async() {
                     v["version"] = json!(crate::VERSION);
                     // Dolphin Connect (TB-4): our own version; the portal stores it and «رایانه‌ها» shows it.
                     v["dolphin_version"] = json!(crate::dolphin::DOLPHIN_VERSION);
+                    // Dolphin Connect (DD-10): `dolphin_macs` and `dolphin_lan`, so the portal can wake this PC through
+                    // another one on its LAN (src/dolphin_wake_core.rs).
+                    crate::dolphin_wake::add_sysinfo(&mut v);
                     v["id"] = json!(id);
                     v["uuid"] = json!(crate::encode64(hbb_common::get_uuid()));
                     let ab_name = Config::get_option(keys::OPTION_PRESET_ADDRESS_BOOK_NAME);
@@ -249,6 +257,13 @@ async fn start_hbbs_sync_async() {
                 {
                     v["dolphin_share"] = json!(crate::dolphin_system::heartbeat_share());
                 }
+                // Dolphin Connect (DD-10): a new `dolphin-wake` among the applied options sends its magic packets once;
+                // the nonce whose packets went out is reported until the portal answers once (src/dolphin_wake.rs).
+                crate::dolphin_wake::tick();
+                let dolphin_wake = crate::dolphin_wake::heartbeat_report();
+                if let Some(nonce) = &dolphin_wake {
+                    v[crate::dolphin_wake_core::HEARTBEAT_FIELD] = json!(nonce);
+                }
                 let response = crate::post_request(url.clone(), v.to_string(), "").await;
                 if let Err(err) = &response {
                     hbb_common::throttled_log!(API_LOG_INTERVAL, warn, "Heartbeat failed: {err:?}");
@@ -261,6 +276,11 @@ async fn start_hbbs_sync_async() {
                 ) {
                     Config::set_option(crate::dolphin_portal::PORTAL_DOWN_OPTION.to_owned(), v.to_owned());
                 }
+                // Dolphin Connect (DD-10): an answered heartbeat delivered `dolphin_wake`.
+                crate::dolphin_wake::heartbeat_answered(
+                    &dolphin_wake,
+                    matches!(&response, Ok(s) if crate::dolphin_portal::portal_answered(s)),
+                );
                 if let Ok(s) = response {
                     if let Ok(mut rsp) = serde_json::from_str::<HashMap::<&str, Value>>(&s) {
                         if rsp.remove("sysinfo").is_some() {

@@ -150,7 +150,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_session_core.rs",
                     "src/dolphin_system_core.rs",
                     "src/dolphin_panel_core.rs",
-                    "src/dolphin_install_core.rs")
+                    "src/dolphin_install_core.rs",
+                    "src/dolphin_wake_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -188,8 +189,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 10)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 10)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 11)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 11)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -700,6 +701,46 @@ class AppNameWiringTest(unittest.TestCase):
         self.assertNotIn("DolphinBrand.nameFa", update)
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "app_name_test.dart").is_file())
         self.assertIn("lib/common.dart", ANALYZE)
+
+
+class WakeWiringTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-10): Wake-on-LAN in the heartbeat loop (src/hbbs_http/sync.rs)."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_sysinfo_carries_the_adapters(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        upload = sync.split("if need_upload {", 1)[1].split("let v = v.to_string();", 1)[0]
+        self.assertIn("crate::dolphin_wake::add_sysinfo(&mut v);", upload)
+
+    def test_the_heartbeat_reports_the_nonce_until_answered(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        share = sync.index('v["dolphin_share"]')
+        tick = sync.index("crate::dolphin_wake::tick();")
+        report = sync.index("v[crate::dolphin_wake_core::HEARTBEAT_FIELD] = json!(nonce);")
+        post = sync.index("let response = crate::post_request(url.clone(), v.to_string(), \"\").await;")
+        answered = sync.index("crate::dolphin_wake::heartbeat_answered(")
+        self.assertLess(share, tick)
+        self.assertLess(tick, report)
+        self.assertLess(report, post)
+        self.assertLess(post, answered)
+        self.assertIn("crate::dolphin_portal::portal_answered(s)", sync[answered:answered + 200])
+
+    def test_the_request_is_read_from_the_applied_options_only(self):
+        wake = self.read("src", "dolphin_wake.rs")
+        self.assertIn("Config::get_option(rules::WAKE_OPTION)", wake)
+        self.assertIn("rules::SWITCH_WAKE_ON_LAN) == sys::SwitchMode::Hidden", wake)
+        self.assertNotIn("post_request", wake)
+
+    def test_the_names_are_the_contracts(self):
+        core = self.read("src", "dolphin_wake_core.rs")
+        for const, value in (("WAKE_OPTION", "dolphin-wake"), ("SWITCH_WAKE_ON_LAN", "wake-on-lan"),
+                             ("HEARTBEAT_FIELD", "dolphin_wake"), ("SYSINFO_MACS", "dolphin_macs"),
+                             ("SYSINFO_LAN", "dolphin_lan")):
+            self.assertIn(f'pub const {const}: &str = "{value}";', core)
+        self.assertIn("pub const PORT: u16 = 9;", core)
+        self.assertIn("static const wakeOnLan = 'wake-on-lan';", self.read("flutter", "lib", "dolphin", "switches.dart"))
 
 
 if __name__ == "__main__":
