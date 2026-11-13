@@ -123,6 +123,33 @@ and the std-only `src/dolphin_system_core.rs` tests ran; the crate, the Dart ana
 کنار ساعت می‌ماند و رنگش وضعیت را نشان می‌دهد. با «توقف اشتراک» هیچ کس، حتی کارشناس دلفین، نمی‌تواند وصل شود تا
 «شروع اشتراک» را بزنید. فایل‌هایی که کارشناس می‌فرستد در پوشه‌ی «دریافتی دلفین» در Downloads ذخیره می‌شوند.
 
+### Plan 18 Phase 3: the side pane beside the session (technician x64; customer x64 and x86 for paste and keyboard)
+
+Not built here (no full cargo build yet; Flutter only for tests): `flutter test test/dolphin`, `flutter analyze` on
+`lib/dolphin`, `test/dolphin` and the touched upstream files, the std-only `src/dolphin_panel_core.rs` tests and the
+Python tests ran. The Windows runner, the crate and everything on real PCs are unverified.
+
+- DD-49: a strip at the right edge of the remote picture (technician build, Windows) opens a 340 px pane with the
+  portal's `/staff/side/<peer ID>`: hidden by default, remembered. Same WebView2 user-data folder as the staff panel
+  in the main window, so no second sign-in; only the portal's own pages load in it. The picture's area shrinks by the
+  pane's width; the pointer mapping is unchanged. Remote windows now register the webview plugin.
+- DD-50: «چسباندن» in the pane pastes only into the session with that PC, only while it is live and the customer
+  allows keyboard and clipboard. The customer's PC sets its clipboard and presses Ctrl+V by virtual key (works on a
+  Persian layout too).
+- DD-51: «عکس صفحه» asks the customer's PC for a picture of the display shown (upstream's screenshot request, one PNG
+  on demand), saves it to a temporary file deleted at once, scales it under the portal's 6 MB limit and hands it to
+  the pane, which attaches it to the open call.
+- DD-6: «زبان صفحه‌کلید مشتری» (فارسی / انگلیسی) switches the focused window on the customer's PC to an installed
+  layout of that language. Says so when the window belongs to a program run as administrator and our app is not
+  elevated (a portable app), when the language is not installed, on the lock screen, and when the customer turned the
+  keyboard off or paused.
+- No new protocol message: the paste and the keyboard change ride on the existing, unused `Misc::PluginRequest`; the
+  answer is a `MessageBox` (`dolphin-panel`) shown as one line over the picture. An older customer app ignores them
+  and the technician reads «برنامه‌ی مشتری جواب نداد…». Nothing changes in speed, codecs or the network path.
+
+**یادداشت فارسی:** کنار تصویر جلسه سه دکمه است: «پنل مشتری» (اطلاعات رایانه، تماس باز، متن‌های آماده)، «عکس صفحه»
+(به پیوست‌های تماس باز می‌رود) و «زبان صفحه‌کلید مشتری». پنل با همان ورود پنل کارشناسان باز می‌شود.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
