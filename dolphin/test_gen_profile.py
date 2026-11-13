@@ -151,14 +151,14 @@ class RenderTest(unittest.TestCase):
 
     def test_brand_dart_has_the_values_escaped(self):
         s = copy.deepcopy(SETTINGS)
-        s["brand"]["support-phone"] = "021-12345678"
+        s["brand"]["support-phone"] = "021-44280505"
         dart = g.render_brand_dart(s, PROFILE, "2.0.0")
         # The technician app shows the staff panel from the same server as the API.
         self.assertIn("static const String portalUrl = 'https://support.dolphindev.ir';", dart)
         self.assertIn("static const String portalUrl = 'http://127.0.0.1:3010';",
                       g.render_brand_dart(s, {**PROFILE, "api-server": "http://127.0.0.1:3010/rd"}, "2.0.0"))
         self.assertIn("static const String nameFa = 'دلفین کانکت';", dart)
-        self.assertIn("static const String supportPhone = '021-12345678';", dart)
+        self.assertIn("static const String supportPhone = '021-44280505';", dart)
         self.assertIn("static const String siteLabel = 'support.dolphindev.ir';", dart)
         self.assertEqual(g.dart_str("it's"), "'it\\'s'")
 
@@ -195,7 +195,7 @@ class RenderTest(unittest.TestCase):
             (root / "dolphin" / "profiles").mkdir(parents=True)
             (root / "src").mkdir()
             (root / "flutter" / "lib" / "dolphin").mkdir(parents=True)
-            with_phone = {**SETTINGS, "brand": {**SETTINGS["brand"], "support-phone": "021-12345678"}}
+            with_phone = {**SETTINGS, "brand": {**SETTINGS["brand"], "support-phone": "021-44280505"}}
             (root / "dolphin" / "settings.json").write_text(json.dumps(with_phone), encoding="utf-8")
             (root / "dolphin" / "profiles" / "production.json").write_text(json.dumps(PROFILE), encoding="utf-8")
             (root / "dolphin" / "profiles" / "empty.json").write_text(json.dumps({**PROFILE, "key": ""}), encoding="utf-8")
