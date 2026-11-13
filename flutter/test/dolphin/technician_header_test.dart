@@ -6,14 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'contrast.dart';
 
-/// The app as the technician sees it with the light theme («روشن»).
-Widget lightApp(Widget child) => MaterialApp(
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
-      themeMode: ThemeMode.light,
-      home: Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: child)),
-    );
-
 // AUI-2: the technician's own ID was white on a white header on a dark Windows. DD-53: the header follows the
 // technician's theme choice; in both, the ID and the field read at AA.
 void main() {

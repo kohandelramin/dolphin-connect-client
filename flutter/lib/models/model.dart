@@ -45,6 +45,7 @@ import 'platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/dolphin/reconnect.dart'; // Dolphin Connect (D23)
 import 'package:flutter_hbb/dolphin/permissions.dart'; // Dolphin Connect (DD-46)
+import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart'; // Dolphin Connect (DD-16)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -1251,10 +1252,9 @@ class FfiModel with ChangeNotifier {
     dialogManager.show(
       (setState, close, context) => CustomAlertDialog(
           title: null,
-          content: SelectionArea(child: msgboxContent(type, title, text)),
-          actions: [
-            dialogButton("Cancel", onPressed: onClose, isOutline: true)
-          ],
+          // Dolphin Connect (DD-16): upstream's text with «قطع», then the lock-screen help if no picture comes.
+          content: dolphinWaitingForPicture(parent.target,
+              SelectionArea(child: msgboxContent(type, title, text)), onClose),
           onCancel: onClose),
       tag: '$sessionId-waiting-for-image',
     );

@@ -24,6 +24,7 @@ import './popup_menu.dart';
 import './kb_layout_type_chooser.dart';
 import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/common/widgets/custom_scale_base.dart';
+import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart'; // Dolphin Connect (DD-28)
 
 enum _ToolbarEdge { top, right, bottom, left }
 
@@ -803,6 +804,12 @@ class _RemoteToolbarState extends State<RemoteToolbar> {
       BuildContext context, _ToolbarEdge edge, bool isHorizontal) {
     final List<Widget> toolbarItems = [];
     toolbarItems.add(_PinMenu(state: widget.state));
+    // Dolphin Connect (DD-28, DD-52, DD-16): the Persian quick bar before upstream's menus (dolphin/session_toolbar_hook.dart).
+    toolbarItems.add(DolphinToolbarHook(
+        id: widget.id,
+        ffi: widget.ffi,
+        axis: isHorizontal ? Axis.horizontal : Axis.vertical,
+        onCollapse: () => widget.state.switchCollapse(widget.ffi.sessionId)));
     toolbarItems.add(Obx(() {
       final privacyModeState = PrivacyModeState.find(widget.id);
       if ((privacyModeState.isEmpty ||
