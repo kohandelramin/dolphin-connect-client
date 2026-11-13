@@ -2807,6 +2807,17 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::dolphin_callback::start(_value);
         return;
     }
+    // Dolphin Connect (DD-34): «توقف اشتراک» / «شروع اشتراک», and the reset when the app starts.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if _key == "dolphin-share-off" {
+        crate::dolphin_system::set_share_off(_value == "Y");
+        return;
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if _key == "dolphin-share-reset" {
+        crate::dolphin_system::reset_share_at_start();
+        return;
+    }
     // Dolphin Connect (DD-35, ADR-0016): the window hides into the tray; make sure there is one (a portable app).
     #[cfg(target_os = "windows")]
     if _key == "dolphin-tray-start" {

@@ -32,6 +32,24 @@ pub fn sharing_stopped() -> bool {
     )
 }
 
+/// Main window (`main_set_common("dolphin-share-off")`): one key written on the server. `ipc::set_option` reads the
+/// server's options right before it writes them back; upstream's `set_option` would send the window's copy, up to a
+/// second old, and could put back a value the portal had just changed (`dolphin-tech-id`). Off the caller's thread:
+/// it runs its own small runtime.
+pub fn set_share_off(stop: bool) {
+    std::thread::spawn(move || crate::ipc::set_option(rules::SHARE_OFF_OPTION, if stop { "Y" } else { "" }));
+}
+
+/// Main window, once per run: a stop left from an earlier run is cleared (opening the app is consent, ADR-0015).
+/// Written only when it is "Y".
+pub fn reset_share_at_start() {
+    std::thread::spawn(|| {
+        if crate::ipc::get_options().get(rules::SHARE_OFF_OPTION).map_or(false, |v| v == "Y") {
+            crate::ipc::set_option(rules::SHARE_OFF_OPTION, "");
+        }
+    });
+}
+
 /// The heartbeat's `dolphin_share` value («رایانه‌ها» can show «اشتراک متوقف»).
 pub fn heartbeat_share() -> &'static str {
     rules::heartbeat_share(sharing_stopped())
