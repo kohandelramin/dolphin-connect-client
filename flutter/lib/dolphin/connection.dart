@@ -12,6 +12,7 @@ import 'connection_view.dart';
 import 'home.dart';
 import 'home_view.dart';
 import 'reconnect.dart';
+import 'session_controls.dart';
 import 'tech_card.dart';
 import 'verify.dart';
 
@@ -21,6 +22,13 @@ final _endedByCustomer = <int>{};
 /// D23: when each technician (peer ID) was last seen in a live session in this window. Forgotten when the customer ends
 /// the session, so only a drop, not the customer's «پایان», makes the next session «دوباره وصل شد».
 final _lastLive = <String, DateTime>{};
+
+/// DD-36: the window size this window last asked for, and the size the window reported right after the small one was
+/// set; one window serves every tab.
+DolphinWindowMode? _windowMode;
+Size? _compactSeen;
+bool _fitting = false;
+bool _fitAgain = false;
 
 /// Customer build's connection window for one incoming client. Unlike upstream, accepting does not
 /// minimize the window: the customer keeps seeing who is connected and the End button (SECURITY control 2).
@@ -42,6 +50,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   bool? _byCustomer;
   DolphinEndReason? _reason;
   late final bool _resumed;
+  // DD-37: when the technician's block of the customer's input was first seen.
+  DateTime? _inputOffSince;
 
   @override
   void initState() {
@@ -58,7 +68,9 @@ class _DolphinConnectionState extends State<DolphinConnection> {
           }
         }
         if (widget.client.disconnected) _endedAt ??= DateTime.now();
+        _inputOffSince = inputOffSince(_inputOffSince, widget.client.dolphinInputBlocked, DateTime.now());
       });
+      _keepCompact();
     });
   }
 
@@ -106,11 +118,60 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     c.file = file;
   }
 
+  /// DD-36: the small window in the corner during a session, the full one for the prompt and the ended screen. Only the
+  /// tab on screen decides. The chat side panel (upstream) still sets its own size when it opens or closes.
+  void _fitWindow(ServerModel model) {
+    final c = widget.client;
+    final wanted = windowModeFor(authorized: c.authorized, disconnected: c.disconnected);
+    final tabs = model.tabController.state.value;
+    final selected =
+        tabs.selected >= 0 && tabs.selected < tabs.tabs.length && tabs.tabs[tabs.selected].key == c.id.toString();
+    if (!windowNeedsResize(selected: selected, wanted: wanted, current: _windowMode)) return;
+    _windowMode = wanted;
+    _compactSeen = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applySize());
+  }
+
+  /// Sets the size [_windowMode] asks for; a change that comes while a resize runs is applied right after it.
+  Future<void> _applySize() async {
+    if (_fitting) {
+      _fitAgain = true;
+      return;
+    }
+    _fitting = true;
+    try {
+      do {
+        _fitAgain = false;
+        if (_windowMode == DolphinWindowMode.compact) {
+          await windowManager.setSizeAlignment(kDolphinSessionWindowSize, Alignment.topRight);
+          _compactSeen = await windowManager.getSize();
+        } else {
+          await windowManager.setSizeAlignment(kConnectionManagerWindowSizeClosedChat, Alignment.topRight);
+        }
+      } while (_fitAgain);
+    } finally {
+      _fitting = false;
+    }
+  }
+
+  /// Upstream sets its own size when the window is shown at start or brought back, and when the chat closes; a live
+  /// session takes the small one back then ([windowNeedsRefit]). The open chat is left alone.
+  Future<void> _keepCompact() async {
+    if (_fitting || _windowMode != DolphinWindowMode.compact || _compactSeen == null) return;
+    if (windowModeFor(authorized: widget.client.authorized, disconnected: widget.client.disconnected) !=
+        DolphinWindowMode.compact) {
+      return;
+    }
+    final current = await windowManager.getSize();
+    if (windowNeedsRefit(seen: _compactSeen, current: current)) await _applySize();
+  }
+
   @override
   Widget build(BuildContext context) {
     final model = Provider.of<ServerModel>(context);
     final c = widget.client;
     final peerName = c.name.isEmpty ? c.peerId : c.name;
+    _fitWindow(model);
     if (c.disconnected) {
       if (!c.authorized) {
         // Refused or cut before Accept: nothing to report, so the tab goes as it did before (UX-6).
@@ -165,17 +226,35 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         },
       );
     }
+    final technician = verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName;
+    final inputOffAt = _inputOffSince;
     return DolphinSessionView(
-      technician: verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName,
+      technician: technician,
       elapsed: sessionElapsed(_sessionStart, DateTime.now()),
       keyboard: c.keyboard,
       clipboard: c.clipboard,
       file: c.file,
       resumed: _resumed,
+      // DD-37: at once, from the connection's own word (src/server/connection.rs handle_input).
+      inputOff: c.dolphinInputBlocked ? inputOffDetail(technician, inputOffAt ?? DateTime.now(), DateTime.now()) : null,
+      // DD-46: only a remote-control session has a picture and input to stop.
+      paused: c.dolphinPaused,
+      onPause: c.type_() == ClientType.remote
+          ? (paused) {
+              bind.cmSwitchPermission(connId: c.id, name: kDolphinPauseSwitch, enabled: paused);
+              setState(() {
+                c.dolphinPaused = paused;
+                // Pausing gives the customer their input back (the connection lifts the block).
+                if (paused) c.dolphinInputBlocked = false;
+              });
+            }
+          : null,
       onToggle: (name, enabled) {
         bind.cmSwitchPermission(connId: c.id, name: name, enabled: enabled);
         setState(() {
           if (name == 'keyboard') c.keyboard = enabled;
+          // DD-37: taking keyboard and mouse away lifts the technician's block (src/server/connection.rs).
+          if (name == 'keyboard' && !enabled) c.dolphinInputBlocked = false;
           if (name == 'clipboard') c.clipboard = enabled;
           if (name == 'file') c.file = enabled;
         });
