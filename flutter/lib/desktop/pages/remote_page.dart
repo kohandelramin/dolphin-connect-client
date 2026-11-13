@@ -782,7 +782,9 @@ class _RemotePageState extends State<RemotePage>
               ListenableBuilder(
                   listenable: _ffi.ffiModel,
                   builder: (context, _) => DolphinPermissionStrip(
-                      permissions: _ffi.ffiModel.permissions, ready: _ffi.ffiModel.pi.isSet.isTrue)),
+                      permissions: _ffi.ffiModel.permissions,
+                      ready: _ffi.ffiModel.pi.isSet.isTrue,
+                      paused: _ffi.ffiModel.dolphinPaused)), // DD-46
             ],
           ),
         ],

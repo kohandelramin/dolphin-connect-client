@@ -44,6 +44,7 @@ import 'input_model.dart';
 import 'platform_model.dart';
 import 'package:flutter_hbb/utils/scale.dart';
 import 'package:flutter_hbb/dolphin/reconnect.dart'; // Dolphin Connect (D23)
+import 'package:flutter_hbb/dolphin/permissions.dart'; // Dolphin Connect (DD-46)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -126,6 +127,8 @@ class FfiModel with ChangeNotifier {
   DateTime? _dolphinDropAt;
   int _dolphinAttempt = 0;
   Timer? _dolphinRetryTimer;
+  // Dolphin Connect (DD-46): the customer paused (flutter/lib/dolphin/permissions.dart); shown over the picture.
+  bool dolphinPaused = false;
   bool _androidDocumentPickerActive = false;
   bool _androidDocumentPickerInterruptedConnection = false;
   bool _viewOnly = false;
@@ -915,6 +918,13 @@ class FfiModel with ChangeNotifier {
 
     // Dolphin Connect (D23): a dropped link in the technician app is retried quietly for about 2 minutes.
     if (_dolphinQuietRetry(type, title, text, dialogManager)) return;
+    // Dolphin Connect (DD-46): the customer paused or resumed; a card over the picture, not a dialog.
+    final dolphinPause = dolphinPauseFromMsgBox(type, title);
+    if (dolphinPause != null) {
+      dolphinPaused = dolphinPause;
+      notifyListeners();
+      return;
+    }
 
     if (type == 're-input-password') {
       wrongPasswordDialog(sessionId, dialogManager, type, title, text);
@@ -1390,6 +1400,8 @@ class FfiModel with ChangeNotifier {
 
   /// Handle the peer info event based on [evt].
   handlePeerInfo(Map<String, dynamic> evt, String peerId, bool isCache) async {
+    // Dolphin Connect (DD-46): a new login starts unpaused; a PC that is still paused says so right after.
+    dolphinPaused = false;
     parent.target?.chatModel.voiceCallStatus.value = VoiceCallStatus.notStarted;
 
     _queryAuditGuid(peerId);
