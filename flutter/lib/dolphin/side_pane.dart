@@ -12,6 +12,7 @@ import '../models/model.dart';
 import '../models/platform_model.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
+import 'session_toolbar_hook.dart';
 import 'side_panel.dart';
 import 'theme.dart';
 
@@ -267,6 +268,27 @@ class DolphinSessionSide extends StatefulWidget {
   State<DolphinSessionSide> createState() => _DolphinSessionSideState();
 }
 
+/// The session toolbar's «عکس صفحه» and «زبان صفحه‌کلید» (p3-toolbar, DolphinToolbarHooks) call this tab's panel. Set
+/// once; a toolbar in a window without a panel (no technician build) finds none and does nothing.
+void installDolphinPanelToolbarHooks() {
+  DolphinToolbarHooks.onScreenshot ??= (context, ffi) => DolphinSessionPanel.of(ffi)?.screenshot();
+  DolphinToolbarHooks.onKeyboardLayout ??= (context, ffi) async {
+    final panel = DolphinSessionPanel.of(ffi);
+    final box = context.findRenderObject() as RenderBox?;
+    if (panel == null || box == null) return;
+    final at = box.localToGlobal(box.size.bottomLeft(Offset.zero));
+    final lang = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx + box.size.width, at.dy),
+      items: const [
+        PopupMenuItem(value: 'fa', child: Text('فارسی', textDirection: TextDirection.rtl)),
+        PopupMenuItem(value: 'en', child: Text('انگلیسی', textDirection: TextDirection.rtl)),
+      ],
+    );
+    if (lang != null) await panel.setKeyboard(lang);
+  };
+}
+
 class _DolphinSessionSideState extends State<DolphinSessionSide> {
   DolphinSessionPanel? _panel;
 
@@ -276,6 +298,7 @@ class _DolphinSessionSideState extends State<DolphinSessionSide> {
     // The technician build only (the customer's app has no staff panel), on Windows (WebView2), for a peer ID the
     // portal can know.
     if (isWindows && bind.isOutgoingOnly() && sidePanePath(widget.peerId) != null) {
+      installDolphinPanelToolbarHooks();
       _panel = DolphinSessionPanel(widget.ffi, widget.peerId,
           open: sideOpenFrom(bind.mainGetLocalOption(key: kDolphinSideOption)))
         ..attach();

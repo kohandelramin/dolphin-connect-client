@@ -8,6 +8,7 @@ import 'package:flutter_hbb/dolphin/portal_view.dart';
 import 'package:flutter_hbb/dolphin/side_pane.dart';
 import 'package:flutter_hbb/dolphin/side_panel.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
+import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _peer = '123456789';
@@ -211,5 +212,13 @@ void main() {
         expect(screenshotFits(fitted.length), isTrue);
       });
     });
+  });
+
+  test("the toolbar's screenshot and keyboard buttons are wired to the panel once installed", () {
+    DolphinToolbarHooks.onScreenshot = null;
+    DolphinToolbarHooks.onKeyboardLayout = null;
+    installDolphinPanelToolbarHooks();
+    expect(DolphinToolbarHooks.onScreenshot, isNotNull);
+    expect(DolphinToolbarHooks.onKeyboardLayout, isNotNull);
   });
 }

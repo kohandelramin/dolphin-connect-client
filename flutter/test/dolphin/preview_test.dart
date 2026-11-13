@@ -4,7 +4,6 @@
 //   flutter test test/dolphin/preview_test.dart
 // Sample data only; the real Vazirmatn font is loaded from assets/fonts.
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
