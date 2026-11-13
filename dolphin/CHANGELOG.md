@@ -278,6 +278,27 @@ Not built here (no full cargo build yet): the Python tests, `flutter test test/d
 باز می‌شود. اگر نسخه‌ی تازه‌ای باشد، «به‌روزرسانی» آن را دریافت و نصب می‌کند. نصب برنامه، باقی‌مانده‌ی نصب قدیمی را
 هم پاک می‌کند. چاپ از رایانه‌ی مشتری روی چاپگر کارشناس فقط وقتی دیده می‌شود که دلفین آن را برای سازمان شما روشن کند.
 
+### Owner polish 2026-11-13: icons, the technician app's name, the network box (all three apps)
+
+The Python tests, `flutter test test/dolphin` and `flutter analyze` ran. Uncompiled here (CI builds them): the hooks in
+`flutter/windows/runner/main.cpp`, `src/flutter.rs`, `src/core_main.rs`, `src/platform/windows.rs` and
+`libs/portable/build.rs`. Nothing on real PCs is checked yet. No change to connections, codecs or routes.
+
+- Icons (owner's choice): one PNG per size in `dolphin/brand/icons/`, packed into the .ico files as they are. Up to
+  32 px the network mark alone, from 40 px the full mark with the dolphin. Customer on a white tile, technician on a
+  blue tile (`python dolphin/brand.py technician` in the technician build), tray the network mark on a white tile.
+  Inside the app the mark has no tile.
+- The technician app is «دلفین کانکت کارشناس» / "Dolphin Connect Technician": window titles, the header (one name,
+  no separate «کارشناس» chip), About, the update window, the exe's description and product name (Task Manager, the
+  taskbar, the downloaded exe) and «Settings › Apps» for a new install. Its install folder, service and shortcut names
+  stay `DolphinConnectTech`. The customer app is still «دلفین کانکت».
+- The customer's network box shows only «وضعیت شبکه: متصل» (a Wi-Fi icon with a soft, still glow; «در حال اتصال…»,
+  «وصل نیست», «سرویس خاموش است» with Wi-Fi off in grey or red) and «IP رایانه: …». No server name or address; the
+  diagnostic report keeps them.
+
+**یادداشت فارسی:** آیکون‌های تازه‌ی دلفین کانکت؛ برنامه‌ی کارشناس آیکون آبی و نام «دلفین کانکت کارشناس» دارد. در
+برنامه‌ی مشتری، کادر «وضعیت شبکه» فقط وصل بودن و IP رایانه را نشان می‌دهد.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
