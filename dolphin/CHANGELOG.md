@@ -243,6 +243,41 @@ from a plain Dart script. The app itself is not built; everything in the real wi
 می‌سنجد و گزارش را روی دسکتاپ ذخیره می‌کند)، «گزارش برای پشتیبانی» و «عکس صفحه برای پشتیبانی» (عکس را پیش از فرستادن
 می‌بینید). اگر سرویس برنامه خاموش شده باشد، پنجره با یک کادر قرمز و دکمه‌ی «درست کن» می‌گوید.
 
+### Plan 18 Phase 4: install, «بررسی نسخه‌ی تازه» and the remote printer (DD-21, DD-20, DD-41)
+
+Not built here (no full cargo build yet): the Python tests, `flutter test test/dolphin`, `flutter analyze` on
+`lib/dolphin`, `test/dolphin` and the touched upstream files, and the std-only `src/dolphin_install_core.rs` and
+`src/dolphin_system_core.rs` tests ran. The Rust hooks in `src/platform/windows.rs`, `src/dolphin_update.rs`,
+`src/flutter_ffi.rs` and `src/server/connection.rs` are uncompiled; everything on real PCs is unverified.
+
+- DD-21, VC++ runtime (all three apps): the build reads the import tables of every exe and DLL next to the app
+  (`dolphin/vcruntime.py`) and copies any VC++ 2015-2022 runtime DLL one of them imports from Visual Studio's redist
+  folder, or fails. Upstream already links Rust and the Flutter runner with the static runtime, and the pinned
+  `flutter_windows.dll`, `sciter.dll` and printer adapter import none (read on 2026-11-13), so today nothing is copied;
+  the step keeps it that way when a dependency changes.
+- DD-21, old installs (customer x64 and x86, technician): an install also removes an install of the same app made by
+  the other architecture, which upstream's uninstall cannot see from its registry view: the 64-bit and 32-bit
+  `Program Files\<app>` folders and the other view's recorded folder (only with `<app>.exe` in it, never the new
+  install's folder or the running exe's), and the other view's «Programs and Features» key. The same-name install of
+  the same architecture (a 1.5.0-dc install included) was already removed by upstream's install: folder, service,
+  shortcuts, firewall rules and key. User settings under `%APPDATA%` are never touched.
+- DD-20: «بررسی نسخه‌ی تازه» in About (technician: settings, «درباره»; customer: the version line at the bottom of the
+  window now opens About). Same portal question and rules as the start-up check: «در حال بررسی…», «نسخه‌ی شما تازه
+  است» only when the portal answered, «پورتال دلفین پاسخ نداد…», or «نسخه‌ی X آماده است.» with «به‌روزرسانی», which
+  opens the start-up update screen in a dialog (download, size and SHA-256 check, swap, restart; waits while a
+  technician is connected; the technician app gets the panel link).
+- DD-41, remote printer (customer x64 prints, technician x64 receives): upstream's own feature, off unless the
+  portal's `remote-printer` switch is on for the organization. The customer app now ships upstream's printer driver
+  (pinned by SHA-256). Hidden (default): no printer UI, the customer PC refuses every print job, an install leaves the
+  virtual printer out. Available: About shows «چاپگر راه دور» with «نصب چاپگر» (Windows asks for admin rights) and
+  «چاپ روی چاپگر کارشناس». Forced: printing is on with no off switch. Print jobs ride on the session's file-transfer
+  messages; nothing changes in codecs, routes or speed. The technician's «چاپگر راه دور» settings tab and the
+  incoming-job prompt are in Persian.
+
+**یادداشت فارسی:** در «درباره» دکمه‌ی «بررسی نسخه‌ی تازه» آمده است؛ در برنامه‌ی مشتری با زدن شماره‌ی نسخه پایین پنجره
+باز می‌شود. اگر نسخه‌ی تازه‌ای باشد، «به‌روزرسانی» آن را دریافت و نصب می‌کند. نصب برنامه، باقی‌مانده‌ی نصب قدیمی را
+هم پاک می‌کند. چاپ از رایانه‌ی مشتری روی چاپگر کارشناس فقط وقتی دیده می‌شود که دلفین آن را برای سازمان شما روشن کند.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.

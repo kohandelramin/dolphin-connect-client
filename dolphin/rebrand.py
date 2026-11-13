@@ -119,6 +119,23 @@ FA_OVERLAY = {
     # Session toolbar (DD-28): upstream's pin tooltip has a typo («سجاق»).
     "Pin Toolbar": "ثابت کردن نوار ابزار",
     "Unpin Toolbar": "رها کردن نوار ابزار",
+    # Remote printer (DD-41): the technician's «Printer» tab, the incoming-job prompt and the refusal. The customer's
+    # side is flutter/lib/dolphin/printer.dart.
+    "Printer": "چاپگر راه دور",
+    "printer-os-requirement-tip": "چاپ از راه دور به ویندوز ۱۰ یا تازه‌تر نیاز دارد.",
+    "printer-requires-installed-{}-client-tip": "برای چاپ از راه دور، {} باید روی این رایانه نصب باشد.",
+    "printer-{}-not-installed-tip": "چاپگر «{} Printer» هنوز روی این رایانه نصب نشده است.",
+    "printer-{}-ready-tip": "چاپگر «{} Printer» نصب و آماده است.",
+    "Outgoing Print Jobs": "چاپ از این رایانه روی چاپگر طرف مقابل",
+    "Incoming Print Jobs": "برگه‌هایی که مشتری برای چاپ می‌فرستد",
+    "Incoming Print Job": "برگه‌ی چاپی از رایانه‌ی مشتری",
+    "use-the-default-printer-tip": "با چاپگر پیش‌فرض همین رایانه چاپ شود",
+    "use-the-selected-printer-tip": "با این چاپگر چاپ شود",
+    "auto-print-tip": "بدون پرسیدن، خودکار با چاپگر انتخاب‌شده چاپ شود",
+    "print-incoming-job-confirm-tip": "مشتری برگه‌ای برای چاپ فرستاده است. روی چاپگر شما چاپ شود؟",
+    "remote-printing-disallowed-tile-tip": "چاپ از راه دور بسته است",
+    "remote-printing-disallowed-text-tip": "مشتری برگه‌ای فرستاد، اما چاپ از راه دور برای این رایانه روشن نیست؛ مدیر دلفین می‌تواند آن را در «تنظیمات» پورتال برای سازمان مشتری روشن کند.",
+    "Enable remote printer": "چاپ روی چاپگر کارشناس",
 }
 # DD-13: what a technician or customer reads when a connection or a file transfer fails: what happened and what to do.
 # Applied like FA_OVERLAY (each key must be in src/lang/fa.rs exactly once). OS errors that arrive as Windows' own text

@@ -1582,6 +1582,53 @@ fn get_after_install(
     ", create_service=get_create_service(&exe))
 }
 
+/// Dolphin Connect (DD-21): script lines that remove what an install of the other architecture left (its Program
+/// Files folder and its uninstall key), which upstream's uninstall cannot see from this process's registry view. The
+/// exact list and its limits: src/dolphin_install_core.rs.
+fn dolphin_leftover_cleanup(target_dir: &str, cur_exe: &str) -> String {
+    use crate::dolphin_install_core as rules;
+    let app_name = crate::get_app_name();
+    let current_dir = Path::new(cur_exe)
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let default_dirs: Vec<String> = ["ProgramW6432", "ProgramFiles(x86)"]
+        .iter()
+        .filter_map(|v| std::env::var(v).ok())
+        .filter(|v| !v.trim().is_empty())
+        .map(|v| format!("{}\\{}", v.trim_end_matches('\\'), app_name))
+        .collect();
+    let other_view = rules::other_view(
+        cfg!(target_pointer_width = "64"),
+        std::env::var_os("ProgramW6432").is_some(),
+    );
+    let other_location: Option<String> = other_view.and_then(|view| {
+        let flag = match view {
+            rules::RegView::Bit64 => KEY_WOW64_64KEY,
+            rules::RegView::Bit32 => KEY_WOW64_32KEY,
+        };
+        RegKey::predef(HKEY_LOCAL_MACHINE)
+            .open_subkey_with_flags(
+                format!("{}\\{}", rules::UNINSTALL_SUBKEY, app_name),
+                KEY_READ | flag,
+            )
+            .ok()
+            .map(|k| k.get_value::<String, _>("InstallLocation").unwrap_or_default())
+    });
+    let lines = rules::leftover_cleanup(&rules::OldInstall {
+        app_name: &app_name,
+        target_dir,
+        current_dir: &current_dir,
+        default_dirs: &default_dirs,
+        other_view,
+        other_location: other_location.as_deref(),
+    });
+    for line in &lines {
+        log::info!("dolphin install: leftover of an old install: {}", line);
+    }
+    lines.join("\n")
+}
+
 pub fn install_me(options: &str, path: String, silent: bool, debug: bool) -> ResultType<()> {
     // Dolphin Connect (BL-SVC): an install always brings the service back. `get_create_service` skips it while
     // `stop-service` is "Y", which an earlier «توقف سرویس» or uninstall leaves in the user's config, and the app then
@@ -1730,6 +1777,7 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
         "
 {uninstall_str}
 chcp 65001
+{dolphin_leftovers}
 md \"{path}\"
 {copy_exe}
 reg add {subkey} /f
@@ -1772,6 +1820,7 @@ ie4uinit.exe -show
         dels = if debug { "" } else { &dels },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
         import_config = get_import_config(&exe),
+        dolphin_leftovers = dolphin_leftover_cleanup(&path, &cur_exe), // Dolphin Connect (DD-21)
     );
     run_cmds(cmds, debug, "install")?;
     run_after_run_cmds(silent);

@@ -25,6 +25,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../../common/widgets/dialog.dart';
 import '../../common/widgets/login.dart';
 import '../../dolphin/about.dart'; // Dolphin Connect: About with the licence line only
+import '../../dolphin/printer_hooks.dart'; // Dolphin Connect (DD-41): the printer tab follows the portal's switch
 
 const double _kTabWidth = 200;
 const double _kTabHeight = 42;
@@ -76,7 +77,8 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isDisableAccount()) SettingsTabKey.account,
     if (isWindows &&
         !bind.isDisableSettings() &&
-        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
+        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y' &&
+        dolphinPrinterTabShown() /* Dolphin Connect (DD-41) */)
       SettingsTabKey.printer,
     SettingsTabKey.about,
   ];

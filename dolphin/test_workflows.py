@@ -14,6 +14,14 @@ def job(text, name):
     """The text of one top-level job."""
     return text.split(f"\n  {name}:\n", 1)[1].split("\n\n  ", 1)[0]
 
+def whole_job(text, name):
+    """One top-level job with its blank lines (`job` stops at the first blank line, which is enough for its head)."""
+    body = text.split(f"\n  {name}:\n", 1)[1]
+    m = re.search(r"\n  [a-z0-9-]+:\n", body)
+    return body[:m.start()] if m else body
+
+
+
 class BuildWorkflowTest(unittest.TestCase):
     def test_vcpkg_uses_a_files_cache_kept_by_actions_cache(self):
         self.assertNotIn("x-gha", BUILD)
@@ -131,7 +139,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_portal.rs", "src/dolphin_callback_core.rs", "src/dolphin_fixed_core.rs",
                     "src/dolphin_session_core.rs",
                     "src/dolphin_system_core.rs",
-                    "src/dolphin_panel_core.rs")
+                    "src/dolphin_panel_core.rs",
+                    "src/dolphin_install_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -140,6 +149,23 @@ class BuildWorkflowTest(unittest.TestCase):
 
     def test_every_exe_has_its_version_resource_checked(self):
         self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
+
+    def test_every_app_folder_gets_the_vc_runtime_its_dlls_import_before_packing(self):
+        # DD-21: a clean Windows 10 without the VC++ redistributable starts the app.
+        for name, folder, arch, pack in (("build-windows", "./rustdesk", "x64", "- name: Portable exe and checksums"),
+                                         ("build-windows-x86", "./Release", "x86", "- name: Portable exe and checksum\n")):
+            text = whole_job(BUILD, name)
+            line = f"run: python dolphin/vcruntime.py bundle {folder} --arch {arch}"
+            self.assertEqual(text.count(line), 1, name)
+            step = text.index("- name: VC++ runtime next to the app (DD-21)")
+            self.assertLess(text.index("- name: Build"), step)
+            self.assertLess(step, text.index(pack), "the packer must take the copied DLLs along")
+            self.assertNotIn("continue-on-error", text[step:text.index(pack)])
+        # upstream's static runtime, which keeps the list short, must stay
+        cmake = (ROOT / "flutter" / "windows" / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn('string(REPLACE "/MD" "/MT"', cmake)
+        cargo = (ROOT / ".cargo" / "config.toml").read_text(encoding="utf-8")
+        self.assertEqual(cargo.count("crt-static"), 3)
 
 
 class CheckWiringTest(unittest.TestCase):
@@ -152,8 +178,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 9)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 9)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 10)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 10)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -470,6 +496,110 @@ class PanelWiringTest(unittest.TestCase):
 
     def test_the_pane_has_its_tests(self):
         self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "side_panel_test.dart").is_file())
+
+
+class InstallWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-21): the leftover cleanup runs inside upstream's install script, proven by its text."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_install_script_removes_old_leftovers_after_the_uninstall_and_before_the_copy(self):
+        win = self.read("src", "platform", "windows.rs")
+        body = win.split("pub fn install_me(options: &str, path: String, silent: bool, debug: bool)", 1)[1]
+        body = body.split("\npub fn ", 1)[0]
+        script = body.split('let cmds = format!(', 1)[1]
+        self.assertLess(script.index("{uninstall_str}"), script.index("{dolphin_leftovers}"))
+        self.assertLess(script.index("{dolphin_leftovers}"), script.index('md \\"{path}\\"'))
+        self.assertLess(script.index("{dolphin_leftovers}"), script.index("reg add {subkey} /f\n"))
+        self.assertIn("dolphin_leftovers = dolphin_leftover_cleanup(&path, &cur_exe), // Dolphin Connect (DD-21)", body)
+        helper = win.split("fn dolphin_leftover_cleanup(target_dir: &str, cur_exe: &str) -> String {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("rules::leftover_cleanup(&rules::OldInstall {", helper)
+        self.assertIn("KEY_READ | flag", helper)  # reads the other view only; deleting is the elevated script's job
+        self.assertNotIn("delete_subkey", helper)
+        self.assertNotIn("remove_dir", helper)
+
+    def test_the_core_is_a_module_and_tested_in_ci(self):
+        self.assertIn("#[cfg(windows)]\nmod dolphin_install_core;", self.read("src", "lib.rs"))
+        self.assertIn("rustc --edition 2021 --test src/dolphin_install_core.rs", CHECK)
+
+
+class UpdateCheckWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-20): «بررسی نسخه‌ی تازه» reaches the same Rust check and update flow as the start-up."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_key_meets_the_rust_check(self):
+        ffi = self.read("src", "flutter_ffi.rs")
+        body = ffi.split("pub fn main_get_common(key: String) -> String {", 1)[1][:1200]
+        self.assertIn('if key == "dolphin-update-recheck" {\n        return crate::dolphin_update::recheck();', body)
+        update = self.read("src", "dolphin_update.rs")
+        recheck = update.split("pub fn recheck() -> String {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("CONTINUE.store(false, Ordering::SeqCst);", recheck)
+        self.assertIn("check()", recheck)  # the same portal request and rules as at start-up
+        for reason in ('open("latest")', 'open("unreachable")', 'open("disabled")'):
+            self.assertIn(reason, update)
+        dart = self.read("flutter", "lib", "dolphin", "update.dart")
+        self.assertIn("bind.mainGetCommon(key: 'dolphin-update-recheck')", dart)
+        self.assertIn("DolphinUpdateScreen(\n                  check: check, inApp: true, onClose: close", dart)
+        self.assertIn("if (!widget.inApp) windowManager.setPreventClose(true);", dart)
+
+    def test_both_apps_show_it(self):
+        self.assertIn("const DolphinUpdateCheckButton(),", self.read("flutter", "lib", "dolphin", "about.dart"))
+        self.assertIn("onAbout: () => showDolphinAboutDialog(context), // DD-20",
+                      self.read("flutter", "lib", "dolphin", "home.dart"))
+        settings = self.read("flutter", "lib", "desktop", "pages", "desktop_setting_page.dart")
+        self.assertIn("Widget build(BuildContext context) => const DolphinAbout(); // Dolphin Connect", settings)
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "update_check_test.dart").is_file())
+
+
+class PrinterWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-41): upstream's remote printer behind the portal's `remote-printer` switch."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_pc_asks_the_switch_before_any_job_leaves(self):
+        conn = self.read("src", "server", "connection.rs")
+        branch = conn.split("ipc::Data::PrinterData(data) => {", 1)[1].split("_ => {}", 1)[0]
+        self.assertIn("crate::dolphin_system_core::SWITCH_REMOTE_PRINTER", branch)
+        self.assertLess(branch.index("crate::dolphin_system_core::printer_forward("),
+                        branch.index("conn.send_printer_request(data).await;"))
+        self.assertIn("conn.send_remote_printing_disallowed().await;", branch)
+        core = self.read("src", "dolphin_system_core.rs")
+        self.assertIn('pub const SWITCH_REMOTE_PRINTER: &str = "remote-printer";', core)
+        self.assertIn("SwitchMode::Hidden => false,", core.split("pub fn printer_forward(", 1)[1][:300])
+        # hidden is the default on both sides (owner 2026-11-13)
+        self.assertIn("DolphinSwitch.remotePrinter: SwitchMode.hidden,", self.read("flutter", "lib", "dolphin", "switches.dart"))
+        self.assertNotIn("remote-printer", core.split("pub fn switch_default(", 1)[1].split("\n}\n", 1)[0])
+
+    def test_the_driver_ships_with_the_customer_app_only_pinned_by_sha256(self):
+        text = whole_job(BUILD, "build-windows")
+        step = text.split("- name: Remote printer driver (DD-41)\n", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("if: matrix.variant == 'customer'", step)
+        self.assertIn("PRINTER_DRIVER_SHA256: c4cf4d3b48c4d9079b243edc43bb1db03b076282bc259c9f49883e9db20fa8b5", step)
+        self.assertIn("PRINTER_ADAPTER_SHA256: e90e5d52c8807b4c6293c78a52479338715e0bf396b1b34802777b8c452e6781", step)
+        self.assertEqual(step.count("sha256sum -c -"), 2)
+        self.assertLess(step.index("sha256sum -c -"), step.index("zipfile"))
+        self.assertIn("./rustdesk/drivers/RustDeskPrinterDriver", step)  # remote_printer's RD_DRIVER_INF_PATH
+        self.assertNotIn("continue-on-error", step)
+        self.assertNotIn("|| true", step)
+        self.assertLess(text.index("- name: Remote printer driver (DD-41)"), text.index("- name: VC++ runtime next to the app (DD-21)"))
+        lib = self.read("libs", "remote_printer", "src", "lib.rs")
+        self.assertIn('"drivers/RustDeskPrinterDriver/RustDeskPrinterDriver.inf"', lib)
+
+    def test_the_ui_follows_the_switch(self):
+        settings = self.read("flutter", "lib", "desktop", "pages", "desktop_setting_page.dart")
+        tab = settings.split("static final List<SettingsTabKey> tabKeys = [", 1)[1].split("];", 1)[0]
+        self.assertIn("dolphinPrinterTabShown() /* Dolphin Connect (DD-41) */)\n      SettingsTabKey.printer,", tab)
+        install = self.read("flutter", "lib", "desktop", "pages", "install_page.dart")
+        self.assertIn("if (dolphinInstallWithPrinter(printer.value)) args += ' printer'; // Dolphin Connect (DD-41)", install)
+        self.assertNotIn("if (printer.value) args += ' printer';", install)
+        about = self.read("flutter", "lib", "dolphin", "about.dart")
+        self.assertIn("if (bind.isIncomingOnly()) ...[const SizedBox(height: 10), const DolphinPrinterSection()],", about)
+        for f in ("printer_test.dart",):
+            self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / f).is_file())
 
 if __name__ == "__main__":
     unittest.main()

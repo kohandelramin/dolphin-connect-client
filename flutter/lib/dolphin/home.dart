@@ -14,6 +14,7 @@ import '../consts.dart';
 import '../common/formatter/id_formatter.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
+import 'about.dart';
 import 'brand.dart';
 import 'callback.dart';
 import 'customer_requests.dart';
@@ -387,6 +388,7 @@ class _DolphinHomeState extends State<DolphinHome> {
           onReport: isWindows && _uploadShown ? _openReport : null,
           onScreenshot: isWindows && _uploadShown ? _takeScreenshot : null,
           headlessFix: _headlessFix,
+          onAbout: () => showDolphinAboutDialog(context), // DD-20
         );
       }),
     );

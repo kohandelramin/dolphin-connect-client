@@ -11,6 +11,7 @@ import 'package:path/path.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../dolphin/install_view.dart'; // Dolphin Connect: one-button installer (UX-2)
+import '../../dolphin/printer_hooks.dart'; // Dolphin Connect (DD-41): the virtual printer only when the portal allows
 
 class InstallPage extends StatefulWidget {
   const InstallPage({Key? key}) : super(key: key);
@@ -271,7 +272,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
       String args = '';
       if (startmenu.value) args += ' startmenu';
       if (desktopicon.value) args += ' desktopicon';
-      if (printer.value) args += ' printer';
+      if (dolphinInstallWithPrinter(printer.value)) args += ' printer'; // Dolphin Connect (DD-41)
       bind.installInstallMe(options: args, path: controller.text);
     }
 
