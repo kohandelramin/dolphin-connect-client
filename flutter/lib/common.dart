@@ -47,6 +47,7 @@ import 'package:flutter_hbb/native/common.dart'
     if (dart.library.html) 'package:flutter_hbb/web/common.dart';
 import 'package:flutter_hbb/utils/http_service.dart' as http;
 import 'package:flutter_hbb/dolphin/theme.dart'; // Dolphin Connect: message-box colours (D20)
+import 'package:flutter_hbb/dolphin/plain_errors.dart'; // Dolphin Connect: plain Persian OS errors (DD-13)
 
 final globalKey = GlobalKey<NavigatorState>();
 final navigationBarKey = GlobalKey();
@@ -1353,6 +1354,9 @@ Widget msgboxIcon(String type) {
 // title should be null
 Widget msgboxContent(String type, String title, String text) {
   String translateText(String text) {
+    // Dolphin Connect (DD-13): an OS error (file or socket) in plain Persian with what to do.
+    final plain = dolphinPlainError(text);
+    if (plain != null) return plain;
     if (text.indexOf('Failed') == 0 && text.indexOf(': ') > 0) {
       List<String> words = text.split(': ');
       for (var i = 0; i < words.length; ++i) {
