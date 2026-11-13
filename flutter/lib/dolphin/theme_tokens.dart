@@ -399,3 +399,7 @@ ThemeOverrideResult applyThemeOverrides(Object? json) {
   DolphinTheme.active.value = set ?? DolphinThemeSet.builtIn;
   return set == null ? ThemeOverrideResult.ignored : ThemeOverrideResult.applied;
 }
+
+/// «ارائه دمو»'s red bar on the technician's screen (white on it 5.9:1). Not a token on purpose: the portal's theme can
+/// never make the bar that says "the customer sees your screen" blend in.
+const kDolphinDemoRed = Color(0xFFC02646);

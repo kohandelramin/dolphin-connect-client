@@ -25,6 +25,7 @@ import '../widgets/tabbar_widget.dart';
 import 'macos_full_screen_focus_recovery.dart';
 import '../../dolphin/permissions.dart'; // Dolphin Connect: what the customer allows (UX-13)
 import '../../dolphin/side_pane.dart'; // Dolphin Connect: the side pane (Plan 18 Phase 3)
+import '../../dolphin/demo_hooks.dart'; // Dolphin Connect (demo): the customer's demo window
 
 import 'package:flutter_hbb/native/custom_cursor.dart'
     if (dart.library.html) 'package:flutter_hbb/web/custom_cursor.dart';
@@ -698,7 +699,10 @@ class _RemotePageState extends State<RemotePage>
       );
 
   Widget buildBody(BuildContext context) {
-    remoteToolbar(BuildContext context) => RemoteToolbar(
+    // Dolphin Connect (demo): the customer app's session window is the demo window, with its own strip.
+    remoteToolbar(BuildContext context) => isDolphinDemoWindow()
+        ? DolphinDemoWindowStrip(ffi: _ffi, peerId: widget.id)
+        : RemoteToolbar(
           id: widget.id,
           ffi: _ffi,
           state: widget.toolbarState,
@@ -784,7 +788,7 @@ class _RemotePageState extends State<RemotePage>
                   listenable: _ffi.ffiModel,
                   builder: (context, _) => DolphinPermissionStrip(
                       permissions: _ffi.ffiModel.permissions,
-                      ready: _ffi.ffiModel.pi.isSet.isTrue,
+                      ready: _ffi.ffiModel.pi.isSet.isTrue && !isDolphinDemoWindow(), // Dolphin Connect (demo)
                       paused: _ffi.ffiModel.dolphinPaused)), // DD-46
             ],
           ),

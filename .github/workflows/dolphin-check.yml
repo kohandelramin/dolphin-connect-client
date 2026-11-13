@@ -79,6 +79,8 @@ jobs:
           "$RUNNER_TEMP/net_core"
           rustc --edition 2021 --test src/dolphin_ws_core.rs -o "$RUNNER_TEMP/ws_core"
           "$RUNNER_TEMP/ws_core"
+          rustc --edition 2021 --test src/dolphin_demo_core.rs -o "$RUNNER_TEMP/demo_core"
+          "$RUNNER_TEMP/demo_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}
