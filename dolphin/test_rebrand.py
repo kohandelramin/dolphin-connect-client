@@ -284,3 +284,19 @@ class PaletteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SystemNamesTest(unittest.TestCase):
+    def test_the_receive_folder_has_one_name_in_rust_and_dart(self):
+        core = (r.ROOT / "src" / "dolphin_system_core.rs").read_text(encoding="utf-8")
+        dart = (r.ROOT / "flutter" / "lib" / "dolphin" / "receive_folder.dart").read_text(encoding="utf-8")
+        rust_name = re.search(r'pub const RECEIVE_FOLDER_NAME: &str = "([^"]+)";', core).group(1)
+        dart_name = re.search(r"const kReceiveFolderName = '([^']+)';", dart).group(1)
+        self.assertEqual(rust_name, dart_name)
+        self.assertEqual(rust_name, "دریافتی دلفین")
+
+    def test_the_share_option_has_one_name_in_rust_and_dart(self):
+        core = (r.ROOT / "src" / "dolphin_system_core.rs").read_text(encoding="utf-8")
+        dart = (r.ROOT / "flutter" / "lib" / "dolphin" / "share.dart").read_text(encoding="utf-8")
+        rust_name = re.search(r'pub const SHARE_OFF_OPTION: &str = "([^"]+)";', core).group(1)
+        self.assertIn(f"const kDolphinShareOffOption = '{rust_name}';", dart)
