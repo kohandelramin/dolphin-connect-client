@@ -16,6 +16,7 @@ import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
 import 'package:flutter_hbb/dolphin/no_picture.dart';
 import 'package:flutter_hbb/dolphin/request_outcome.dart';
+import 'package:flutter_hbb/dolphin/safe_mode.dart';
 import 'package:flutter_hbb/dolphin/session_toolbar.dart';
 import 'package:flutter_hbb/dolphin/side_pane.dart';
 import 'package:flutter_hbb/dolphin/signin_expired.dart';
@@ -270,6 +271,39 @@ void main() {
         check: found.screen,
         progress: const DolphinUpdateProgress(state: 'downloading', percent: 40, text: '۴۰ درصد'),
         onRetry: noop, onDownloadPage: noop, onClose: noop, onContinue: noop));
+    await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+  // Plan 18 Phase 5 (DD-11): Safe Mode restart and return.
+  testWidgets('write safe mode previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    final tech = DolphinTechTheme.dataFor(Brightness.light);
+    Widget dialog(Widget child) => Center(
+        child: Card(margin: const EdgeInsets.all(16), child: Padding(padding: const EdgeInsets.all(20), child: child)));
+    await _shot(tester, '60-safe-mode-ask-tech', const Size(480, 300),
+        dialog(DolphinSafeModeAskView(kind: DolphinRestartKind.safe, onConfirm: noop, onCancel: noop)), theme: tech);
+    await _shot(tester, '61-safe-mode-notice', const Size(300, 380),
+        DolphinRestartNoticeView(kind: DolphinRestartKind.safe, secondsLeft: 14, onCancel: noop));
+    await _shot(tester, '62-safe-mode-banner', const Size(340, 520), Column(children: [
+      DolphinSafeModeBanner(onReturn: noop),
+      Expanded(child: DolphinHomeView(
+          id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505',
+          siteLabel: 'support.dolphindev.ir', network: networkRows(server: DolphinServerState.ready, localIp: '192.168.1.24'),
+          version: '2.1.0')),
+    ]));
+    await _shot(tester, '63-safe-mode-answer-tech', const Size(480, 220), dialog(DolphinSafeModeAnswerView(
+        answer: SafeModeAnswer(SafeModeTone.ok, safeModeAnswerFromMsgBox(kDolphinSafeModeKey, 'restarting-safe',
+            'رایانه‌ی مشتری در حالت امن (با شبکه) دوباره راه‌اندازی می‌شود. پس از ورود مشتری به ویندوز، دلفین کانکت خودش باز می‌شود؛ آن وقت دوباره وصل شوید.')!.text),
+        onClose: noop)), theme: tech);
+    await _shot(tester, '64-safe-mode-return-confirm', const Size(340, 240),
+        Center(child: DolphinSafeModeReturnConfirm(onConfirm: noop, onCancel: noop)));
+    await _shot(tester, '65-safe-mode-notice-normal-zero', const Size(300, 380),
+        DolphinRestartNoticeView(kind: DolphinRestartKind.normal, secondsLeft: 0, onCancel: noop));
+    await _shot(tester, '66-toolbar-safe-mode', const Size(1000, 64), DolphinSessionBar(
+        state: const DolphinBarState(latencyMs: 45, direct: true), onCtrlAltDel: noop, onLock: noop, onFiles: noop,
+        onViewOnly: noop, onMyCursor: noop, onNoPicture: noop, onScreenshot: noop, onKeyboardLayout: noop,
+        safeMode: DolphinRestartKind.normal, onSafeMode: (_) {}), theme: tech);
     await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }

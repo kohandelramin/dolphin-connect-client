@@ -2697,6 +2697,15 @@ pub fn main_get_common(key: String) -> String {
     if key == "dolphin-receive-dir" {
         return crate::dolphin_system::receive_dir_for_ui();
     }
+    // Dolphin Connect (DD-11): "Y" while Windows runs in Safe Mode (the customer window's «حالت امن» banner), and the
+    // customer's «بازگشت به حالت عادی», asked of the service over the IPC (src/dolphin_safe_mode.rs).
+    if key == "dolphin-safe-mode" {
+        return if crate::dolphin_safe_mode::in_safe_mode() { "Y" } else { "N" }.to_owned();
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key == "dolphin-normal-restart" {
+        return crate::dolphin_safe_mode::ask_return();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {

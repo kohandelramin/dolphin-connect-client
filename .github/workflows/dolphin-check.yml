@@ -71,6 +71,10 @@ jobs:
           "$RUNNER_TEMP/strategy_core"
           rustc --edition 2021 --test src/dolphin_identity_core.rs -o "$RUNNER_TEMP/identity_core"
           "$RUNNER_TEMP/identity_core"
+          rustc --edition 2021 --test src/dolphin_safe_mode_core.rs -o "$RUNNER_TEMP/safe_mode_core"
+          "$RUNNER_TEMP/safe_mode_core"
+          rustc --edition 2021 --test src/dolphin_wake_core.rs -o "$RUNNER_TEMP/wake_core"
+          "$RUNNER_TEMP/wake_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

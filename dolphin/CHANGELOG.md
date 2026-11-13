@@ -278,6 +278,49 @@ Not built here (no full cargo build yet): the Python tests, `flutter test test/d
 باز می‌شود. اگر نسخه‌ی تازه‌ای باشد، «به‌روزرسانی» آن را دریافت و نصب می‌کند. نصب برنامه، باقی‌مانده‌ی نصب قدیمی را
 هم پاک می‌کند. چاپ از رایانه‌ی مشتری روی چاپگر کارشناس فقط وقتی دیده می‌شود که دلفین آن را برای سازمان شما روشن کند.
 
+### Plan 18 Phase 5: Safe Mode restart and return, Wake-on-LAN (DD-11, DD-10; customer x64, technician x64)
+
+Ran here: `cargo check --features flutter` (no new warnings), the std-only `src/dolphin_safe_mode_core.rs` (13 tests) and
+`src/dolphin_wake_core.rs` (11 tests), the Python tests, `flutter test test/dolphin` and `flutter analyze`. Nothing on a
+real PC yet: no restart, registry write, bcdedit run or magic packet was tried. No change to connections, codecs, routes
+or bandwidth.
+
+- DD-11, technician: «ری‌استارت در حالت امن» in the session bar, with a confirm dialog, when the customer's PC said at
+  login that it takes it (`platform_additions.dolphin_safe_mode_offered`: its organization's `safe-mode` switch is not
+  hidden, the app is installed and its service runs it). The technician app has no heartbeat, so it cannot read the
+  switches itself. On a PC in Safe Mode the bar has «بازگشت به حالت عادی» instead (`dolphin_safe_mode`). Each answer of
+  the PC shows in one dialog; no answer in 10 s says the customer's app may be old.
+- DD-11, the request: the existing `Misc::PluginRequest` (`dolphin-safe-mode`, "safe" or "normal"), as the side pane's
+  paste; the answer is the existing `MessageBox` (type `dolphin-safe-mode`). Never upstream's remote restart:
+  `enable-remote-restart` stays "N". During a customer's pause it is refused.
+- DD-11, customer: refused with a Persian line for the technician when the switch is hidden, the app is portable, the
+  service does not run it, or on the x86 build. Otherwise the session window shows a 20-second notice with «لغو» (which
+  tells the technician) and comes to the front. Then the service registers itself under
+  `HKLM\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\<service>` ("Service"), runs
+  `%SystemRoot%\System32\bcdedit.exe /set {current} safeboot network`, writes
+  `HKLM\...\RunOnce\*<app>SafeMode` = the app (the `*` makes it run in Safe Mode) so the window opens after sign-in,
+  posts the connection audit `action: "safe_mode"` and restarts Windows (upstream's own `force_reboot`). A failed step
+  undoes the earlier ones and tells the technician.
+- DD-11, Safe Mode: the service removes the safeboot value as it starts (`bcdedit /deletevalue {current} safeboot`),
+  before anyone signs in, so the following restart is normal whatever happens. The customer's window shows «حالت امن
+  (Safe Mode)» with «بازگشت به حالت عادی», which asks the service over the IPC; the technician's «بازگشت به حالت عادی»
+  goes through the same notice. That restart posts `action: "normal_restart"`. After a normal boot the service removes
+  its `SafeBoot\Network` entry and any RunOnce value left. Consent is unchanged: after the restart a connection still
+  needs the window open and the portal's authorization.
+- DD-10: sysinfo carries `dolphin_macs` (up to 8 MACs of physical Ethernet and Wi-Fi adapters, `AA:BB:CC:DD:EE:FF`,
+  wired first; virtual, VPN, Bluetooth and software-set addresses left out) and `dolphin_lan` (up to 8 IPv4
+  `address/prefix` of those adapters). Looked at again every 10 minutes; a change sends sysinfo again.
+- DD-10, helper: when the applied options carry `dolphin-wake` (`{"n", "macs", "bcast", "until"}`), `until` is ahead (at
+  most 10 minutes), the nonce is new and this PC's `wake-on-lan` switch is not hidden, the app sends the magic packet
+  (6 × FF + 16 × MAC) by UDP to each `bcast` and 255.255.255.255, port 9, three times a second apart. A `bcast` must be
+  the broadcast address of one of this PC's own subnets; any bad part refuses the whole request. The heartbeat then
+  carries `dolphin_wake: "<nonce>"` until the portal has answered one.
+
+**یادداشت فارسی:** کارشناس دلفین می‌تواند رایانه را برای رفع مشکل در «حالت امن» ویندوز دوباره راه‌اندازی کند؛ پیش از آن
+۲۰ ثانیه پیام می‌بینید و می‌توانید «لغو» را بزنید. در حالت امن، دلفین کانکت خودش باز می‌شود و دکمه‌ی «بازگشت به حالت
+عادی» رایانه را به حالت معمول برمی‌گرداند. اگر سازمان شما بخواهد، رایانه‌ی خاموش با کمک رایانه‌ی دیگری در همان شبکه روشن
+می‌شود.
+
 ### Owner polish 2026-11-13: icons, the technician app's name, the network box (all three apps)
 
 The Python tests, `flutter test test/dolphin` and `flutter analyze` ran. Uncompiled here (CI builds them): the hooks in

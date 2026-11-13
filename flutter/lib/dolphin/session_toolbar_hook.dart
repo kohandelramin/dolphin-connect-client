@@ -10,6 +10,7 @@ import '../models/model.dart';
 import '../models/platform_model.dart';
 import 'monitor_picker.dart';
 import 'no_picture.dart';
+import 'safe_mode_hooks.dart';
 import 'session_toolbar.dart';
 
 /// Plan 18 Phase 3 merge point for p3-panel: «عکس صفحه» (DD-51) and «زبان صفحه‌کلید» (DD-6) in the session bar.
@@ -206,6 +207,9 @@ class _DolphinToolbarHookState extends State<DolphinToolbarHook> {
             onScreenshot: shot == null ? null : () => shot(context, ffi),
             onKeyboardLayout: layout == null ? null : () => layout(context, ffi),
             // ---- end p3-panel
+            // DD-11: shown as the customer's PC offers it; the PC decides again when asked.
+            safeMode: pi.platform == kPeerPlatformWindows ? dolphinSafeModeEntry(ffi) : null,
+            onSafeMode: (kind) => dolphinSafeModeAsk(ffi, kind),
           );
         },
       );

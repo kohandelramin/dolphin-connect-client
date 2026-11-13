@@ -696,6 +696,9 @@ async fn run_service(_arguments: Vec<OsString>) -> ResultType<()> {
 
     // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
+    // Dolphin Connect (DD-11): booted in Safe Mode, remove the safeboot value at once (the next restart is normal
+    // whatever happens); after a normal boot, remove what a Safe Mode restart left (src/dolphin_safe_mode.rs).
+    crate::dolphin_safe_mode::on_service_start();
 
     let mut session_id = unsafe { get_current_session(share_rdp()) };
     log::info!("session id {}", session_id);

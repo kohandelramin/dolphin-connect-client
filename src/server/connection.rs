@@ -469,6 +469,8 @@ pub struct Connection {
     dolphin_block_on: bool,
     // Dolphin Connect (DD-46): the connection manager has had this connection's Login.
     dolphin_cm_started: bool,
+    // Dolphin Connect (DD-11): a Safe Mode or normal restart the customer was told about, and when (mono ms).
+    dolphin_restart: Option<(crate::dolphin_safe_mode_core::Kind, u64)>,
 }
 
 /// Dolphin Connect (DD-46): paused sessions by technician ID, shared by this server's connections.
@@ -678,6 +680,7 @@ impl Connection {
             dolphin_paused: false,
             dolphin_block_on: false,
             dolphin_cm_started: false,
+            dolphin_restart: None,
         };
         let addr = hbb_common::try_into_v4(addr);
         if !conn.on_open(addr).await {
@@ -821,6 +824,10 @@ impl Connection {
                         }
                         ipc::Data::SwitchPermission{name, enabled} => {
                             log::info!("Change permission {} -> {}", name, enabled);
+                            // Dolphin Connect (DD-11): «لغو» on the customer's restart notice.
+                            if &name == crate::dolphin_safe_mode_core::CM_CANCEL {
+                                conn.dolphin_restart_cancel().await;
+                            }
                             if &name == crate::dolphin_session_core::PAUSE_SWITCH {
                                 // Dolphin Connect (DD-46): «مکث» / «ادامه» from the customer's window.
                                 conn.dolphin_set_paused(enabled).await;
@@ -1239,6 +1246,8 @@ impl Connection {
                     if conn.dolphin_paused {
                         conn.update_auto_disconnect_timer();
                     }
+                    // Dolphin Connect (DD-11): the customer's restart notice ran out.
+                    conn.dolphin_restart_tick().await;
                     if let Some((instant, minute)) = conn.auto_disconnect_timer.as_ref() {
                         if instant.elapsed().as_secs() > minute * 60 {
                             conn.send_close_reason_no_retry("Connection failed due to inactivity").await;
@@ -2089,6 +2098,16 @@ impl Connection {
                 "is_installed".into(),
                 json!(crate::platform::is_installed()),
             );
+            // Dolphin Connect (DD-11): whether this PC is in Safe Mode («بازگشت به حالت عادی» on the technician's
+            // toolbar) and whether it takes «ری‌استارت در حالت امن» (the technician app knows no switches itself).
+            platform_additions.insert(
+                crate::dolphin_safe_mode_core::PLATFORM_ADDITION.into(),
+                json!(crate::dolphin_safe_mode::in_safe_mode()),
+            );
+            platform_additions.insert(
+                crate::dolphin_safe_mode_core::PLATFORM_OFFERED.into(),
+                json!(crate::dolphin_safe_mode::offered()),
+            );
             if crate::platform::is_installed() {
                 platform_additions.extend(virtual_display_manager::get_platform_additions());
             }
@@ -2893,6 +2912,10 @@ impl Connection {
                 | Some(misc::Union::ChangeResolution(_))
                 | Some(misc::Union::ChangeDisplayResolution(_))
                 | Some(misc::Union::ToggleVirtualDisplay(_)) => Inbound::Control,
+                // Dolphin Connect (DD-11): a Safe Mode or normal restart is control, as upstream's restart is.
+                Some(misc::Union::PluginRequest(p)) if crate::dolphin_safe_mode_core::is_request(&p.id) => {
+                    Inbound::Control
+                }
                 // Dolphin Connect (DD-50, DD-6): a paste or a keyboard-language change acts like typing.
                 Some(misc::Union::PluginRequest(_)) => Inbound::Input,
                 _ => Inbound::Other,
@@ -2901,6 +2924,16 @@ impl Connection {
         };
         if inbound_allowed(self.dolphin_paused, kind) {
             return true;
+        }
+        // Dolphin Connect (DD-11): a restart asked during the pause gets its refusal, so the technician is not left
+        // waiting.
+        if let Some(message::Union::Misc(m)) = &msg.union {
+            if let Some(misc::Union::PluginRequest(p)) = &m.union {
+                if crate::dolphin_safe_mode_core::is_request(&p.id) {
+                    use crate::dolphin_safe_mode_core::{Answer, Refusal};
+                    self.send(crate::dolphin_safe_mode::answer_message(Answer::Refused(Refusal::Paused))).await;
+                }
+            }
         }
         if let Some(message::Union::ScreenshotRequest(request)) = &msg.union {
             let mut response = ScreenshotResponse::new();
@@ -2931,6 +2964,100 @@ impl Connection {
         std::thread::spawn(move || {
             let outcome = crate::dolphin_panel::apply(request, input, clipboard);
             inner.send(Arc::new(crate::dolphin_panel::result_message(outcome)));
+        });
+    }
+
+    /// Dolphin Connect (DD-11): «ری‌استارت در حالت امن» or «بازگشت به حالت عادی» from the technician's toolbar, only
+    /// for an authorised remote session (src/dolphin_safe_mode_core.rs `decide`). Refused with a Persian answer when the
+    /// organization's `safe-mode` switch is hidden, the app is portable or the server is not the service; otherwise the
+    /// customer's window shows the 20-second notice with «لغو» and [`Self::dolphin_restart_tick`] goes on. Never
+    /// upstream's remote restart: `self.restart` (`enable-remote-restart`, "N" in the build) is not read or changed.
+    async fn dolphin_safe_mode_request(&mut self, content: &[u8]) {
+        use crate::dolphin_safe_mode_core as rules;
+        let Some(kind) = rules::request(rules::REQUEST_ID, content) else {
+            return;
+        };
+        if !self.is_authed_remote_conn() || self.view_camera {
+            return;
+        }
+        let scene = rules::Scene {
+            ui: cfg!(feature = "flutter"),
+            switch_hidden: crate::dolphin_safe_mode::switch_hidden(),
+            installed: crate::dolphin_safe_mode::installed(),
+            privileged: crate::dolphin_safe_mode::privileged(),
+            in_safe_mode: crate::dolphin_safe_mode::in_safe_mode(),
+            paused: self.dolphin_paused,
+            busy: self.dolphin_restart.is_some() || crate::dolphin_safe_mode::busy(),
+            window: self.dolphin_cm_started,
+        };
+        let answer = match rules::decide(kind, &scene) {
+            Err(refusal) => rules::Answer::Refused(refusal),
+            Ok(()) => {
+                self.dolphin_restart = Some((kind, crate::dolphin_session_core::mono_ms()));
+                self.send_to_cm(ipc::Data::SwitchPermission {
+                    name: kind.cm_notice().to_owned(),
+                    enabled: true,
+                });
+                rules::Answer::Notice(kind)
+            }
+        };
+        log::info!("Safe Mode: {} restart asked by the technician: {}", kind.code(), answer.code());
+        self.send(crate::dolphin_safe_mode::answer_message(answer)).await;
+    }
+
+    /// Dolphin Connect (DD-11): the customer pressed «لغو»; nothing has been changed on the PC yet.
+    async fn dolphin_restart_cancel(&mut self) {
+        let Some((kind, _)) = self.dolphin_restart.take() else {
+            return;
+        };
+        self.send_to_cm(ipc::Data::SwitchPermission {
+            name: kind.cm_notice().to_owned(),
+            enabled: false,
+        });
+        log::info!("Safe Mode: the customer cancelled the {} restart", kind.code());
+        self.send(crate::dolphin_safe_mode::answer_message(
+            crate::dolphin_safe_mode_core::Answer::Cancelled,
+        ))
+        .await;
+    }
+
+    /// Dolphin Connect (DD-11): once the notice ran out, the steps before the restart (registry, bcdedit, RunOnce; well
+    /// under a second, on a blocking thread), then the connection audit, then Windows restarts. A failed step is undone
+    /// and reported, and the notice goes away.
+    async fn dolphin_restart_tick(&mut self) {
+        use crate::dolphin_safe_mode_core::{self as rules, Answer};
+        let Some((kind, started)) = self.dolphin_restart else {
+            return;
+        };
+        if !rules::due(started, crate::dolphin_session_core::mono_ms()) {
+            return;
+        }
+        self.dolphin_restart = None;
+        let prepared = tokio::task::spawn_blocking(move || crate::dolphin_safe_mode::prepare(kind))
+            .await
+            .unwrap_or(Err(rules::Step::Register));
+        if let Err(step) = prepared {
+            self.send_to_cm(ipc::Data::SwitchPermission {
+                name: kind.cm_notice().to_owned(),
+                enabled: false,
+            });
+            self.send(crate::dolphin_safe_mode::answer_message(Answer::Failed(step))).await;
+            return;
+        }
+        // DD-11: the portal audits engine.safe_mode_restart / engine.normal_restart.
+        self.post_conn_audit(json!({ "action": kind.audit_action() }));
+        self.send(crate::dolphin_safe_mode::answer_message(Answer::Restarting(kind))).await;
+        let inner = self.inner.clone();
+        let tx_cm = self.tx_to_cm.clone();
+        crate::dolphin_safe_mode::reboot_later(kind, move |step| {
+            let mut inner = inner;
+            inner.send(Arc::new(crate::dolphin_safe_mode::answer_message(Answer::Failed(step))));
+            tx_cm
+                .send(ipc::Data::SwitchPermission {
+                    name: kind.cm_notice().to_owned(),
+                    enabled: false,
+                })
+                .ok();
         });
     }
 
@@ -4256,7 +4383,12 @@ impl Connection {
                     }
                     // Dolphin Connect (DD-50, DD-6): the technician's paste or keyboard language (src/dolphin_panel.rs).
                     Some(misc::Union::PluginRequest(p)) => {
-                        self.dolphin_panel_request(&p.id, &p.content);
+                        // Dolphin Connect (DD-11): «ری‌استارت در حالت امن» / «بازگشت به حالت عادی».
+                        if crate::dolphin_safe_mode_core::is_request(&p.id) {
+                            self.dolphin_safe_mode_request(&p.content).await;
+                        } else {
+                            self.dolphin_panel_request(&p.id, &p.content);
+                        }
                     }
                     Some(misc::Union::Option(o)) => {
                         if self.authed_conn_type() == Some(AuthConnType::Remote) {

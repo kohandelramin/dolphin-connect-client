@@ -152,7 +152,9 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_panel_core.rs",
                     "src/dolphin_install_core.rs",
                     "src/dolphin_strategy_core.rs",
-                    "src/dolphin_identity_core.rs")
+                    "src/dolphin_identity_core.rs",
+                    "src/dolphin_safe_mode_core.rs",
+                    "src/dolphin_wake_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -190,8 +192,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 12)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 12)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 14)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 14)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -803,8 +805,6 @@ PORTAL_SWITCHES = {
 # Keys with no reader in the customer app yet, and why.
 SWITCHES_NOT_READ = {
     "direct-route": "DD-1, Plan 18 Phase 6: changes the network route (speed), built only after the owner's numbers",
-    "wake-on-lan": "DD-10, built on its own branch",
-    "safe-mode": "DD-11, built on its own branch",
 }
 
 
@@ -848,6 +848,7 @@ class FeatureSwitchesTest(unittest.TestCase):
             "diagnostics-upload": [("flutter/lib/dolphin/home.dart", "mode(DolphinSwitch.diagnosticsUpload)")],
             "remote-printer": [("src/server/connection.rs", "crate::dolphin_system_core::SWITCH_REMOTE_PRINTER"),
                                ("flutter/lib/dolphin/printer_hooks.dart", "mode(DolphinSwitch.remotePrinter)")],
+            "wake-on-lan": [("src/dolphin_wake.rs", "rules::SWITCH_WAKE_ON_LAN")],
         }
         customer = {k for k, (side, _) in PORTAL_SWITCHES.items() if side in ("customer", "both")}
         self.assertEqual(set(readers) | (customer & set(SWITCHES_NOT_READ)), customer)
@@ -855,10 +856,151 @@ class FeatureSwitchesTest(unittest.TestCase):
             for path, snippet in places:
                 self.assertIn(snippet, self.read(*path.split("/")), key)
 
+    def test_the_safe_mode_switch_is_enforced_on_the_customer_pc(self):
+        # The portal files it under the technician, but the technician app has no heartbeat (below): the customer app,
+        # which has its organization's switches, offers it on login and refuses a request while it is hidden (DD-11).
+        self.assertIn("rules::SWITCH_SAFE_MODE", self.read("src", "dolphin_safe_mode.rs"))
+
     def test_the_technician_app_has_no_heartbeat_so_it_keeps_the_defaults(self):
         rv = self.read("src", "rendezvous_mediator.rs")
         start = rv.split("pub async fn start_all() {", 1)[1]
         self.assertLess(start.index("if config::is_outgoing_only() {"), start.index("crate::hbbs_http::sync::start();"))
+
+
+class SafeModeWiringTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-11): the Safe Mode restart's hooks in upstream files, proven by their text."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def core_const(self, name):
+        return re.search(rf'pub const {name}: &str = "([^"]+)";', self.read("src", "dolphin_safe_mode_core.rs")).group(1)
+
+    def test_never_upstreams_remote_restart(self):
+        settings = self.read("dolphin", "settings.json")
+        self.assertIn('"enable-remote-restart": "N",', settings.split('"override"', 1)[1])
+        conn = self.read("src", "server", "connection.rs")
+        body = conn.split("async fn dolphin_safe_mode_request(&mut self, content: &[u8]) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertNotIn("self.restart", body)
+        for name in ("dolphin_restart_tick", "dolphin_restart_cancel"):
+            fn = conn.split(f"async fn {name}(&mut self) {{", 1)[1].split("\n    }\n", 1)[0]
+            self.assertNotIn("self.restart", fn)
+            self.assertNotIn("RestartRemoteDevice", fn)
+        upstream = conn.split("Some(misc::Union::RestartRemoteDevice(_)) => {", 1)[1][:200]
+        self.assertIn("if self.restart {", upstream)
+
+    def test_the_request_rides_on_plugin_request_and_is_control_during_a_pause(self):
+        conn = self.read("src", "server", "connection.rs")
+        arm = conn.split("Some(misc::Union::PluginRequest(p)) => {", 1)[1][:500]
+        self.assertIn("if crate::dolphin_safe_mode_core::is_request(&p.id) {", arm)
+        self.assertIn("self.dolphin_safe_mode_request(&p.content).await;", arm)
+        self.assertIn("self.dolphin_panel_request(&p.id, &p.content);", arm)
+        gate = conn.split("async fn dolphin_inbound_allowed(", 1)[1].split("if inbound_allowed(", 1)[0]
+        control = gate.index("Some(misc::Union::PluginRequest(p)) if crate::dolphin_safe_mode_core::is_request(&p.id) =>")
+        self.assertLess(control, gate.index("Some(misc::Union::PluginRequest(_)) => Inbound::Input,"))
+        session = self.read("src", "ui_session_interface.rs")
+        self.assertIn(".or_else(|| crate::dolphin_safe_mode_core::client_request(key, value))", session)
+
+    def test_the_customer_is_asked_first_and_the_audit_comes_after_the_steps(self):
+        conn = self.read("src", "server", "connection.rs")
+        req = conn.split("async fn dolphin_safe_mode_request(&mut self, content: &[u8]) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("if !self.is_authed_remote_conn() || self.view_camera {", req)
+        self.assertIn("rules::decide(kind, &scene)", req)
+        self.assertIn("name: kind.cm_notice().to_owned(),", req)
+        tick = conn.split("async fn dolphin_restart_tick(&mut self) {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("if !rules::due(started, crate::dolphin_session_core::mono_ms()) {", tick)
+        prepare = tick.index("crate::dolphin_safe_mode::prepare(kind)")
+        audit = tick.index('self.post_conn_audit(json!({ "action": kind.audit_action() }));')
+        reboot = tick.index("crate::dolphin_safe_mode::reboot_later(kind,")
+        self.assertLess(prepare, audit)
+        self.assertLess(audit, reboot)
+        timer = conn.split("_ = second_timer.tick() => {", 1)[1][:1200]
+        self.assertIn("conn.dolphin_restart_tick().await;", timer)
+        perm = conn.split("ipc::Data::SwitchPermission{name, enabled} => {", 1)[1][:500]
+        self.assertIn("if &name == crate::dolphin_safe_mode_core::CM_CANCEL {", perm)
+        self.assertIn("conn.dolphin_restart_cancel().await;", perm)
+
+    def test_the_login_tells_the_technician_what_the_pc_offers(self):
+        conn = self.read("src", "server", "connection.rs")
+        self.assertIn("crate::dolphin_safe_mode_core::PLATFORM_ADDITION.into(),", conn)
+        self.assertIn("crate::dolphin_safe_mode_core::PLATFORM_OFFERED.into(),", conn)
+
+    def test_the_cm_window_shows_the_notice(self):
+        cm = self.read("src", "ui_cm_interface.rs")
+        self.assertIn("pub dolphin_restart: String,", cm)
+        self.assertIn("if let Some(kind) = crate::dolphin_safe_mode_core::Kind::from_cm_notice(&name) {", cm)
+        self.assertIn("if name == crate::dolphin_safe_mode_core::CM_CANCEL {", cm)
+        model = self.read("flutter", "lib", "models", "server_model.dart")
+        self.assertIn("dolphinRestart = json['dolphin_restart'] ?? '';", model)
+
+    def test_the_service_cleans_up_at_start_and_the_window_asks_over_the_ipc(self):
+        win = self.read("src", "platform", "windows.rs")
+        svc = win.split("async fn run_service(", 1)[1]
+        self.assertLess(svc.index("status_handle.set_service_status(next_status)?;"),
+                        svc.index("crate::dolphin_safe_mode::on_service_start();"))
+        ipc = self.read("src", "ipc.rs")
+        opts = ipc.split("Data::Options(value) => match value {", 1)[1].split("Data::NatType(_)", 1)[0]
+        self.assertLess(opts.index("crate::dolphin_safe_mode::ipc_take_return(&mut value);"),
+                        opts.index("Config::set_options(value);"))
+        ffi = self.read("src", "flutter_ffi.rs")
+        self.assertIn('if key == "dolphin-safe-mode" {', ffi)
+        self.assertIn('if key == "dolphin-normal-restart" {', ffi)
+        lib = self.read("src", "lib.rs")
+        for m in ("dolphin_safe_mode_core", "dolphin_safe_mode", "dolphin_wake_core", "dolphin_wake"):
+            self.assertIn(f"\nmod {m};", lib)
+
+    def test_the_names_match_between_rust_and_dart(self):
+        dart = self.read("flutter", "lib", "dolphin", "safe_mode.dart")
+        self.assertIn(f"const kDolphinSafeModeKey = '{self.core_const('REQUEST_ID')}';", dart)
+        self.assertEqual(self.core_const("REQUEST_ID"), self.core_const("ANSWER_MSGTYPE"))
+        self.assertIn(f"const kDolphinRestartCancel = '{self.core_const('CM_CANCEL')}';", dart)
+        self.assertIn(f"const kDolphinSafeModeAddition = '{self.core_const('PLATFORM_ADDITION')}';", dart)
+        self.assertIn(f"const kDolphinSafeModeOffered = '{self.core_const('PLATFORM_OFFERED')}';", dart)
+        self.assertIn("pub const NOTICE_SECS: u64 = 20;", self.read("src", "dolphin_safe_mode_core.rs"))
+        self.assertIn("const kDolphinRestartSecs = 20;", dart)
+        self.assertEqual(self.core_const("SWITCH_SAFE_MODE"), "safe-mode")
+        self.assertIn("static const safeMode = 'safe-mode';", self.read("flutter", "lib", "dolphin", "switches.dart"))
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "safe_mode_test.dart").is_file())
+
+
+class WakeWiringTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-10): Wake-on-LAN in the heartbeat loop (src/hbbs_http/sync.rs)."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_sysinfo_carries_the_adapters(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        upload = sync.split("if need_upload {", 1)[1].split("let v = v.to_string();", 1)[0]
+        self.assertIn("crate::dolphin_wake::add_sysinfo(&mut v);", upload)
+
+    def test_the_heartbeat_reports_the_nonce_until_answered(self):
+        sync = self.read("src", "hbbs_http", "sync.rs")
+        share = sync.index('v["dolphin_share"]')
+        tick = sync.index("crate::dolphin_wake::tick();")
+        report = sync.index("v[crate::dolphin_wake_core::HEARTBEAT_FIELD] = json!(nonce);")
+        post = sync.index("let response = crate::post_request(url.clone(), v.to_string(), \"\").await;")
+        answered = sync.index("crate::dolphin_wake::heartbeat_answered(")
+        self.assertLess(share, tick)
+        self.assertLess(tick, report)
+        self.assertLess(report, post)
+        self.assertLess(post, answered)
+        self.assertIn("crate::dolphin_portal::portal_answered(s)", sync[answered:answered + 200])
+
+    def test_the_request_is_read_from_the_applied_options_only(self):
+        wake = self.read("src", "dolphin_wake.rs")
+        self.assertIn("Config::get_option(rules::WAKE_OPTION)", wake)
+        self.assertIn("rules::SWITCH_WAKE_ON_LAN) == sys::SwitchMode::Hidden", wake)
+        self.assertNotIn("post_request", wake)
+
+    def test_the_names_are_the_contracts(self):
+        core = self.read("src", "dolphin_wake_core.rs")
+        for const, value in (("WAKE_OPTION", "dolphin-wake"), ("SWITCH_WAKE_ON_LAN", "wake-on-lan"),
+                             ("HEARTBEAT_FIELD", "dolphin_wake"), ("SYSINFO_MACS", "dolphin_macs"),
+                             ("SYSINFO_LAN", "dolphin_lan")):
+            self.assertIn(f'pub const {const}: &str = "{value}";', core)
+        self.assertIn("pub const PORT: u16 = 9;", core)
+        self.assertIn("static const wakeOnLan = 'wake-on-lan';", self.read("flutter", "lib", "dolphin", "switches.dart"))
 
 
 if __name__ == "__main__":
