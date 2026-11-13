@@ -419,6 +419,13 @@ class ChatFilesWiringTest(unittest.TestCase):
                         send.index("bind.sessionSendFiles("))
         self.assertIn("transferFiles(handledFileCount, fileCount)", files)
 
+    def test_ci_analyzes_the_phase_3_hooked_files_and_runs_their_tests(self):
+        for f in ("lib/common/widgets/chat_page.dart", "lib/models/chat_model.dart", "lib/common/widgets/dialog.dart",
+                  "lib/desktop/pages/file_manager_page.dart"):
+            self.assertIn(f, ANALYZE)
+        for t in ("chat_test.dart", "file_transfer_test.dart", "request_outcome_test.dart", "signin_expired_test.dart"):
+            self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / t).is_file(), t)
+
 
 if __name__ == "__main__":
     unittest.main()
