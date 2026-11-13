@@ -157,7 +157,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_safe_mode_core.rs",
                     "src/dolphin_wake_core.rs",
                     "src/dolphin_net_core.rs",
-                    "src/dolphin_ws_core.rs")
+                    "src/dolphin_ws_core.rs",
+                    "src/dolphin_demo_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -195,8 +196,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 16)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 16)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 17)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 17)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -1209,6 +1210,7 @@ class NetWiringTest(unittest.TestCase):
         net = self.read("src", "dolphin_net.rs")
         self.assertIsNone(re.search(r"codec|quality|PUNCH_|SEC30|CONNECT_TIMEOUT|keep_alive|REG_INTERVAL", net, re.I))
         self.assertNotIn("libs/hbb_common", net.replace("`libs/hbb_common` stays upstream's", ""))
+
 
 
 if __name__ == "__main__":
