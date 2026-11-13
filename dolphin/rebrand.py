@@ -116,6 +116,9 @@ FA_OVERLAY = {
     # What the technician reads when a connection ends (UX-6): the portal's watchdog, or the customer.
     "Closed manually by web console": "پورتال دلفین این اتصال را قطع کرد؛ از «رایانه‌ها» «اتصال» را بزنید",
     "Closed manually by the peer": "مشتری اتصال را بست",
+    # Session toolbar (DD-28): upstream's pin tooltip has a typo («سجاق»).
+    "Pin Toolbar": "ثابت کردن نوار ابزار",
+    "Unpin Toolbar": "رها کردن نوار ابزار",
 }
 # DD-13: what a technician or customer reads when a connection or a file transfer fails: what happened and what to do.
 # Applied like FA_OVERLAY (each key must be in src/lang/fa.rs exactly once). OS errors that arrive as Windows' own text
