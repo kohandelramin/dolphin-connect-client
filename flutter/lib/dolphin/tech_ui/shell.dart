@@ -305,7 +305,7 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
                     now: widget.now,
                   ),
                 ),
-              if (m.toast != null && !m.bellOpen)
+              if (m.toast != null)
                 Positioned(
                   bottom: 12,
                   left: 12,
@@ -350,7 +350,7 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
           dash: m.dashboard,
           actions: _pcActions(),
           connectId: (id) => m.connectTyped(id),
-          offlineReason: m.services.connection.value.message,
+          offlineReason: m.services.connection.value.reason,
           selectedId: m.cardId,
         );
       case TechSection.requests:
@@ -476,7 +476,11 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
             onTap: () => m.platform.openUrl('${DolphinBrand.portalUrl}/staff'),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              child: Text('باز کردن پورتال ↗', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: t.text)),
+              child: Row(children: [
+                Expanded(
+                    child: Text('باز کردن پورتال', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: t.text))),
+                Icon(Icons.open_in_new, size: 15, color: t.textMuted),
+              ]),
             ),
           ),
         ),

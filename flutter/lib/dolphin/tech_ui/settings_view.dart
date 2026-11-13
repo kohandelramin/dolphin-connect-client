@@ -238,7 +238,7 @@ class _TechSettingsViewState extends State<TechSettingsView> {
           activeColor: t.onPrimary,
           activeTrackColor: t.primary,
           inactiveThumbColor: t.textMuted,
-          inactiveTrackColor: t.surfaceAlt,
+          inactiveTrackColor: t.lineStrong,
           onChanged: onChanged,
         ),
       ]),

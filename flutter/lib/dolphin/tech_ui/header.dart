@@ -80,7 +80,7 @@ class TechHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: t.surfaceAlt, borderRadius: BorderRadius.circular(99)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('شناسه‌ی من ', style: TextStyle(fontSize: 11.5, color: t.text)),
+                Text('شناسه‌ی من ', style: TextStyle(fontSize: 11, color: t.text)),
                 Text(myId.isEmpty ? '…' : idFa(myId),
                     textDirection: TextDirection.ltr,
                     style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: t.text)),
@@ -99,9 +99,10 @@ class TechHeader extends StatelessWidget {
             decoration: techField(context,
                 hint: kSearchHint,
                 prefix: Icon(Icons.search, size: 18, color: t.textMuted),
-                suffix: Padding(
-                  padding: const EdgeInsets.all(8),
+                suffix: Center(
+                  widthFactor: 1,
                   child: Container(
+                    margin: const EdgeInsetsDirectional.only(end: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
                         border: Border.all(color: t.lineStrong), borderRadius: BorderRadius.circular(4)),
@@ -113,7 +114,7 @@ class TechHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 138,
+          width: 124,
           child: TextField(
             key: const ValueKey('tech-id-field'),
             controller: idField,
@@ -134,6 +135,7 @@ class TechHeader extends StatelessWidget {
         Stack(clipBehavior: Clip.none, children: [
           IconButton(
             key: bellKey ?? const ValueKey('tech-bell'),
+            visualDensity: VisualDensity.compact,
             tooltip: 'اعلان‌ها',
             icon: Icon(Icons.notifications_none, color: t.textMuted, size: 20),
             onPressed: onBell,
@@ -143,6 +145,7 @@ class TechHeader extends StatelessWidget {
         DolphinThemeSwitch(mode: themeMode, onChanged: onThemeMode),
         IconButton(
             key: const ValueKey('tech-settings'),
+            visualDensity: VisualDensity.compact,
             tooltip: 'تنظیمات',
             icon: Icon(Icons.settings_outlined, color: t.textMuted, size: 20),
             onPressed: onSettings),

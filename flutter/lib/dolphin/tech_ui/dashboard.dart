@@ -37,6 +37,13 @@ const kSortLabels = {
   PcSort.org: 'سازمان',
 };
 
+/// T5's line under the title: what is wrong, in the design's plain words (the title already says the portal is away).
+String offlineCardText(OfflineReason? r) => switch (r) {
+      OfflineReason.noInternet => 'اینترنت این رایانه وصل نیست؛ اتصال شبکه را بررسی کنید.',
+      OfflineReason.slow => 'اینترنت این رایانه وصل است ولی پورتال دیر جواب می‌دهد.',
+      _ => 'اینترنت این رایانه وصل است ولی پورتال جواب نمی‌دهد.',
+    };
+
 /// The portal's «پورتال دلفین در دسترس نیست» card (T5): the reason, the retry and what still works.
 class TechOfflineCard extends StatelessWidget {
   final String reason;
@@ -92,8 +99,16 @@ class TechRecentStrip extends StatelessWidget {
   final List<Computer> favorites;
   final PcActions actions;
   final void Function(String rustdeskId) connectId;
+
+  /// The portal is away: states are unknown and «اتصال» opens without a call (TD-2).
+  final bool offline;
   const TechRecentStrip(
-      {super.key, required this.recent, required this.favorites, required this.actions, required this.connectId});
+      {super.key,
+      required this.recent,
+      required this.favorites,
+      required this.actions,
+      required this.connectId,
+      this.offline = false});
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +138,7 @@ class TechRecentStrip extends StatelessWidget {
 
   Widget _chip(BuildContext context, Computer? pc, String rustdeskId, String name) {
     final t = tokensOf(context);
-    final state = pc == null ? PcState.unknown : pcStateOf(pc);
+    final state = pc == null || offline ? PcState.unknown : pcStateOf(pc);
     final org = pc?.organization.name ?? '';
     final off = pc != null && state == PcState.offline;
     return Container(
@@ -550,7 +565,8 @@ class TechDashboard extends StatefulWidget {
   final DashboardController dash;
   final PcActions actions;
   final void Function(String rustdeskId) connectId;
-  final String? offlineReason;
+  /// Why the portal is away (null while it answers).
+  final OfflineReason? offlineReason;
   final String? selectedId;
   const TechDashboard(
       {super.key, required this.dash, required this.actions, required this.connectId, this.offlineReason, this.selectedId});
@@ -588,10 +604,15 @@ class _TechDashboardState extends State<TechDashboard> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (d.offline || widget.offlineReason != null) ...[
               TechOfflineCard(
-                  reason: widget.offlineReason ?? kMsgPortalDown, onRetry: d.load, lastUpdated: d.lastUpdated),
+                  reason: offlineCardText(widget.offlineReason), onRetry: d.load, lastUpdated: d.lastUpdated),
               const SizedBox(height: 10),
             ],
-            TechRecentStrip(recent: d.recent, favorites: favorites, actions: widget.actions, connectId: widget.connectId),
+            TechRecentStrip(
+                recent: d.recent,
+                favorites: favorites,
+                actions: widget.actions,
+                connectId: widget.connectId,
+                offline: d.offline),
             if (d.recent.isNotEmpty || favorites.isNotEmpty) const SizedBox(height: 10),
             TechFilterBar(dash: d),
             const SizedBox(height: 10),

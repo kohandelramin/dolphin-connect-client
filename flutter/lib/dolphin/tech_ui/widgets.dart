@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../tech/api.dart';
+import '../theme.dart' show kDolphinFont;
 import '../theme_tokens.dart';
 
 /// Plan 19: the small pieces every native technician screen shares. Every colour and radius comes from the tokens in
@@ -109,10 +110,12 @@ class TechButton extends StatelessWidget {
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(t.radiusSmall));
     const padding = EdgeInsets.symmetric(horizontal: 12);
     const size = Size(0, 32);
-    const text = TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700);
+    const text = TextStyle(fontFamily: kDolphinFont, fontSize: 12.5, fontWeight: FontWeight.w700);
     final child = icon == null
         ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)
-        : Row(mainAxisSize: MainAxisSize.min, children: [
+        : label.isEmpty
+            ? Icon(icon, size: 17)
+            : Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 15),
             const SizedBox(width: 4),
             Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),

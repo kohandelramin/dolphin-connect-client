@@ -40,6 +40,12 @@ import 'package:flutter_hbb/dolphin/verify.dart';
 import 'package:flutter_hbb/dolphin/health.dart';
 import 'package:flutter_hbb/dolphin/support_upload.dart';
 import 'package:flutter_hbb/dolphin/support_views.dart';
+import 'package:flutter_hbb/dolphin/tech/api.dart' show CallReason;
+import 'package:flutter_hbb/dolphin/tech/state.dart' show MemoryPrefs;
+import 'package:flutter_hbb/dolphin/tech_ui/sections.dart' show TechEndOfCallView;
+import 'package:flutter_hbb/dolphin/tech_ui/shell.dart';
+import 'package:flutter_hbb/dolphin/tech_ui/shell_model.dart';
+import 'tech_ui/harness.dart' as h;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
@@ -406,5 +412,127 @@ void main() {
       DolphinDemoWindowBar(title: demoWindowTitle('علی رضایی'), screens: 2, current: 0, onScreen: (_) {}, onEnd: noop),
     ]));
     await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+
+  // Plan 19 (T1–T7): the native technician window at its default 1120 × 720, with the sample data of the tests.
+  testWidgets('write native technician previews', (tester) async {
+    await _loadFonts();
+    // Soft shadows under the bell list and the notice, as on screen (tests draw them solid by default).
+    debugDisableShadows = false;
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    const win = Size(1120, 720);
+    final light = DolphinTechTheme.dataFor(Brightness.light);
+    final dark = DolphinTechTheme.dataFor(Brightness.dark);
+
+    Future<TechShellModel> model({h.FakePortal? portal, bool signedIn = true, h.FakePlatform? platform, String view = 'tiles'}) async {
+      late TechShellModel m;
+      await tester.runAsync(() async {
+        final s = h.servicesOn(portal ?? h.samplePortal(),
+            launcher: h.RecLauncher(recent: ['194052361', '305118742', '520334108']),
+            prefs: MemoryPrefs({'dolphin-tech-view': view}));
+        if (signedIn) {
+          await h.signIn(s);
+        } else {
+          await s.session.load();
+        }
+        m = TechShellModel(s, platform ?? h.FakePlatform(), prompts: h.AnswerPrompts());
+        if (signedIn) {
+          await m.start();
+          await h.drain(30);
+        }
+      });
+      return m;
+    }
+
+    Future<void> done(TechShellModel m) async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() => h.shutDown(m));
+    }
+
+    h.FakePlatform withSession() {
+      final p = h.FakePlatform();
+      p.sessions.update(['194052361'], DateTime.now().subtract(const Duration(minutes: 7, seconds: 12)));
+      return p;
+    }
+
+    for (final (name, theme) in [('110-t1-tiles-light', light), ('111-t1-tiles-dark', dark)]) {
+      final m = await model(platform: withSession());
+      await _shot(tester, name, win, TechShell(model: m), theme: theme);
+      await done(m);
+    }
+
+    var m = await model(platform: withSession(), view: 'list');
+    await _shot(tester, '112-t1-list-light', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    final cardPortal = h.samplePortal();
+    cardPortal.on('GET /computers/pc-1', (_) => h.detailJson(h.samplePcs.first, call: h.callJson2(live: true)));
+    m = await model(portal: cardPortal, platform: withSession());
+    m.openCard('pc-1');
+    await tester.runAsync(() => h.drain(30));
+    await _shot(tester, '113-t2-card', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    m = await model();
+    m.go(TechSection.requests);
+    await tester.runAsync(() => h.drain(30));
+    await _shot(tester, '114-t3-requests', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    final notePortal = h.samplePortal();
+    notePortal.onSeq('GET /notifications', [
+      (_) => [
+            h.note('n0', 'request', 'درخواست تازه در صف', 'نصب نسخه‌ی تازه · نیک‌خودرو', ago: const Duration(hours: 1)),
+            h.note('n1', 'auth_expiring', 'اجازه‌ی اتصال به PC-RECEPTION تا ۵ دقیقه‌ی دیگر تمام می‌شود', '',
+                deviceId: 'pc-1', ago: const Duration(minutes: 3)),
+          ],
+      (_) => [h.note('n2', 'callback', '«با من تماس بگیرید»', 'ACC-02 · پارس‌کار — «برنامه باز نمی‌شود»', deviceId: 'pc-2')],
+    ]);
+    m = await model(portal: notePortal);
+    await tester.runAsync(() async {
+      await m.services.poller.poll();
+      await h.drain(30);
+    });
+    m.toggleBell();
+    await _shot(tester, '115-t4-notifications', win, TechShell(model: m), theme: light);
+    // The toast shows when the bell is closed.
+    m.closeBell();
+    await tester.pump();
+    await done(m);
+
+    final offPortal = h.samplePortal();
+    m = await model(portal: offPortal);
+    offPortal.on('GET /computers', (_) => throw const SocketException('refused'));
+    await tester.runAsync(() => m.dashboard.load());
+    await _shot(tester, '116-t5-offline', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    m = await model();
+    m.go(TechSection.settings);
+    await _shot(tester, '117-t6-settings', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    await _shot(tester, '118-t7-stages', const Size(520, 560), Column(children: [
+      Card(margin: const EdgeInsets.all(12), child: Padding(padding: const EdgeInsets.all(18), child: DolphinWaitingForPicture(
+          waiting: const Text('وصل شد؛ در انتظار تصویر…'), peer: 'PC-RECEPTION', canCtrlAltDel: true, onCtrlAltDel: noop,
+          onDisconnect: noop))),
+      Card(margin: const EdgeInsets.all(12), child: Padding(padding: const EdgeInsets.all(18), child: DolphinSlowPicture(
+          peer: 'PC-RECEPTION', canCtrlAltDel: true, onCtrlAltDel: noop, onKeepWaiting: noop, onDisconnect: noop))),
+    ]), theme: light);
+
+    m = await model(signedIn: false);
+    await _shot(tester, '119-signin', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    await _shot(tester, '120-end-of-call', const Size(520, 360), Center(child: TechEndOfCallView(
+        pcName: 'PC-RECEPTION',
+        reasons: const [CallReason('install', 'نصب برنامه'), CallReason('error', 'رفع خطا'), CallReason('training', 'آموزش'),
+          CallReason('update', 'به‌روزرسانی')],
+        initialReasonId: 'install',
+        onEnd: (_, __) async => true,
+        onLater: noop)), theme: light);
+    await tester.pumpWidget(const SizedBox());
+    debugDisableShadows = true;
   }, skip: _dir == null);
 }

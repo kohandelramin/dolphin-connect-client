@@ -185,7 +185,7 @@ void main() {
         expect(find.byKey(const ValueKey('tech-offline-card')), findsOneWidget);
         expect(find.text(TechOfflineCard.title), findsOneWidget);
         expect(find.textContaining('آخرین وضعیت: ساعت'), findsOneWidget);
-        expect(find.textContaining(kMsgPortalDown), findsOneWidget);
+        expect(find.textContaining('اینترنت این رایانه وصل است ولی پورتال جواب نمی‌دهد.'), findsOneWidget);
         expect(find.text('پورتال: در دسترس نیست'), findsOneWidget);
         expect(find.byType(PcTile), findsNWidgets(samplePcs.length));
         expectAllTextReadable(tester);
