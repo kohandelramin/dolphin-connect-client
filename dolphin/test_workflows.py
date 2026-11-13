@@ -523,5 +523,35 @@ class InstallWiringTest(unittest.TestCase):
         self.assertIn("#[cfg(windows)]\nmod dolphin_install_core;", self.read("src", "lib.rs"))
         self.assertIn("rustc --edition 2021 --test src/dolphin_install_core.rs", CHECK)
 
+
+class UpdateCheckWiringTest(unittest.TestCase):
+    """Plan 18 Phase 4 (DD-20): «بررسی نسخه‌ی تازه» reaches the same Rust check and update flow as the start-up."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_key_meets_the_rust_check(self):
+        ffi = self.read("src", "flutter_ffi.rs")
+        body = ffi.split("pub fn main_get_common(key: String) -> String {", 1)[1][:1200]
+        self.assertIn('if key == "dolphin-update-recheck" {\n        return crate::dolphin_update::recheck();', body)
+        update = self.read("src", "dolphin_update.rs")
+        recheck = update.split("pub fn recheck() -> String {", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("CONTINUE.store(false, Ordering::SeqCst);", recheck)
+        self.assertIn("check()", recheck)  # the same portal request and rules as at start-up
+        for reason in ('open("latest")', 'open("unreachable")', 'open("disabled")'):
+            self.assertIn(reason, update)
+        dart = self.read("flutter", "lib", "dolphin", "update.dart")
+        self.assertIn("bind.mainGetCommon(key: 'dolphin-update-recheck')", dart)
+        self.assertIn("DolphinUpdateScreen(\n                  check: check, inApp: true, onClose: close", dart)
+        self.assertIn("if (!widget.inApp) windowManager.setPreventClose(true);", dart)
+
+    def test_both_apps_show_it(self):
+        self.assertIn("const DolphinUpdateCheckButton(),", self.read("flutter", "lib", "dolphin", "about.dart"))
+        self.assertIn("onAbout: () => showDolphinAboutDialog(context), // DD-20",
+                      self.read("flutter", "lib", "dolphin", "home.dart"))
+        settings = self.read("flutter", "lib", "desktop", "pages", "desktop_setting_page.dart")
+        self.assertIn("Widget build(BuildContext context) => const DolphinAbout(); // Dolphin Connect", settings)
+        self.assertTrue((ROOT / "flutter" / "test" / "dolphin" / "update_check_test.dart").is_file())
+
 if __name__ == "__main__":
     unittest.main()

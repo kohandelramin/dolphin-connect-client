@@ -96,6 +96,9 @@ class DolphinHomeView extends StatelessWidget {
   /// DD-32: Dolphin's own version at the bottom of the window; '' hides it.
   final String version;
 
+  /// DD-20: tapping the version opens About («بررسی نسخه‌ی تازه»); null keeps it plain text.
+  final VoidCallback? onAbout;
+
   const DolphinHomeView(
       {super.key,
       required this.id,
@@ -119,7 +122,8 @@ class DolphinHomeView extends StatelessWidget {
       this.onCopyIp,
       this.onCopyDownload,
       this.onCopyGuide,
-      this.version = ''});
+      this.version = '',
+      this.onAbout});
 
   @override
   Widget build(BuildContext context) =>
@@ -346,7 +350,14 @@ class DolphinHomeView extends StatelessWidget {
                 if (version.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted, fontSize: 12)),
+                    child: onAbout == null
+                        ? Text(versionLabel(version), style: const TextStyle(color: DolphinColors.muted, fontSize: 12))
+                        : InkWell(
+                            onTap: onAbout,
+                            child: Text('${versionLabel(version)} · درباره و به‌روزرسانی',
+                                style: const TextStyle(
+                                    color: DolphinColors.azure, fontSize: 12, decoration: TextDecoration.underline)),
+                          ),
                   ),
               ]),
             ),

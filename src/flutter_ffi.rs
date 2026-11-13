@@ -2684,6 +2684,10 @@ pub fn main_get_common(key: String) -> String {
     if key == "dolphin-update-progress" {
         return crate::dolphin_update::progress();
     }
+    // Dolphin Connect (DD-20): «بررسی نسخه‌ی تازه» in About, the same check while the app runs.
+    if key == "dolphin-update-recheck" {
+        return crate::dolphin_update::recheck();
+    }
     // Dolphin Connect (Plan 14, B6): «با من تماس بگیرید» (src/dolphin_callback.rs).
     if key == "dolphin-callback-state" {
         return crate::dolphin_callback::state();

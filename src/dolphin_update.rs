@@ -102,8 +102,21 @@ pub fn check() -> String {
     answer.to_string()
 }
 
-/// The last `check` answer (the x86 page reads it after its window opens). Only the Sciter (x86) screen uses it.
-#[cfg_attr(feature = "flutter", allow(dead_code))]
+/// DD-20: «بررسی نسخه‌ی تازه» in About asks again while the app runs. An update already under way (downloading, ready
+/// or installing) is not asked about again: its last answer comes back and the screen follows its progress. The
+/// customer asking to update ends an earlier «ادامه با همین نسخه» (D19), which otherwise holds every install back
+/// for the rest of the process. Same portal request, same rules and same update flow as at start-up (TB-20).
+/// Flutter only for now (the x86 Sciter About has no such button).
+#[cfg_attr(not(feature = "flutter"), allow(dead_code))]
+pub fn recheck() -> String {
+    if matches!(PROGRESS.lock().unwrap().state, "downloading" | "ready" | "applying") {
+        return last();
+    }
+    CONTINUE.store(false, Ordering::SeqCst);
+    check()
+}
+
+/// The last `check` answer (the x86 page reads it after its window opens; `recheck` while an update runs).
 pub fn last() -> String {
     LAST.lock().unwrap().to_string()
 }
@@ -159,11 +172,13 @@ pub fn check_blocks_start() -> bool {
 }
 
 fn answer() -> Value {
-    let open = json!({ "state": "current" });
+    // DD-20: `reason` tells «بررسی نسخه‌ی تازه» why the app opens: "latest" (the portal answered, nothing newer),
+    // "unreachable" (no answer, D12) or "disabled" (a test build). The start-up screens read `state` only.
+    let open = |reason: &str| json!({ "state": "current", "reason": reason });
     let current = crate::dolphin::DOLPHIN_VERSION;
     let portal = crate::dolphin::PORTAL_URL;
     if !rules::updates_enabled(current, portal) {
-        return open;
+        return open("disabled");
     }
     let build = rules::build_name(config::is_outgoing_only(), cfg!(target_arch = "x86"));
     // The strict client probes the portal first (up to ~30 s per probe) before our 4 s GET timeout applies, so the
@@ -177,18 +192,18 @@ fn answer() -> Value {
     });
     let offer = match rx.recv_timeout(CHECK_TIMEOUT) {
         Ok(Ok(Some(offer))) => offer,
-        Ok(Ok(None)) => return open,
+        Ok(Ok(None)) => return open("latest"),
         Ok(Err(e)) => {
             log::info!("Dolphin update check: {} (opening normally)", e);
-            return open;
+            return open("unreachable");
         }
         Err(_) => {
             log::info!("Dolphin update check: no answer within {:?} (opening normally)", CHECK_TIMEOUT);
-            return open;
+            return open("unreachable");
         }
     };
     if !rules::is_newer(current, &offer.version) {
-        return open;
+        return open("latest");
     }
     // Never an automatic download for the staff-only technician build or an offer without a portal file (finding b).
     let state = if offer.path.is_none() || config::is_outgoing_only() {
