@@ -258,6 +258,53 @@ pub fn session_starts_muted(is_remote_desktop: bool) -> bool {
     is_remote_desktop
 }
 
+// ---- RO-4: one-way transfer, RO-5: lock on end (Plan 19; owner 2026-11-14, both off unless an organization asks) ----
+
+/// The portal's switch for one-way transfer. Hidden (the default): upstream's behaviour as built (both ways). Available
+/// or forced: the technician can send files to the customer but cannot take files or the customer's clipboard.
+pub const SWITCH_ONE_WAY_TRANSFER: &str = "one-way-transfer";
+
+/// Upstream's built-in options this switch turns on. Upstream reads them with `get_builtin_option` in the customer's
+/// server process (src/server/connection.rs: file actions that read, rename or delete on this PC, the clipboard
+/// service, file-clipboard data requests) and in the session window (src/ui_cm_interface.rs, the file clipboard).
+pub const ONE_WAY_FILE_TRANSFER: &str = "one-way-file-transfer";
+pub const ONE_WAY_CLIPBOARD: &str = "one-way-clipboard-redirection";
+
+pub fn is_one_way_key(key: &str) -> bool {
+    key == ONE_WAY_FILE_TRANSFER || key == ONE_WAY_CLIPBOARD
+}
+
+pub fn one_way_on(mode: SwitchMode) -> bool {
+    mode != SwitchMode::Hidden
+}
+
+/// What `get_builtin_option(key)` answers for one of upstream's one-way keys: "Y" while the switch is on, else None
+/// (the compiled-in value stands). Computed from the pushed option at each read: nothing is stored, and the switch
+/// can only add the restriction, never lift a compiled-in one.
+pub fn builtin_override(key: &str, raw_switches: &str) -> Option<&'static str> {
+    if is_one_way_key(key) && one_way_on(switch_mode(raw_switches, SWITCH_ONE_WAY_TRANSFER)) {
+        Some("Y")
+    } else {
+        None
+    }
+}
+
+/// The portal's switch for locking the customer's Windows when a session ends. Hidden (the default): upstream's
+/// behaviour, only the technician's own «Lock after session end» (off unless he turns it on). Available or forced:
+/// every session locks the PC at its end, as if the technician had turned it on. Upstream's other conditions stay
+/// (src/server/connection.rs `on_close`: a close that may lock, keyboard permission, not a session taken over by its
+/// own reconnect).
+pub const SWITCH_LOCK_ON_END: &str = "lock-on-end";
+
+pub fn lock_at_end(technician_asked: bool, mode: SwitchMode) -> bool {
+    technician_asked || mode != SwitchMode::Hidden
+}
+
+/// [`lock_at_end`] from the pushed option as stored (`dolphin-switches`).
+pub fn lock_at_end_by(technician_asked: bool, raw_switches: &str) -> bool {
+    lock_at_end(technician_asked, switch_mode(raw_switches, SWITCH_LOCK_ON_END))
+}
+
 // ---- DD-12: the fixed receive folder ----
 
 /// `<home>\Downloads\دریافتی دلفین`.
@@ -425,6 +472,40 @@ pub fn badge(rgba: &mut [u8], width: u32, height: u32, colour: [u8; 3]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_way_transfer_turns_upstreams_options_on_only_while_the_switch_shows() {
+        // Hidden (and the default, and anything unreadable): upstream's own value stands.
+        for raw in ["", "-", "{}", "not json", r#"{"one-way-transfer":"hidden"}"#, r#"{"one-way-transfer":"loud"}"#] {
+            assert_eq!(switch_mode(raw, SWITCH_ONE_WAY_TRANSFER), SwitchMode::Hidden, "{raw}");
+            assert_eq!(builtin_override(ONE_WAY_FILE_TRANSFER, raw), None, "{raw}");
+            assert_eq!(builtin_override(ONE_WAY_CLIPBOARD, raw), None, "{raw}");
+        }
+        for raw in [r#"{"one-way-transfer":"available"}"#, r#"{"one-way-transfer":"forced"}"#] {
+            assert_eq!(builtin_override(ONE_WAY_FILE_TRANSFER, raw), Some("Y"), "{raw}");
+            assert_eq!(builtin_override(ONE_WAY_CLIPBOARD, raw), Some("Y"), "{raw}");
+            // Other built-in options are never touched.
+            assert_eq!(builtin_override("hide-tray", raw), None);
+            assert_eq!(builtin_override("one-way-file-transfer ", raw), None);
+        }
+        // The keys are upstream's (libs/base/src/config/keys.rs).
+        assert_eq!(ONE_WAY_FILE_TRANSFER, "one-way-file-transfer");
+        assert_eq!(ONE_WAY_CLIPBOARD, "one-way-clipboard-redirection");
+        assert!(is_one_way_key(ONE_WAY_CLIPBOARD) && !is_one_way_key("lock_after_session_end"));
+    }
+
+    #[test]
+    fn lock_on_end_adds_to_the_technicians_choice_and_never_removes_it() {
+        assert!(!lock_at_end(false, SwitchMode::Hidden)); // the default: as upstream, off
+        assert!(lock_at_end(true, SwitchMode::Hidden)); // the technician's own toggle still works
+        assert!(lock_at_end(false, SwitchMode::Available));
+        assert!(lock_at_end(false, SwitchMode::Forced));
+        assert!(!lock_at_end_by(false, ""));
+        assert!(!lock_at_end_by(false, r#"{"lock-on-end":"hidden"}"#));
+        assert!(lock_at_end_by(false, r#"{"lock-on-end":"forced"}"#));
+        assert_eq!(switch_default(SWITCH_LOCK_ON_END), SwitchMode::Hidden);
+        assert_eq!(switch_default(SWITCH_ONE_WAY_TRANSFER), SwitchMode::Hidden);
+    }
 
     #[test]
     fn switches_read_like_the_dart_side() {

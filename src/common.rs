@@ -2540,6 +2540,16 @@ pub fn get_hwid() -> Bytes {
 
 #[inline]
 pub fn get_builtin_option(key: &str) -> String {
+    // Dolphin Connect (RO-4): the portal's `one-way-transfer` switch turns upstream's one-way file transfer and
+    // clipboard on for this PC's organization, read from the pushed option at each call (nothing stored).
+    if crate::dolphin_system_core::is_one_way_key(key) {
+        if let Some(v) = crate::dolphin_system_core::builtin_override(
+            key,
+            &Config::get_option(crate::dolphin_system_core::SWITCHES_OPTION),
+        ) {
+            return v.to_owned();
+        }
+    }
     config::BUILTIN_SETTINGS
         .read()
         .unwrap()

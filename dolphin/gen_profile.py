@@ -56,7 +56,10 @@ VARIANT_FLOOR = {"customer": {"conn-type": "incoming"}, "technician": {"conn-typ
 # A variant may have its own shown name (owner 2026-11-13: «دلفین کانکت کارشناس»). Only the shown name: app-name is what
 # RustDesk uses in install paths, service and pipe names.
 VARIANT_NAME_KEYS = ("display-name-fa", "display-name-en")
-VARIANT_KEYS = {"app-name", "hard", *VARIANT_NAME_KEYS}
+# Plan 19 (RO-6, RO-7): a variant may add its own local (per Windows account) and built-in settings, merged over the
+# shared ones; the security floor still holds after the merge. Server settings (override/default) stay shared.
+VARIANT_SECTIONS = ("local-override", "local-default", "builtin")
+VARIANT_KEYS = {"app-name", "hard", *VARIANT_NAME_KEYS, *VARIANT_SECTIONS}
 APP_NAME = re.compile(r"[A-Za-z0-9-]+")
 # What customers see: names, site, support phone, and where the source is (AGPL-3.0 source offer).
 BRAND_KEYS = ("display-name-fa", "display-name-en", "site", "support-phone", "source-url")
@@ -190,6 +193,17 @@ def validate_settings(settings):
         for key, value in VARIANT_FLOOR[name].items():
             if hard.get(key) != value:
                 errors.append(f"variants.{name}.hard.{key} must be {value!r}")
+        for section in VARIANT_SECTIONS:
+            values = variant.get(section, {})
+            if not isinstance(values, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in values.items()):
+                errors.append(f"variants.{name}.{section}: an object of string values")
+                continue
+            for key in PROFILE_KEYS:
+                if key in values:
+                    errors.append(f"variants.{name}.{section}.{key}: server settings come from the profile only")
+            for floor_section, key, value in FLOOR:
+                if floor_section == section and key in values and values[key] != value:
+                    errors.append(f"variants.{name}.{section}.{key} must be {value!r}")
     return errors
 
 
@@ -238,6 +252,11 @@ def render_brand_dart(settings, profile, version, variant="customer"):
     return "\n".join(lines) + "\n"
 
 
+def variant_section(settings, variant, section):
+    """One settings section for a build: the shared values with the variant's own over them (VARIANT_SECTIONS)."""
+    return {**settings[section], **settings["variants"][variant].get(section, {})}
+
+
 def _rust_map(name, values):
     lines = [f"pub const {name}: &[(&str, &str)] = &["]
     lines += [f"    ({rust_str(k)}, {rust_str(values[k])})," for k in sorted(values)]
@@ -265,9 +284,9 @@ def render_rust(settings, profile, name, variant, version):
         f"pub const STRATEGY_PUBLIC_KEY: &str = {rust_str(profile.get(STRATEGY_KEY, ''))};",
         _rust_map("OVERRIDE_SETTINGS", override),
         _rust_map("DEFAULT_SETTINGS", settings["default"]),
-        _rust_map("OVERRIDE_LOCAL_SETTINGS", settings["local-override"]),
-        _rust_map("DEFAULT_LOCAL_SETTINGS", settings["local-default"]),
-        _rust_map("BUILTIN_SETTINGS", settings["builtin"]),
+        _rust_map("OVERRIDE_LOCAL_SETTINGS", variant_section(settings, variant, "local-override")),
+        _rust_map("DEFAULT_LOCAL_SETTINGS", variant_section(settings, variant, "local-default")),
+        _rust_map("BUILTIN_SETTINGS", variant_section(settings, variant, "builtin")),
         _rust_map("HARD_SETTINGS", hard),
     ]
     return "\n".join(parts) + "\n"

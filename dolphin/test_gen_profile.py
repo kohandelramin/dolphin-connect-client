@@ -163,6 +163,43 @@ class SettingsTest(unittest.TestCase):
         s["variants"]["customer"]["override"] = {"allow-only-conn-window-open": "N"}
         self.assertTrue(g.validate_settings(s))
         s = copy.deepcopy(SETTINGS)
+        s["variants"]["customer"]["default"] = {"approve-mode": "click"}
+        self.assertTrue(g.validate_settings(s))
+
+    def test_a_variants_own_local_and_builtin_settings_keep_the_floor(self):
+        # Plan 19: a variant may add local and built-in settings, never loosen a floor value or carry server settings.
+        for section, key, bad in (("local-override", "enable-check-update", "Y"),
+                                  ("builtin", "allow-deep-link-password", "Y"),
+                                  ("builtin", "disable-change-permanent-password", "N")):
+            s = copy.deepcopy(SETTINGS)
+            s["variants"]["technician"].setdefault(section, {})[key] = bad
+            self.assertTrue(any(f"variants.technician.{section}.{key}" in e for e in g.validate_settings(s)), key)
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["customer"]["local-default"] = {"api-server": "https://evil.example"}
+        self.assertTrue(any("server settings come from the profile only" in e for e in g.validate_settings(s)))
+        s = copy.deepcopy(SETTINGS)
+        s["variants"]["customer"]["builtin"] = {"x": 1}
+        self.assertTrue(any("variants.customer.builtin" in e for e in g.validate_settings(s)))
+
+    def test_the_technician_build_keeps_awake_confirms_closing_and_hides_recording(self):
+        # RO-6 and RO-7 (Plan 19): upstream's local options, fixed in the technician build only.
+        tech = g.render_rust(SETTINGS, PROFILE, "production", "technician", "2.1.0")
+        local = tech.split("pub const OVERRIDE_LOCAL_SETTINGS")[1].split("];")[0]
+        for key in ("keep-awake-during-outgoing-sessions", "enable-confirm-closing-tabs", "hide-recording-button"):
+            self.assertIn(f'("{key}", "Y")', local)
+        self.assertIn('("enable-check-update", "N")', local)  # the shared floor is still there
+        customer = g.render_rust(SETTINGS, PROFILE, "production", "customer", "2.1.0")
+        self.assertNotIn("keep-awake-during-outgoing-sessions", customer)
+        self.assertNotIn("hide-recording-button", customer)
+        # Upstream's key names (libs/base/src/config/keys.rs), all local settings (KEYS_LOCAL_SETTINGS).
+        keys = (HERE.parent / "libs" / "base" / "src" / "config" / "keys.rs").read_text(encoding="utf-8")
+        local_keys = keys.split("pub const KEYS_LOCAL_SETTINGS", 1)[1].split("];", 1)[0]
+        for const, key in (("OPTION_KEEP_AWAKE_DURING_OUTGOING_SESSIONS", "keep-awake-during-outgoing-sessions"),
+                           ("OPTION_ENABLE_CONFIRM_CLOSING_TABS", "enable-confirm-closing-tabs"),
+                           ("OPTION_HIDE_RECORDING_BUTTON", "hide-recording-button")):
+            self.assertIn(f'pub const {const}: &str = "{key}";', keys)
+            self.assertIn(const, local_keys)
+        s = copy.deepcopy(SETTINGS)
         s["variants"]["technician"]["app-name"] = "Dolphin Tech"
         self.assertTrue(g.validate_settings(s))
 

@@ -822,6 +822,9 @@ PORTAL_SWITCHES = {
     # Plan 18 Phase 6 (DD-31): the portal adds this key with the apps that read it (filed under the technician, whose
     # toolbar shows the button; enforced by the customer PC, as safe-mode).
     "remote-sound": ("technician", "available"),
+    # Plan 19 (RO-4, RO-5): customer side, off unless an organization asks; enforced by the customer PC.
+    "one-way-transfer": ("customer", "hidden"),
+    "lock-on-end": ("customer", "hidden"),
 }
 # Keys with no reader in the customer app yet, and why.
 SWITCHES_NOT_READ = {}
@@ -869,6 +872,8 @@ class FeatureSwitchesTest(unittest.TestCase):
                                ("flutter/lib/dolphin/printer_hooks.dart", "mode(DolphinSwitch.remotePrinter)")],
             "wake-on-lan": [("src/dolphin_wake.rs", "rules::SWITCH_WAKE_ON_LAN")],
             "direct-route": [("src/dolphin_net.rs", "net::SWITCH_DIRECT_ROUTE) != sys::SwitchMode::Hidden")],
+            "one-way-transfer": [("src/common.rs", "crate::dolphin_system_core::builtin_override(")],
+            "lock-on-end": [("src/server/connection.rs", "crate::dolphin_system_core::lock_at_end_by(")],
         }
         customer = {k for k, (side, _) in PORTAL_SWITCHES.items() if side in ("customer", "both")}
         self.assertEqual(set(readers) | (customer & set(SWITCHES_NOT_READ)), customer)
@@ -1280,3 +1285,31 @@ class StartUpdatePopupWiringTest(unittest.TestCase):
         body = update.split("Future<void> showPendingTechUpdate(BuildContext context) async {", 1)[1]
         self.assertNotIn("mainSetLocalOption", body)
         self.assertNotIn("mainSetOption", body)
+
+
+class OneWayAndLockWiringTest(unittest.TestCase):
+    """Plan 19 (RO-4, RO-5): the portal's switches reach upstream's own enforcement; nothing is stored."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_one_way_answers_through_upstreams_builtin_option_reader(self):
+        common = self.read("src", "common.rs")
+        body = common.split("pub fn get_builtin_option(key: &str) -> String {", 1)[1].split("\n}\n", 1)[0]
+        self.assertLess(body.index("crate::dolphin_system_core::is_one_way_key(key)"), body.index("config::BUILTIN_SETTINGS"))
+        conn = self.read("src", "server", "connection.rs")
+        # upstream's own checks, unchanged, are what the switch turns on
+        self.assertIn("crate::get_builtin_option(keys::OPTION_ONE_WAY_FILE_TRANSFER) == \"Y\"", conn)
+        self.assertIn("crate::get_builtin_option(keys::OPTION_ONE_WAY_CLIPBOARD_REDIRECTION) != \"Y\"", conn)
+        keys = self.read("libs", "base", "src", "config", "keys.rs")
+        self.assertIn('OPTION_ONE_WAY_FILE_TRANSFER: &str = "one-way-file-transfer";', keys)
+        self.assertIn('OPTION_ONE_WAY_CLIPBOARD_REDIRECTION: &str = "one-way-clipboard-redirection";', keys)
+
+    def test_lock_on_end_keeps_upstreams_other_conditions(self):
+        conn = self.read("src", "server", "connection.rs")
+        close = conn.split("async fn on_close(&mut self, reason: &str, lock: bool) {", 1)[1][:3000]
+        block = close.split("if lock\n", 1)[1].split("lock_screen().await;", 1)[0]
+        self.assertIn("crate::dolphin_system_core::lock_at_end_by(", block)
+        self.assertIn("self.lock_after_session_end,", block)
+        self.assertIn("&& self.keyboard", block)
+        self.assertIn("!raii::AuthedConnID::session_reconnected(", block)

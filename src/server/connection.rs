@@ -5807,8 +5807,13 @@ impl Connection {
         // But it's not necessary now and we have to consider two audio services(client, server).
         crate::audio_service::set_voice_call_input_device(None, true);
         log::info!("#{} Connection closed: {}", self.inner.id(), reason);
+        // Dolphin Connect (RO-5): the portal's `lock-on-end` switch locks at the end of every session, as if the
+        // technician had asked; hidden leaves upstream's choice (src/dolphin_system_core.rs lock_at_end).
         if lock
-            && self.lock_after_session_end
+            && crate::dolphin_system_core::lock_at_end_by(
+                self.lock_after_session_end,
+                &Config::get_option(crate::dolphin_system_core::SWITCHES_OPTION),
+            )
             && self.keyboard
             && !raii::AuthedConnID::session_reconnected(self.inner.id(), &self.session_key())
         {

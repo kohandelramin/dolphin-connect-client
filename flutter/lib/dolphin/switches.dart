@@ -20,6 +20,9 @@ class DolphinSwitch {
   static const wakeOnLan = 'wake-on-lan';
   static const safeMode = 'safe-mode';
   static const remoteSound = 'remote-sound';
+  // Plan 19 (RO-4, RO-5): enforced by the customer PC's Rust side only (src/dolphin_system_core.rs); no control here.
+  static const oneWayTransfer = 'one-way-transfer';
+  static const lockOnEnd = 'lock-on-end';
 }
 
 /// Defaults when the portal has not said anything yet (a PC never linked, or an app older than the portal's list).
@@ -34,6 +37,8 @@ const Map<String, SwitchMode> kSwitchDefaults = {
   DolphinSwitch.wakeOnLan: SwitchMode.hidden,
   DolphinSwitch.safeMode: SwitchMode.hidden,
   DolphinSwitch.remoteSound: SwitchMode.available,
+  DolphinSwitch.oneWayTransfer: SwitchMode.hidden,
+  DolphinSwitch.lockOnEnd: SwitchMode.hidden,
 };
 
 class DolphinSwitches {
