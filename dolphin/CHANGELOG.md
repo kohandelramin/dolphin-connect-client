@@ -299,6 +299,31 @@ The Python tests, `flutter test test/dolphin` and `flutter analyze` ran. Uncompi
 **یادداشت فارسی:** آیکون‌های تازه‌ی دلفین کانکت؛ برنامه‌ی کارشناس آیکون آبی و نام «دلفین کانکت کارشناس» دارد. در
 برنامه‌ی مشتری، کادر «وضعیت شبکه» فقط وصل بودن و IP رایانه را نشان می‌دهد.
 
+### Plan 18 Phase 5: signed settings, the same ID after a reinstall, the switches (DD-24, DD-5, DD-4)
+
+`cargo check --features flutter`, the std-only Rust tests (`dolphin_strategy_core`, `dolphin_identity_core`) and the
+Python tests ran; the portal's signature vector was also verified with libsodium in a scratch build. Nothing on real
+PCs is checked yet. No change to connections, codecs or routes.
+
+- DD-24 (all three apps): a new profile value `strategy-public-key` (base64 of the raw 32-byte Ed25519 key) is compiled
+  in. With a key, the heartbeat applies the portal's settings only when `dolphin-signature` verifies over this PC's ID,
+  the answer's `modified_at` and the options (the portal's `signing.ts` form). Otherwise the previous settings stay,
+  the old version is kept so the portal sends the settings again, and every heartbeat carries `dolphin_sig: "bad"`
+  until a strategy is applied. Empty key: no check (dev). A production build fails without the key, which the owner
+  makes with the portal's `app/scripts/gen-signing-key.ts` (private key to Coolify first, then the public key into
+  `dolphin/profiles/production.json`). Deploy order: the portal must sign before apps with the key reach customers,
+  or those apps keep their old settings (no new technician authorization reaches them).
+- DD-5 (installed customer apps): the service's server process backs up its ID and key pair to
+  `%ProgramData%\DolphinConnect\identity.dat` (DPAPI machine scope, readable by SYSTEM and Administrators only), tied to
+  the PC's SMBIOS system UUID. A reinstall on the same hardware gets the same ID and key pair back before it registers;
+  a cloned disk on other hardware gets a new ID; other hardware never takes the backup. Portable runs do not use it.
+- DD-4: the apps' switch defaults are checked against the portal's list in CI. Every customer-side switch is read
+  except `direct-route` (Phase 6, network route) and `wake-on-lan` / `safe-mode` (their own branch). The technician
+  app runs no heartbeat, so it never receives switches and uses the defaults.
+
+**یادداشت فارسی:** برنامه فقط تنظیماتی را می‌پذیرد که پورتال دلفین امضا کرده باشد. اگر برنامه‌ی نصب‌شده پاک و دوباره
+روی همان رایانه نصب شود، همان شناسه‌ی قبلی را نگه می‌دارد.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
