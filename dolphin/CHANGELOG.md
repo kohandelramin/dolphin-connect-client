@@ -367,6 +367,39 @@ PCs is checked yet. No change to connections, codecs or routes.
 **یادداشت فارسی:** برنامه فقط تنظیماتی را می‌پذیرد که پورتال دلفین امضا کرده باشد. اگر برنامه‌ی نصب‌شده پاک و دوباره
 روی همان رایانه نصب شود، همان شناسه‌ی قبلی را نگه می‌دارد.
 
+### Plan 18 Phase 6: network listener and the physical adapter (DD-1; all three apps)
+
+Owner approval 2026-11-13: "listener and the real adapter, with a portal off switch". Ran here: `cargo check --features
+flutter` (no new warnings), the std-only `src/dolphin_net_core.rs` (14 tests), the Python tests, `flutter test
+test/dolphin` and `flutter analyze` (no Dart change). Nothing on a real PC yet: no VPN was toggled, no socket option
+was set on this machine. No change to codecs, quality, relay or punch timing, or consent.
+
+- Listener: the app hears Windows' address and route changes (`NotifyUnicastIpAddressChange`, `NotifyRouteChange2`).
+  A VPN toggle fires a burst; the app reacts once it is quiet for a second (at most every 2 s while it lasts), and only
+  when the default routes or this PC's addresses really changed.
+- The reaction, where the app registers with the server (the customer's service process, a portable customer app):
+  upstream's own `RendezvousMediator::restart()`, so it registers again at once instead of after missed
+  registrations, and upstream's NAT test again. In a technician's session: when the address its link left from is no
+  longer this PC's (the VPN that carried it went off), the session ends at once and the quiet retry of ADR-0015
+  («در حال اتصال دوباره…») starts, instead of after the 30 s timeout. A link that kept its address goes on.
+- Physical adapter: the app's sockets to our server (rendezvous UDP and TCP, relay, TCP and UDP punch, the NAT test,
+  the HTTP fallback over the rendezvous port) carry `IP_UNICAST_IF` / `IPV6_UNICAST_IF` for the default route's
+  physical Ethernet, Wi-Fi or mobile-broadband adapter, so a VPN going on or off does not move them. Physical means
+  Windows' hardware flag, the adapter type, its name (no VPN, TAP, Wintun, WireGuard, Hyper-V, VM ...) and its MAC
+  prefix all agree. No such adapter, a proxy or WebSocket in use, or a private / loopback target: normal routing, as
+  before. A pinned connect that fails where the normal route works (a VPN's kill switch) stops the pinning for 10
+  minutes or until the next network change. `libs/hbb_common` is unchanged: its sockets are pinned through their
+  handles, and TCP (where the option must come before `connect`) is built the same way in `src/dolphin_net.rs`.
+- The portal's `direct-route` switch: hidden turns both parts off (upstream's behaviour); available and forced (the
+  default) turn them on. The customer app reads it from `dolphin-switches`; the technician app has no heartbeat, so it
+  always has the default: on.
+- Not pinned: the heartbeat to the portal (HTTPS), the IPv6 punch socket (bound to its own address), WebSocket and
+  WebRTC transports (built inside `libs/hbb_common` and the WebRTC library), and the DNS lookup and upstream's 1 s
+  address test before the rendezvous UDP socket.
+
+**یادداشت فارسی:** اگر هنگام پشتیبانی VPN روشن یا خاموش شود، دلفین کانکت ارتباطش با سرور دلفین را از کارت شبکه‌ی
+اصلی رایانه نگه می‌دارد و بی‌درنگ دوباره ثبت می‌شود؛ اگر اتصال کارشناس قطع شده باشد، بی‌معطلی دوباره وصل می‌شود.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.
