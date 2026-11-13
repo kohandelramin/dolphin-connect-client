@@ -190,6 +190,13 @@ jobs:
           # The portable packer extracts into a folder named after this exe; keep it apart from stock RustDesk.
           mv ./rustdesk/rustdesk.exe "./rustdesk/$env:APP_EXE"
 
+      # DD-21: a clean Windows 10 without the VC++ redistributable must start the app. Rust and the runner are built
+      # with the static runtime (upstream); this copies any VC++ runtime DLL a prebuilt DLL next to the exe imports
+      # (flutter_windows.dll, the printer adapter) from Visual Studio's redist folder, and fails if one is missing.
+      - name: VC++ runtime next to the app (DD-21)
+        shell: bash
+        run: python dolphin/vcruntime.py bundle ./rustdesk --arch x64
+
       - name: Copy Runner.res for the portable packer
         shell: bash
         run: |
@@ -310,6 +317,11 @@ jobs:
           mv ./target/release/rustdesk.exe ./Release/DolphinConnect.exe
           curl -fsSL -o ./Release/sciter.dll "$SCITER_DLL_URL"
           echo "$SCITER_DLL_SHA256  ./Release/sciter.dll" | sha256sum -c -
+
+      # DD-21: as in the x64 job (Windows 7 and 8.1 also need the Universal CRT, update KB2999226, if a DLL imports it).
+      - name: VC++ runtime next to the app (DD-21)
+        shell: bash
+        run: python dolphin/vcruntime.py bundle ./Release --arch x86
 
       - name: Portable exe and checksum
         shell: bash

@@ -14,6 +14,14 @@ def job(text, name):
     """The text of one top-level job."""
     return text.split(f"\n  {name}:\n", 1)[1].split("\n\n  ", 1)[0]
 
+def whole_job(text, name):
+    """One top-level job with its blank lines (`job` stops at the first blank line, which is enough for its head)."""
+    body = text.split(f"\n  {name}:\n", 1)[1]
+    m = re.search(r"\n  [a-z0-9-]+:\n", body)
+    return body[:m.start()] if m else body
+
+
+
 class BuildWorkflowTest(unittest.TestCase):
     def test_vcpkg_uses_a_files_cache_kept_by_actions_cache(self):
         self.assertNotIn("x-gha", BUILD)
@@ -140,6 +148,23 @@ class BuildWorkflowTest(unittest.TestCase):
 
     def test_every_exe_has_its_version_resource_checked(self):
         self.assertEqual(BUILD.count("name: Version resource (TB-4)"), 2)
+
+    def test_every_app_folder_gets_the_vc_runtime_its_dlls_import_before_packing(self):
+        # DD-21: a clean Windows 10 without the VC++ redistributable starts the app.
+        for name, folder, arch, pack in (("build-windows", "./rustdesk", "x64", "- name: Portable exe and checksums"),
+                                         ("build-windows-x86", "./Release", "x86", "- name: Portable exe and checksum\n")):
+            text = whole_job(BUILD, name)
+            line = f"run: python dolphin/vcruntime.py bundle {folder} --arch {arch}"
+            self.assertEqual(text.count(line), 1, name)
+            step = text.index("- name: VC++ runtime next to the app (DD-21)")
+            self.assertLess(text.index("- name: Build"), step)
+            self.assertLess(step, text.index(pack), "the packer must take the copied DLLs along")
+            self.assertNotIn("continue-on-error", text[step:text.index(pack)])
+        # upstream's static runtime, which keeps the list short, must stay
+        cmake = (ROOT / "flutter" / "windows" / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn('string(REPLACE "/MD" "/MT"', cmake)
+        cargo = (ROOT / ".cargo" / "config.toml").read_text(encoding="utf-8")
+        self.assertEqual(cargo.count("crt-static"), 3)
 
 
 class CheckWiringTest(unittest.TestCase):
