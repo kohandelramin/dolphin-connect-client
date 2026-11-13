@@ -37,10 +37,17 @@ bool? dolphinPeerInstalled(FFI ffi) {
   return v is bool ? v : null;
 }
 
+/// T7: the PC's name for «در انتظار تصویر از …»: the hostname the PC reported, else its ID.
+String dolphinPeerName(FFI ffi) {
+  final host = ffi.ffiModel.pi.hostname.trim();
+  return host.isNotEmpty ? host : ffi.id;
+}
+
 /// DD-16, hooked into upstream's «وصل شد؛ در انتظار تصویر…» dialog (`showConnectedWaitingForImage`, models/model.dart):
 /// upstream's text and «قطع» first, the lock-screen help after a few seconds without a picture.
 Widget dolphinWaitingForPicture(FFI? ffi, Widget upstream, VoidCallback onClose) => DolphinWaitingForPicture(
       waiting: upstream,
+      peer: ffi == null ? '' : dolphinPeerName(ffi),
       canCtrlAltDel: ffi != null && dolphinCanCtrlAltDel(ffi),
       installed: ffi == null ? null : dolphinPeerInstalled(ffi),
       onCtrlAltDel: ffi == null ? null : () => bind.sessionCtrlAltDel(sessionId: ffi.sessionId),

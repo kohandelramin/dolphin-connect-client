@@ -5,7 +5,7 @@ import 'cache.dart';
 /// Plan 19: what the technician does to a PC from the native app. «اتصال» first opens the call on the portal (POST
 /// /calls: the same checks, authorization and audit as the web's «اتصال»), then opens the remote session to the PC's
 /// Dolphin Connect ID exactly as the app does today for the panel's `dolphin-connect` message
-/// (technician_home.dart → common.dart `connect(context, id, password: code)`), through [SessionLauncher]. Nothing here
+/// (the old technician_home.dart → common.dart `connect(context, id, password: code)`), through [SessionLauncher]. Nothing here
 /// changes how a session connects (routing, codecs, transport).
 
 /// Opens remote sessions and reads the app's own state. The app's implementation is `launcher.dart`

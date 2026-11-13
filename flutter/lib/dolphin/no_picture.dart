@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'tech_theme.dart';
+import 'theme_tokens.dart';
 
 /// DD-16: when the technician sees no picture (the customer's PC is locked, on the Windows sign-in screen, or its screen
 /// is off), a Persian prompt says what is likely going on and offers Ctrl+Alt+Del, waiting, and «قطع».
@@ -25,6 +26,95 @@ const kNoPictureNotInstalled = 'دلفین کانکت روی رایانه‌ی �
 const kNoPictureSendCad = 'فرستادن Ctrl+Alt+Del';
 const kNoPictureWait = 'صبر می‌کنم';
 const kNoPictureDisconnect = 'قطع';
+
+// Plan 19 (T7): the connection's stages have names, so the technician knows what the window waits for.
+const kStageSecure = 'آماده‌سازی اتصال امن';
+String stageWaiting(String peer) => peer.trim().isEmpty ? 'در انتظار تصویر' : 'در انتظار تصویر از ${peer.trim()}';
+
+/// After this long without a picture the window says to check both sides' internet (T7).
+const kDolphinSlowPictureAfter = Duration(seconds: 60);
+const kSlowPictureText = 'تا ۶۰ ثانیه تصویری نیامد: اینترنت هر دو طرف را بررسی کنید.';
+const kSlowKeepWaiting = 'ادامه‌ی انتظار';
+const kSlowSendCad = 'ارسال Ctrl+Alt+Del';
+
+/// T7: «✓ آماده‌سازی اتصال امن» (done once the window waits for the picture) and «● در انتظار تصویر از …».
+class DolphinConnectStages extends StatelessWidget {
+  final String peer;
+  const DolphinConnectStages({super.key, this.peer = ''});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = DolphinTechPalette.ofContext(context);
+    Widget chip(String text, {required bool done}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(color: done ? p.fill : p.accentSoft, borderRadius: BorderRadius.circular(99)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(done ? Icons.check : Icons.circle, size: done ? 14 : 8, color: done ? Colors.white : p.accent),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(text,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: done ? Colors.white : p.accent)),
+            ),
+          ]),
+        );
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Wrap(
+        key: const ValueKey('dolphin-connect-stages'),
+        spacing: 6,
+        runSpacing: 6,
+        children: [chip(kStageSecure, done: true), chip(stageWaiting(peer), done: false)],
+      ),
+    );
+  }
+}
+
+/// T7 after [kDolphinSlowPictureAfter]: the stages, the network line and «ادامه‌ی انتظار» / «ارسال Ctrl+Alt+Del» / «قطع».
+class DolphinSlowPicture extends StatelessWidget {
+  final String peer;
+  final bool canCtrlAltDel;
+  final VoidCallback? onCtrlAltDel;
+  final VoidCallback onKeepWaiting;
+  final VoidCallback onDisconnect;
+  const DolphinSlowPicture(
+      {super.key,
+      this.peer = '',
+      required this.canCtrlAltDel,
+      this.onCtrlAltDel,
+      required this.onKeepWaiting,
+      required this.onDisconnect});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = DolphinTechPalette.ofContext(context);
+    final cad = canCtrlAltDel && onCtrlAltDel != null;
+    return DolphinTechTheme(
+      paint: false,
+      child: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Column(
+            key: const ValueKey('dolphin-slow-picture'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              DolphinConnectStages(peer: peer),
+              const SizedBox(height: 12),
+              Text(kSlowPictureText, textAlign: TextAlign.center, style: TextStyle(color: p.ink, height: 1.7)),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+                OutlinedButton(onPressed: onKeepWaiting, child: const Text(kSlowKeepWaiting)),
+                if (cad) OutlinedButton(onPressed: onCtrlAltDel, child: const Text(kSlowSendCad)),
+                FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: DolphinTheme.of(p.brightness).dangerFill),
+                    onPressed: onDisconnect,
+                    child: const Text(kNoPictureDisconnect)),
+              ]),
+            ]),
+      ),
+    );
+  }
+}
 
 /// The help's lines. [canCtrlAltDel]: the technician may send it (keyboard allowed, not view-only, and the customer's
 /// PC can take it: upstream's `sasEnabled`, which needs the installed service). [installed]: upstream's
@@ -92,6 +182,10 @@ class DolphinNoPictureHelp extends StatelessWidget {
 class DolphinWaitingForPicture extends StatefulWidget {
   final Widget waiting;
   final Duration after;
+
+  /// T7: the PC's name for «در انتظار تصویر از …», and when to show the network line.
+  final String peer;
+  final Duration slowAfter;
   final bool canCtrlAltDel;
   final bool? installed;
   final VoidCallback? onCtrlAltDel;
@@ -100,6 +194,8 @@ class DolphinWaitingForPicture extends StatefulWidget {
       {super.key,
       required this.waiting,
       this.after = kDolphinNoPictureAfter,
+      this.peer = '',
+      this.slowAfter = kDolphinSlowPictureAfter,
       required this.canCtrlAltDel,
       this.installed,
       this.onCtrlAltDel,
@@ -111,7 +207,9 @@ class DolphinWaitingForPicture extends StatefulWidget {
 
 class _DolphinWaitingForPictureState extends State<DolphinWaitingForPicture> {
   Timer? _timer;
+  Timer? _slowTimer;
   bool _help = false;
+  bool _slow = false;
 
   void _wait() {
     _timer?.cancel();
@@ -121,30 +219,55 @@ class _DolphinWaitingForPictureState extends State<DolphinWaitingForPicture> {
     });
   }
 
+  /// T7 «ادامه‌ی انتظار»: back to the plain wait; the network line again after another slowAfter.
+  void _keepWaiting() {
+    _slowTimer?.cancel();
+    if (_slow) setState(() => _slow = false);
+    _slowTimer = Timer(widget.slowAfter, () {
+      if (mounted) setState(() => _slow = true);
+    });
+    _wait();
+  }
+
   @override
   void initState() {
     super.initState();
-    _wait();
+    _keepWaiting();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _slowTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_help) {
-      return DolphinNoPictureHelp(
+    if (_slow) {
+      return DolphinSlowPicture(
+          peer: widget.peer,
           canCtrlAltDel: widget.canCtrlAltDel,
-          installed: widget.installed,
           onCtrlAltDel: widget.onCtrlAltDel,
-          onWait: _wait,
+          onKeepWaiting: _keepWaiting,
           onDisconnect: widget.onDisconnect);
+    }
+    if (_help) {
+      return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        DolphinTechTheme(paint: false, child: DolphinConnectStages(peer: widget.peer)),
+        const SizedBox(height: 12),
+        DolphinNoPictureHelp(
+            canCtrlAltDel: widget.canCtrlAltDel,
+            installed: widget.installed,
+            onCtrlAltDel: widget.onCtrlAltDel,
+            onWait: _wait,
+            onDisconnect: widget.onDisconnect),
+      ]);
     }
     final p = DolphinTechPalette.ofContext(context);
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      DolphinTechTheme(paint: false, child: DolphinConnectStages(peer: widget.peer)),
+      const SizedBox(height: 12),
       widget.waiting,
       const SizedBox(height: 12),
       Align(

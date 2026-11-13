@@ -25,7 +25,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 import '../widgets/button.dart';
 import '../../dolphin/home.dart'; // Dolphin Connect: customer main window
-import '../../dolphin/technician_home.dart'; // Dolphin Connect: technician app with the staff panel
+import '../../dolphin/tech_ui/technician_app.dart'; // Dolphin Connect: the native technician app (Plan 19)
 
 class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({Key? key}) : super(key: key);
@@ -63,8 +63,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final isIncomingOnly = bind.isIncomingOnly();
     // Dolphin Connect: the customer build shows our own main window.
     if (isIncomingOnly) return _buildBlock(child: const DolphinHome());
-    // Dolphin Connect: the technician build shows the staff panel and connects from it.
-    if (bind.isOutgoingOnly()) return _buildBlock(child: const DolphinTechnicianHome());
+    // Dolphin Connect (Plan 19): the technician build shows its native window (tech_ui/technician_app.dart).
+    if (bind.isOutgoingOnly()) return _buildBlock(child: const DolphinTechnicianApp());
     return _buildBlock(
         child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,

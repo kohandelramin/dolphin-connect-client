@@ -11,7 +11,7 @@ import 'state.dart' show Prefs;
 /// so everything else stays unit-testable). Not covered by unit tests: it needs the running app.
 
 /// Opens remote sessions exactly as the technician app does today for the panel's `dolphin-connect` message
-/// (technician_home.dart: `connect(context, id, password: code)`), so connections, routing and codecs are unchanged.
+/// (as the old technician_home.dart did: `connect(context, id, password: code)`), so connections, routing and codecs are unchanged.
 class RustdeskSessionLauncher implements SessionLauncher {
   /// The context `connect` is given (on desktop it is only used off the main window); the navigator's by default.
   final BuildContext? Function() context;

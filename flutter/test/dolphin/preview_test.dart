@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hbb/dolphin/about.dart';
-import 'package:flutter_hbb/dolphin/call_status.dart';
 import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
@@ -21,7 +20,7 @@ import 'package:flutter_hbb/dolphin/session_toolbar.dart';
 import 'package:flutter_hbb/dolphin/side_pane.dart';
 import 'package:flutter_hbb/dolphin/signin_expired.dart';
 import 'package:flutter_hbb/dolphin/tech_theme.dart';
-import 'package:flutter_hbb/dolphin/technician_header.dart';
+import 'package:flutter_hbb/dolphin/tech_ui/header.dart';
 import 'package:flutter_hbb/dolphin/first_run_view.dart';
 import 'package:flutter_hbb/dolphin/home_view.dart';
 import 'package:flutter_hbb/dolphin/network_status.dart';
@@ -157,15 +156,19 @@ void main() {
       await _shot(tester, '22-no-picture-$tag', const Size(440, 300),
           Center(child: DolphinNoPictureHelp(canCtrlAltDel: true, installed: true, onCtrlAltDel: noop, onWait: noop, onDisconnect: noop)),
           theme: theme);
-      // The technician window's top row with the app's own name (owner 2026-11-13).
-      final manual = TextEditingController();
-      final call = DolphinCallWait(const Duration(seconds: 8));
-      await _shot(tester, '28-tech-header-$tag', const Size(1000, 64), DolphinTechnicianHeader(
-          myId: '287654321', manual: manual, call: call, onConnect: noop, themeMode: ThemeMode.system, onThemeMode: (_) {}),
+      // The technician window's top row with the app's own name (owner 2026-11-13); Plan 19's native header.
+      final search = TextEditingController();
+      final idField = TextEditingController();
+      final focus = FocusNode();
+      await _shot(tester, '28-tech-header-$tag', const Size(1120, 56), TechHeader(
+          myId: '287654321', staffName: 'علی رضایی', search: search, searchFocus: focus, onSearch: (_) {}, idField: idField,
+          onConnect: noop, onDemo: noop, unread: 2, onBell: noop, themeMode: ThemeMode.system, onThemeMode: (_) {},
+          onSettings: noop, onCopyId: noop, onSignOut: noop),
           theme: theme);
       await tester.pumpWidget(const SizedBox());
-      call.dispose();
-      manual.dispose();
+      search.dispose();
+      idField.dispose();
+      focus.dispose();
     }
     final t = DateTime(2026, 11, 13, 10, 30);
     await _shot(tester, '23-chat', const Size(360, 320), DolphinChatFrame(empty: false, child: ListView(padding: const EdgeInsets.all(8), children: [

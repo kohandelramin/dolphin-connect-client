@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/dolphin/about.dart';
 import 'package:flutter_hbb/dolphin/brand.dart';
-import 'package:flutter_hbb/dolphin/call_status.dart';
 import 'package:flutter_hbb/dolphin/digits.dart';
-import 'package:flutter_hbb/dolphin/technician_header.dart';
+import 'package:flutter_hbb/dolphin/tech_ui/header.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'contrast.dart';
@@ -22,12 +21,27 @@ void main() {
     tester.view.physicalSize = const Size(2400, 600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final manual = TextEditingController();
-    final call = DolphinCallWait(const Duration(seconds: 8));
-    addTearDown(call.dispose);
-    addTearDown(manual.dispose);
-    await tester.pumpWidget(lightApp(
-        DolphinTechnicianHeader(myId: '287654321', manual: manual, call: call, onConnect: () {})));
+    final search = TextEditingController();
+    final idField = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(search.dispose);
+    addTearDown(idField.dispose);
+    addTearDown(focus.dispose);
+    await tester.pumpWidget(lightApp(TechHeader(
+        myId: '287654321',
+        staffName: 'علی رضایی',
+        search: search,
+        searchFocus: focus,
+        onSearch: (_) {},
+        idField: idField,
+        onConnect: () {},
+        onDemo: () {},
+        onBell: () {},
+        themeMode: ThemeMode.light,
+        onThemeMode: (_) {},
+        onSettings: () {},
+        onCopyId: () {},
+        onSignOut: () {})));
     expect(find.text('دلفین کانکت کارشناس'), findsOneWidget);
     expect(find.text('کارشناس'), findsNothing);
     expect(find.text('دلفین کانکت'), findsNothing);

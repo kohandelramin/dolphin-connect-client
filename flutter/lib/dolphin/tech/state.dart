@@ -500,9 +500,11 @@ class PcCardController extends ChangeNotifier {
 class RequestsController extends ChangeNotifier {
   final TechRepository repo;
   final ConnectionController connection;
-  RequestsController(this.repo, this.connection);
 
-  RequestScope _scope = RequestScope.queue;
+  /// [scope]: the tab shown first (the queue; «تماس‌های من» starts on mine).
+  RequestsController(this.repo, this.connection, {RequestScope scope = RequestScope.queue}) : _scope = scope;
+
+  RequestScope _scope;
   List<RequestRow> _rows = const [];
   String? _next;
   int _queueCount = 0;
