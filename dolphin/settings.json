@@ -19,7 +19,8 @@
     "allow-auto-disconnect": "N",
     "enable-lan-discovery": "N",
     "allow-auto-update": "N",
-    "enable-record-session": "N"
+    "enable-record-session": "N",
+    "enable-block-input": "N"
   },
   "default": {
     "approve-mode": "password"
