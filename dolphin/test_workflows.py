@@ -332,6 +332,7 @@ class SystemWiringTest(unittest.TestCase):
     def test_the_cm_opens_and_guards_the_receive_folder(self):
         cm = self.read("src", "ui_cm_interface.rs")
         self.assertIn("crate::dolphin_system::cm_home().await", cm)
+        self.assertIn("dolphin_read_dir_home().await", cm.split("async fn read_dir(", 1)[1][:300])
         handle = cm.split("async fn handle_fs(", 1)[1]
         self.assertLess(handle.index("crate::dolphin_system::cm_refused_write(&fs).await"), handle.index("match fs {"))
 

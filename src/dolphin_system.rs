@@ -142,8 +142,8 @@ pub async fn cm_refused_write(fs: &crate::ipc::FS) -> Option<(i32, i32)> {
     let (path, id, file_num, names): (&str, i32, i32, Vec<&str>) = match fs {
         FS::NewWrite {
             path, id, file_num, files, ..
-        } => (path, *id, *file_num, files.iter().map(|(n, _)| n.as_str()).collect()),
-        FS::CreateDir { path, id } => (path, *id, 0, vec![]),
+        } => (path.as_str(), *id, *file_num, files.iter().map(|(n, _)| n.as_str()).collect()),
+        FS::CreateDir { path, id } => (path.as_str(), *id, 0, vec![]),
         _ => return None,
     };
     let mode = switch(&cm_switches().await, rules::SWITCH_RECEIVE_FOLDER);

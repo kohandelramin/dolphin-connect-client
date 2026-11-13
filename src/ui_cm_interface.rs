@@ -1609,17 +1609,22 @@ async fn read_empty_dirs(dir: &str, include_hidden: bool, tx: &UnboundedSender<D
     }
 }
 
+// Dolphin Connect (DD-12): the technician's first folder (and the file manager's "home") is «دریافتی دلفین».
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+async fn dolphin_read_dir_home() -> std::path::PathBuf {
+    crate::dolphin_system::cm_home().await
+}
+
+#[cfg(target_os = "android")]
+async fn dolphin_read_dir_home() -> std::path::PathBuf {
+    Config::get_home()
+}
+
 #[cfg(not(any(target_os = "ios")))]
 async fn read_dir(dir: &str, include_hidden: bool, tx: &UnboundedSender<Data>) {
     let path = {
         if dir.is_empty() {
-            // Dolphin Connect (DD-12): the technician's first folder (and the file manager's "home") is «دریافتی دلفین».
-            #[cfg(not(target_os = "android"))]
-            {
-                crate::dolphin_system::cm_home().await
-            }
-            #[cfg(target_os = "android")]
-            Config::get_home()
+            dolphin_read_dir_home().await
         } else {
             fs::get_path(dir)
         }
