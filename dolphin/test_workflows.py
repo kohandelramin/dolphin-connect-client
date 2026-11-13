@@ -935,10 +935,12 @@ class WebSocketFallbackWiringTest(unittest.TestCase):
         self.assertTrue(profile["api-server"].startswith("https://"))
 
     def test_no_insecure_tls_fallback_is_turned_on(self):
-        # upstream accepts an invalid certificate on WebSocket only with this option; the apps never set it
-        settings = self.read("dolphin", "settings.json")
-        self.assertNotIn("allow-insecure-tls-fallback", settings)
-        self.assertNotIn("allow-websocket", settings)
+        # upstream accepts an invalid certificate on WebSocket only with this option; the build locks it off ("N",
+        # RustDesk options review 2026-11-14), and allow-websocket stays unset (DD-42 switches it on in memory only)
+        import json
+        override = json.loads(self.read("dolphin", "settings.json"))["override"]
+        self.assertEqual(override.get("allow-insecure-tls-fallback"), "N")
+        self.assertNotIn("allow-websocket", self.read("dolphin", "settings.json"))
 
 
 class SoundWiringTest(unittest.TestCase):

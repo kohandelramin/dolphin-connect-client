@@ -20,7 +20,11 @@
     "enable-lan-discovery": "N",
     "allow-auto-update": "N",
     "enable-record-session": "N",
-    "enable-block-input": "N"
+    "enable-block-input": "N",
+    "enable-camera": "N",
+    "enable-privacy-mode": "N",
+    "allow-remote-cm-modification": "N",
+    "allow-insecure-tls-fallback": "N"
   },
   "default": {
     "approve-mode": "password"
