@@ -788,5 +788,78 @@ class IdentityWiringTest(unittest.TestCase):
         self.assertIn("finish_non_exhaustive()", self.read("src", "dolphin_identity_core.rs"))
 
 
+# The portal's FEATURE_SWITCHES (app/src/lib/switches.ts in the portal repo, DD-4): key -> (which app, default). Keep in
+# step with the portal: a new key there needs a line here, its default in both apps, and a reader or a reason below.
+PORTAL_SWITCHES = {
+    "direct-route": ("both", "forced"),
+    "share-toggle": ("customer", "available"),
+    "stay-in-tray": ("customer", "available"),
+    "receive-folder": ("both", "available"),
+    "diagnostics-upload": ("customer", "available"),
+    "remote-printer": ("both", "hidden"),
+    "wake-on-lan": ("both", "hidden"),
+    "safe-mode": ("technician", "hidden"),
+}
+# Keys with no reader in the customer app yet, and why.
+SWITCHES_NOT_READ = {
+    "direct-route": "DD-1, Plan 18 Phase 6: changes the network route (speed), built only after the owner's numbers",
+    "wake-on-lan": "DD-10, built on its own branch",
+    "safe-mode": "DD-11, built on its own branch",
+}
+
+
+class FeatureSwitchesTest(unittest.TestCase):
+    """Plan 18 Phase 5 (DD-4): every switch the portal pushes is known to the apps, with the portal's default, and read
+    by the customer app where it applies. The technician app never runs the heartbeat (upstream's start_all stops an
+    outgoing-only app before hbbs_http::sync::start), so it has no pushed switches and uses these defaults."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def dart_defaults(self):
+        dart = self.read("flutter", "lib", "dolphin", "switches.dart")
+        names = dict(re.findall(r"static const (\w+) = '([^']+)';", dart))
+        table = dart.split("const Map<String, SwitchMode> kSwitchDefaults = {", 1)[1].split("};", 1)[0]
+        return {names[n]: mode for n, mode in re.findall(r"DolphinSwitch\.(\w+): SwitchMode\.(\w+),", table)}
+
+    def test_the_dart_defaults_are_the_portal_defaults(self):
+        self.assertEqual(self.dart_defaults(), {k: d for k, (_, d) in PORTAL_SWITCHES.items()})
+
+    def test_the_rust_defaults_are_the_portal_defaults(self):
+        core = self.read("src", "dolphin_system_core.rs")
+        consts = dict(re.findall(r'pub const (SWITCH_\w+): &str = "([^"]+)";', core))
+        body = core.split("pub fn switch_default(key: &str) -> SwitchMode {", 1)[1].split("\n}\n", 1)[0]
+        arms = {}
+        for pattern, mode in re.findall(r"\n        ([^\n]+?) => (?:\{\s*)?SwitchMode::(\w+)", body):
+            for name in pattern.split("|"):
+                name = name.strip()
+                if name != "_":
+                    arms[consts.get(name, name.strip('"'))] = mode.lower()
+        self.assertIn("_ => SwitchMode::Hidden,", body)
+        expected = {k: d for k, (_, d) in PORTAL_SWITCHES.items() if d != "hidden"}
+        self.assertEqual(arms, expected)
+
+    def test_each_customer_switch_has_a_reader(self):
+        readers = {
+            "share-toggle": [("flutter/lib/dolphin/share.dart", "mode(DolphinSwitch.shareToggle)"),
+                             ("src/dolphin_system.rs", "rules::SWITCH_SHARE_TOGGLE")],
+            "stay-in-tray": [("flutter/lib/dolphin/presence.dart", "mode(DolphinSwitch.stayInTray)")],
+            "receive-folder": [("src/dolphin_system.rs", "rules::SWITCH_RECEIVE_FOLDER")],
+            "diagnostics-upload": [("flutter/lib/dolphin/home.dart", "mode(DolphinSwitch.diagnosticsUpload)")],
+            "remote-printer": [("src/server/connection.rs", "crate::dolphin_system_core::SWITCH_REMOTE_PRINTER"),
+                               ("flutter/lib/dolphin/printer_hooks.dart", "mode(DolphinSwitch.remotePrinter)")],
+        }
+        customer = {k for k, (side, _) in PORTAL_SWITCHES.items() if side in ("customer", "both")}
+        self.assertEqual(set(readers) | (customer & set(SWITCHES_NOT_READ)), customer)
+        for key, places in readers.items():
+            for path, snippet in places:
+                self.assertIn(snippet, self.read(*path.split("/")), key)
+
+    def test_the_technician_app_has_no_heartbeat_so_it_keeps_the_defaults(self):
+        rv = self.read("src", "rendezvous_mediator.rs")
+        start = rv.split("pub async fn start_all() {", 1)[1]
+        self.assertLess(start.index("if config::is_outgoing_only() {"), start.index("crate::hbbs_http::sync::start();"))
+
+
 if __name__ == "__main__":
     unittest.main()
