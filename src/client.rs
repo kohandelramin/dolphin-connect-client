@@ -378,7 +378,15 @@ impl Client {
         debug_assert!(peer == interface.get_id());
         interface.update_direct(None);
         interface.update_received(false);
-        match Self::_start(peer, key, token, conn_type, interface.clone()).await {
+        let started = crate::dolphin_ws::before_connect();
+        let mut res = Self::_start(peer, key, token, conn_type, interface.clone()).await;
+        // Dolphin Connect (DD-42): hbbs was not reachable on its normal port; once more over WebSocket on 443, relayed
+        // as upstream relays every WebSocket session (src/dolphin_ws.rs). A working connection never comes here.
+        if res.is_err() && crate::dolphin_ws::retry_over_ws(started) {
+            interface.get_lch().write().unwrap().force_relay = true;
+            res = Self::_start(peer, key, token, conn_type, interface.clone()).await;
+        }
+        match res {
             Err(err) => {
                 let err_str = err.to_string();
                 if err_str.starts_with("Failed") {
@@ -830,6 +838,7 @@ impl Client {
             crate::refresh_rendezvous_server();
         }
         log::info!("rendezvous server: {}", rendezvous_server);
+        crate::dolphin_ws::note_connect(&socket); // Dolphin Connect (DD-42)
         let mut socket = socket?;
         let mut my_addr = socket.local_addr();
         let mut signed_id_pk = Vec::new();

@@ -75,6 +75,8 @@ jobs:
           "$RUNNER_TEMP/safe_mode_core"
           rustc --edition 2021 --test src/dolphin_wake_core.rs -o "$RUNNER_TEMP/wake_core"
           "$RUNNER_TEMP/wake_core"
+          rustc --edition 2021 --test src/dolphin_ws_core.rs -o "$RUNNER_TEMP/ws_core"
+          "$RUNNER_TEMP/ws_core"
 
   generate-bridge:
     if: ${{ !inputs.fast-only }}

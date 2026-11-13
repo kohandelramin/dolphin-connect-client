@@ -292,6 +292,9 @@ impl RendezvousMediator {
         tokio::spawn(async move {
             direct_server(server_cloned).await;
         });
+        // Dolphin Connect (DD-42): under the WebSocket fallback, returns to the normal ports when they answer again.
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::dolphin_ws::start_return_watch();
         #[cfg(target_os = "android")]
         let start_lan_listening = true;
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -319,6 +322,8 @@ impl RendezvousMediator {
                     let timeout = timeout.clone();
                     futs.push(tokio::spawn(async move {
                         if let Err(err) = Self::start(server, host).await {
+                            // Dolphin Connect (DD-42): under the WebSocket fallback, the next try uses the normal ports.
+                            crate::dolphin_ws::mediator_failed();
                             let err = format!("rendezvous mediator error: {err}");
                             // When user reboot, there might be below error, waiting too long
                             // (CONNECT_TIMEOUT 18s) will make user think there is bug
@@ -457,6 +462,12 @@ impl RendezvousMediator {
                     if timeout || (last_register_sent.is_none() && expired) {
                         if timeout {
                             fails += 1;
+                            // Dolphin Connect (DD-42): hbbs does not answer on UDP 21116; register over WebSocket on
+                            // 443 instead (src/dolphin_ws.rs). Only while the normal port fails.
+                            if crate::dolphin_ws::udp_timed_out(fails, &rz.host) {
+                                Self::restart();
+                                break;
+                            }
                             if fails >= MAX_FAILS2 {
                                 Config::update_latency(&host, -1);
                                 old_latency = 0;

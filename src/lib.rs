@@ -49,6 +49,9 @@ mod dolphin_safe_mode_core;
 mod dolphin_safe_mode;
 mod dolphin_wake_core;
 mod dolphin_wake;
+// Dolphin Connect, Plan 18 Phase 6: DD-42 WebSocket over 443, only when the normal ports fail.
+mod dolphin_ws_core;
+mod dolphin_ws;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

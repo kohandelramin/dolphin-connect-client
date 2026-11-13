@@ -914,7 +914,8 @@ async fn handle(data: Data, stream: &mut Connection) {
                     stream
                         .send(&Data::SocksWs(Some(Box::new((
                             Config::get_socks(),
-                            Config::get_option(OPTION_ALLOW_WEBSOCKET)
+                            // Dolphin Connect (DD-42): never the in-memory fallback (src/dolphin_ws.rs)
+                            crate::dolphin_ws::told_option()
                         )))))
                         .await
                 );
@@ -1027,7 +1028,8 @@ async fn handle(data: Data, stream: &mut Connection) {
         },
         Data::Options(value) => match value {
             None => {
-                let v = Config::get_options();
+                let mut v = Config::get_options();
+                crate::dolphin_ws::hide_from_ipc(&mut v); // Dolphin Connect (DD-42): the fallback stays in this process
                 allow_err!(stream.send(&Data::Options(Some(v))).await);
             }
             Some(mut value) => {
