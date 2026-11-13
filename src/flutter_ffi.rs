@@ -2688,6 +2688,11 @@ pub fn main_get_common(key: String) -> String {
     if key == "dolphin-callback-state" {
         return crate::dolphin_callback::state();
     }
+    // Dolphin Connect (DD-12): where received files land, "" when the portal's switch hides the folder.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    if key == "dolphin-receive-dir" {
+        return crate::dolphin_system::receive_dir_for_ui();
+    }
     if key == "is-printer-installed" {
         #[cfg(target_os = "windows")]
         {
@@ -2800,6 +2805,12 @@ pub fn main_set_common(_key: String, _value: String) {
     }
     if _key == "dolphin-callback-send" {
         crate::dolphin_callback::start(_value);
+        return;
+    }
+    // Dolphin Connect (DD-35, ADR-0016): the window hides into the tray; make sure there is one (a portable app).
+    #[cfg(target_os = "windows")]
+    if _key == "dolphin-tray-start" {
+        crate::dolphin_system::start_tray();
         return;
     }
     #[cfg(target_os = "windows")]

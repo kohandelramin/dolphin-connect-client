@@ -58,6 +58,12 @@ fn make_tray() -> hbb_common::ResultType<()> {
         let rgba = image.into_raw();
         (rgba, width, height)
     };
+    // Dolphin Connect (DD-35, DD-47, ADR-0016): the customer app's own tray, coloured by state, with «باز کردن» and
+    // «بستن کامل» (src/dolphin_system.rs).
+    #[cfg(all(windows, feature = "flutter"))]
+    if hbb_common::config::is_incoming_only() {
+        return crate::dolphin_system::run_customer_tray(icon_rgba, icon_width, icon_height);
+    }
     let icon = tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height)
         .context("Failed to open icon")?;
 
