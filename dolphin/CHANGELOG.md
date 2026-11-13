@@ -400,6 +400,34 @@ was set on this machine. No change to codecs, quality, relay or punch timing, or
 **یادداشت فارسی:** اگر هنگام پشتیبانی VPN روشن یا خاموش شود، دلفین کانکت ارتباطش با سرور دلفین را از کارت شبکه‌ی
 اصلی رایانه نگه می‌دارد و بی‌درنگ دوباره ثبت می‌شود؛ اگر اتصال کارشناس قطع شده باشد، بی‌معطلی دوباره وصل می‌شود.
 
+### Plan 18 Phase 6: WebSocket over 443 when the normal ports fail, the customer's sound (DD-42, DD-31)
+
+`cargo check --features flutter` (no new warnings), the std-only Rust tests (`dolphin_ws_core`, `dolphin_system_core`),
+the Python tests, the Dart analysis and the widget tests ran. Nothing on real PCs or a blocking network is checked yet,
+and the server route is not there yet (portal repo `infra/rustdesk/WEBSOCKET.md`, applied by the owner).
+
+- DD-42 (all three apps): upstream's own WebSocket transport (`allow-websocket`, `wss://remote.dolphindev.ir/ws/id`
+  and `/ws/relay` on 443, always relayed), switched on in memory only and only when the normal ports fail. The
+  customer PC tries it after 4 UDP registrations without hbbs's answer (about 12 s) and goes back to the normal ports
+  when WebSocket fails too, or, while no session runs, when a TCP probe of port 21116 answers (first after 10 minutes,
+  doubling to 6 hours when the normal ports keep failing right after a return). The technician app retries a
+  connection once over WebSocket when it could not reach hbbs on its normal port (upstream's 18 s connect timeout,
+  unchanged); later connections start over WebSocket until a background probe of 21116 answers. Only a server name
+  with an https API server falls back (TLS on 443; upstream skips its key exchange with hbbs under WebSocket). The
+  option is never stored or told to another process (`src/ipc.rs`), and an admin's own `allow-websocket` wins. A
+  working connection is never moved; codecs, quality and relay timings are unchanged.
+- DD-31 (customer x64 and x86, technician x64): «صدای رایانه‌ی مشتری» on the technician's toolbar, off at the start of
+  every session (upstream started with the sound on). The portal's new switch `remote-sound` (default available) is
+  enforced by the customer PC: hidden sends no sound at all and tells the technician at login
+  (`dolphin_sound_offered`), whose button is then dimmed with the reason. Forced reads as available: sound never
+  starts by itself.
+- Portal change needed: `remote-sound` in `app/src/lib/switches.ts` (technician side, default available, `speed: true`);
+  the WebSocket route on the server (`infra/rustdesk/WEBSOCKET.md`).
+
+**یادداشت فارسی:** اگر شبکه‌ی مشتری یا کارشناس درگاه‌های معمول دلفین کانکت را ببندد، برنامه خودش از راه درگاه ۴۴۳
+وصل می‌شود و وقتی درگاه‌های معمول دوباره باز شوند به همان‌ها برمی‌گردد. صدای رایانه‌ی مشتری در هر جلسه خاموش است و
+کارشناس در صورت نیاز با یک دکمه روشنش می‌کند.
+
 ## 2.0.0-rc.5 — ۱۸ آبان ۱۴۰۵ (2026-11-09)
 
 All three apps (one release carries all three). Plan 14 B5/B6, TB-22 and the items below. Pinned by portal 2.3.0.

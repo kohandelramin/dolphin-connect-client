@@ -29,6 +29,7 @@ import 'package:flutter_hbb/dolphin/presence.dart';
 import 'package:flutter_hbb/dolphin/printer.dart';
 import 'package:flutter_hbb/dolphin/recent_sessions.dart';
 import 'package:flutter_hbb/dolphin/share.dart';
+import 'package:flutter_hbb/dolphin/sound.dart';
 import 'package:flutter_hbb/dolphin/switches.dart';
 import 'package:flutter_hbb/dolphin/tech_card.dart';
 import 'package:flutter_hbb/dolphin/theme.dart';
@@ -304,6 +305,24 @@ void main() {
         state: const DolphinBarState(latencyMs: 45, direct: true), onCtrlAltDel: noop, onLock: noop, onFiles: noop,
         onViewOnly: noop, onMyCursor: noop, onNoPicture: noop, onScreenshot: noop, onKeyboardLayout: noop,
         safeMode: DolphinRestartKind.normal, onSafeMode: (_) {}), theme: tech);
+    await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+  // Plan 18 Phase 6 (DD-31): «صدای رایانه‌ی مشتری» on the technician's toolbar.
+  testWidgets('write phase 6 previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    final tech = DolphinTechTheme.dataFor(Brightness.light);
+    for (final (name, sound) in [
+      ('70-toolbar-sound-off', DolphinSound.off),
+      ('71-toolbar-sound-on', DolphinSound.on),
+      ('72-sound-not-offered', DolphinSound.notOffered),
+    ]) {
+      await _shot(tester, name, const Size(1000, 64), DolphinSessionBar(
+          state: const DolphinBarState(latencyMs: 45, direct: true), onCtrlAltDel: noop, onLock: noop, onFiles: noop,
+          onViewOnly: noop, onMyCursor: noop, onNoPicture: noop, onScreenshot: noop, onKeyboardLayout: noop,
+          sound: sound, onSound: noop), theme: tech);
+    }
     await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }

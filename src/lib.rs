@@ -52,6 +52,9 @@ mod dolphin_wake;
 // Dolphin Connect, Plan 18 Phase 6: DD-1 network-change listener and the physical adapter.
 mod dolphin_net_core;
 mod dolphin_net;
+// Dolphin Connect, Plan 18 Phase 6: DD-42 WebSocket over 443, only when the normal ports fail.
+mod dolphin_ws_core;
+mod dolphin_ws;
 #[cfg(not(any(target_os = "ios")))]
 pub mod ipc;
 #[cfg(not(any(

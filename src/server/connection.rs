@@ -2108,6 +2108,14 @@ impl Connection {
                 crate::dolphin_safe_mode_core::PLATFORM_OFFERED.into(),
                 json!(crate::dolphin_safe_mode::offered()),
             );
+            // Dolphin Connect (DD-31): whether this PC sends its sound, so the technician's «صدای رایانه‌ی مشتری» is
+            // shown or disabled with the reason (flutter/lib/dolphin/sound.dart).
+            platform_additions.insert(
+                crate::dolphin_system_core::PLATFORM_SOUND_OFFERED.into(),
+                json!(crate::dolphin_system_core::sound_offered_by(&Config::get_option(
+                    crate::dolphin_system_core::SWITCHES_OPTION
+                ))),
+            );
             if crate::platform::is_installed() {
                 platform_additions.extend(virtual_display_manager::get_platform_additions());
             }
@@ -2482,7 +2490,13 @@ impl Connection {
     }
 
     fn audio_enabled(&self) -> bool {
-        self.audio && !self.disable_audio
+        // Dolphin Connect (DD-31): no sound leaves the PC while the portal's `remote-sound` switch is hidden; every
+        // subscription to the audio service goes through here (src/dolphin_system_core.rs sound_offered_by).
+        self.audio
+            && !self.disable_audio
+            && crate::dolphin_system_core::sound_offered_by(&Config::get_option(
+                crate::dolphin_system_core::SWITCHES_OPTION,
+            ))
     }
 
     #[cfg(any(target_os = "windows", feature = "unix-file-copy-paste"))]

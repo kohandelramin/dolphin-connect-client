@@ -1,4 +1,5 @@
 """Text checks on the Dolphin workflows: cheap guards for rules a YAML edit could silently drop (TB-1)."""
+import json
 import pathlib
 import re
 import unittest
@@ -155,7 +156,8 @@ class BuildWorkflowTest(unittest.TestCase):
                     "src/dolphin_identity_core.rs",
                     "src/dolphin_safe_mode_core.rs",
                     "src/dolphin_wake_core.rs",
-                    "src/dolphin_net_core.rs")
+                    "src/dolphin_net_core.rs",
+                    "src/dolphin_ws_core.rs")
         for path in std_only:
             self.assertIn(f"rustc --edition 2021 --test {path}", CHECK)
         # rust-unit tests exactly these: a new std-only file needs a line in the job and in this tuple
@@ -193,8 +195,8 @@ class CheckWiringTest(unittest.TestCase):
         self.assertIsNone(re.search(r"rustc[^\n]*;", step))
         for line in re.findall(r"^\s*rustc --edition [^\n]*$", step, re.M):
             self.assertRegex(line, r'-o "\$RUNNER_TEMP/\w+"$')
-        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 15)
-        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 15)
+        self.assertEqual(len(re.findall(r"^\s*rustc --edition ", step, re.M)), 16)
+        self.assertEqual(len(re.findall(r'^\s*"\$RUNNER_TEMP/', step, re.M)), 16)
 
     def test_the_code_stays_hidden_until_the_session_count_is_known(self):
         home = (ROOT / "flutter" / "lib" / "dolphin" / "home.dart").read_text(encoding="utf-8")
@@ -802,6 +804,9 @@ PORTAL_SWITCHES = {
     "remote-printer": ("both", "hidden"),
     "wake-on-lan": ("both", "hidden"),
     "safe-mode": ("technician", "hidden"),
+    # Plan 18 Phase 6 (DD-31): the portal adds this key with the apps that read it (filed under the technician, whose
+    # toolbar shows the button; enforced by the customer PC, as safe-mode).
+    "remote-sound": ("technician", "available"),
 }
 # Keys with no reader in the customer app yet, and why.
 SWITCHES_NOT_READ = {}
@@ -865,6 +870,113 @@ class FeatureSwitchesTest(unittest.TestCase):
         rv = self.read("src", "rendezvous_mediator.rs")
         start = rv.split("pub async fn start_all() {", 1)[1]
         self.assertLess(start.index("if config::is_outgoing_only() {"), start.index("crate::hbbs_http::sync::start();"))
+
+
+class WebSocketFallbackWiringTest(unittest.TestCase):
+    """Plan 18 Phase 6 (DD-42): WebSocket over 443 only when the normal ports fail; the hooks in upstream files,
+    proven by their text. libs/hbb_common stays upstream's: the fallback only switches upstream's own option in memory."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_core_is_a_module_and_tested_in_ci(self):
+        lib = self.read("src", "lib.rs")
+        self.assertIn("\nmod dolphin_ws_core;\nmod dolphin_ws;\n", lib)
+        self.assertIn("rustc --edition 2021 --test src/dolphin_ws_core.rs", CHECK)
+
+    def test_the_customer_pc_falls_back_only_after_lost_udp_registrations(self):
+        rv = self.read("src", "rendezvous_mediator.rs")
+        udp = rv.split("pub async fn start_udp(", 1)[1].split("pub async fn start_tcp(", 1)[0]
+        hook = udp.index("if crate::dolphin_ws::udp_timed_out(fails, &rz.host) {")
+        self.assertLess(udp.index("fails += 1;"), hook)
+        self.assertIn("Self::restart();\n                                break;", udp[hook:hook + 200])
+        # upstream picks TCP (over WebSocket) from its own option, unchanged
+        start = rv.split("pub async fn start(server: ServerPtr, host: String)", 1)[1][:600]
+        self.assertIn("|| use_ws()", start)
+
+    def test_a_websocket_failure_goes_back_to_the_normal_ports(self):
+        rv = self.read("src", "rendezvous_mediator.rs")
+        branch = rv.split("if let Err(err) = Self::start(server, host).await {", 1)[1][:400]
+        self.assertIn("crate::dolphin_ws::mediator_failed();", branch)
+        start_all = rv.split("pub async fn start_all() {", 1)[1].split("\n    }\n", 1)[0]
+        # the return watch starts after the outgoing-only (technician) app has stopped
+        self.assertLess(start_all.index("if config::is_outgoing_only() {"),
+                        start_all.index("crate::dolphin_ws::start_return_watch();"))
+
+    def test_the_technician_retries_once_over_websocket_only_when_hbbs_is_unreachable(self):
+        client = self.read("src", "client.rs")
+        start = client.split("    pub async fn start(\n", 1)[1].split("    async fn _start(\n", 1)[0]
+        self.assertEqual(start.count("Self::_start(peer, key, token, conn_type, interface.clone()).await"), 2)
+        retry = start.index("if res.is_err() && crate::dolphin_ws::retry_over_ws(started) {")
+        self.assertLess(start.index("let started = crate::dolphin_ws::before_connect();"), retry)
+        self.assertIn("interface.get_lch().write().unwrap().force_relay = true;", start[retry:retry + 200])
+        inner = client.split("    async fn _start_inner(\n", 1)[1]
+        self.assertLess(inner.index("crate::dolphin_ws::note_connect(&socket);"), inner.index("let mut socket = socket?;"))
+
+    def test_the_fallback_is_never_stored_or_told_to_another_process(self):
+        glue = self.read("src", "dolphin_ws.rs")
+        self.assertIn("DEFAULT_SETTINGS.write()", glue)
+        for stored in ("Config::set_option(", "Config::set_options(", "OVERWRITE_SETTINGS", "LocalConfig::set_option("):
+            self.assertNotIn(stored, glue)
+        ipc = self.read("src", "ipc.rs")
+        options = ipc.split("Data::Options(value) => match value {", 1)[1][:400]
+        self.assertIn("crate::dolphin_ws::hide_from_ipc(&mut v);", options)
+        self.assertLess(options.index("hide_from_ipc"), options.index("stream.send(&Data::Options(Some(v)))"))
+        socks = ipc.split("Data::SocksWs(s) => match s {", 1)[1][:600]
+        self.assertIn("crate::dolphin_ws::told_option()", socks)
+        self.assertNotIn("Config::get_option(OPTION_ALLOW_WEBSOCKET)", socks)
+
+    def test_only_a_server_name_over_https_falls_back(self):
+        core = self.read("src", "dolphin_ws_core.rs")
+        self.assertIn('pub const OPTION: &str = "allow-websocket";', core)
+        self.assertIn('api_server.starts_with("https://")', core)
+        profile = json.loads(self.read("dolphin", "profiles", "production.json"))
+        self.assertFalse(re.fullmatch(r"[0-9.]+(:\d+)?", profile["custom-rendezvous-server"]))
+        self.assertTrue(profile["api-server"].startswith("https://"))
+
+    def test_no_insecure_tls_fallback_is_turned_on(self):
+        # upstream accepts an invalid certificate on WebSocket only with this option; the apps never set it
+        settings = self.read("dolphin", "settings.json")
+        self.assertNotIn("allow-insecure-tls-fallback", settings)
+        self.assertNotIn("allow-websocket", settings)
+
+
+class SoundWiringTest(unittest.TestCase):
+    """Plan 18 Phase 6 (DD-31): «صدای رایانه‌ی مشتری», off at the start of every session, the organization's
+    `remote-sound` switch enforced on the customer PC."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_pc_sends_no_sound_while_the_switch_is_hidden(self):
+        conn = self.read("src", "server", "connection.rs")
+        gate = conn.split("fn audio_enabled(&self) -> bool {", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("crate::dolphin_system_core::sound_offered_by(", gate)
+        self.assertIn("crate::dolphin_system_core::SWITCHES_OPTION", gate)
+        # every subscription to the audio service asks audio_enabled(), at login and on each change
+        subs = conn.split("fn try_sub_monitor_services(&mut self)", 1)[1].split("s.add_monitor_connection(", 1)[0]
+        self.assertIn("if !self.audio_enabled() {\n                    noperms.push(super::audio_service::NAME);", subs)
+
+    def test_the_customer_pc_tells_the_technician_at_login(self):
+        conn = self.read("src", "server", "connection.rs")
+        self.assertIn("crate::dolphin_system_core::PLATFORM_SOUND_OFFERED.into(),", conn)
+        core = self.read("src", "dolphin_system_core.rs")
+        self.assertIn('pub const PLATFORM_SOUND_OFFERED: &str = "dolphin_sound_offered";', core)
+        self.assertIn('pub const SWITCH_REMOTE_SOUND: &str = "remote-sound";', core)
+        self.assertIn("const kDolphinSoundOffered = 'dolphin_sound_offered';", self.read("flutter", "lib", "dolphin", "sound.dart"))
+
+    def test_every_session_starts_with_the_sound_off(self):
+        client = self.read("src", "client.rs")
+        init = client.split("    pub fn initialize(\n", 1)[1].split("\n    }\n", 1)[0]
+        hook = init.index("crate::dolphin_system_core::session_starts_muted(conn_type == ConnType::DEFAULT_CONN)")
+        self.assertLess(init.index("self.config = config;"), hook)
+        self.assertIn("self.config.disable_audio.v = true;", init[hook:hook + 200])
+
+    def test_the_toolbar_button_toggles_upstreams_session_option(self):
+        hook = self.read("flutter", "lib", "dolphin", "session_toolbar_hook.dart")
+        self.assertIn("sound: _sound,", hook)
+        self.assertIn("bind.sessionToggleOption(sessionId: ffi.sessionId, value: kDolphinSoundToggle)", hook)
+        self.assertIn("const kDolphinSoundToggle = 'disable-audio';", self.read("flutter", "lib", "dolphin", "sound.dart"))
 
 
 class SafeModeWiringTest(unittest.TestCase):

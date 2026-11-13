@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'digits.dart';
 import 'safe_mode.dart';
+import 'sound.dart';
 import 'tech_theme.dart';
 
 /// DD-28: the Persian quick bar at the start of the technician's session toolbar. Upstream's menus stay after it; this
@@ -93,8 +94,17 @@ class DolphinBarButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final bool? on;
+
+  /// False when [tooltip] already says why the button is dimmed (DD-31), so «روشن» / «خاموش» is not added.
+  final bool stateInTooltip;
   const DolphinBarButton(
-      {super.key, this.icon, this.label, required this.tooltip, required this.onPressed, this.on});
+      {super.key,
+      this.icon,
+      this.label,
+      required this.tooltip,
+      required this.onPressed,
+      this.on,
+      this.stateInTooltip = true});
 
   /// A toggle that is on, or an action: azure with white (5.45:1). A toggle that is off: the surface with a border.
   bool get filled => on != false;
@@ -104,7 +114,11 @@ class DolphinBarButton extends StatelessWidget {
     final p = DolphinTechPalette.ofContext(context);
     final fg = filled ? Colors.white : p.ink;
     final bg = filled ? const Color(0xFF1462E0) : p.surface;
-    final shown = on == true ? '$tooltip: روشن' : (on == false ? '$tooltip: خاموش' : tooltip);
+    final shown = !stateInTooltip
+        ? tooltip
+        : on == true
+            ? '$tooltip: روشن'
+            : (on == false ? '$tooltip: خاموش' : tooltip);
     return Tooltip(
       message: shown,
       child: Semantics(
@@ -214,6 +228,11 @@ class DolphinSessionBar extends StatelessWidget {
   final DolphinRestartKind? safeMode;
   final ValueChanged<DolphinRestartKind>? onSafeMode;
 
+  /// DD-31: «صدای رایانه‌ی مشتری» (sound.dart soundState); null hides the button. [onSound] is used only while the
+  /// state can be toggled.
+  final DolphinSound? sound;
+  final VoidCallback? onSound;
+
   const DolphinSessionBar({
     super.key,
     required this.state,
@@ -231,9 +250,22 @@ class DolphinSessionBar extends StatelessWidget {
     this.onKeyboardLayout,
     this.safeMode,
     this.onSafeMode,
+    this.sound,
+    this.onSound,
   });
 
   static String _soon(String t, Object? wired) => wired == null ? '$t ${DolphinBarText.notReady}' : t;
+
+  Widget _soundButton(DolphinSound s) {
+    final reason = soundReason(s);
+    return DolphinBarButton(
+        key: const ValueKey('dolphin-bar-sound'),
+        icon: s == DolphinSound.on ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+        tooltip: reason ?? DolphinSoundText.button,
+        on: s == DolphinSound.on,
+        stateInTooltip: reason == null,
+        onPressed: soundCanToggle(s) ? onSound : null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +274,7 @@ class DolphinSessionBar extends StatelessWidget {
       DolphinBarButton(label: 'Ctrl+Alt+Del', tooltip: DolphinBarText.ctrlAltDel, onPressed: onCtrlAltDel),
       DolphinBarButton(icon: Icons.lock_outline, tooltip: DolphinBarText.lock, onPressed: onLock),
       DolphinBarButton(icon: Icons.folder_outlined, tooltip: DolphinBarText.files, onPressed: onFiles),
+      if (sound != null) _soundButton(sound!),
       if (safeMode != null && onSafeMode != null)
         DolphinBarButton(
             key: const ValueKey('dolphin-bar-safe-mode'),
