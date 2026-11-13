@@ -45,7 +45,35 @@ ThemeData dolphinTheme(ThemeData base) {
   );
 }
 
-/// The one theme of all our screens, whatever Windows' theme is (DR-1, owner 2026-10-28): light, as the portal.
+/// One button system for every Dolphin view (DR-6, AUI-6): 44 px tall, the control radius, bold labels. Filled is the
+/// one main action, outlined the others, text buttons for quiet links. Views set only colours, never sizes or radii.
+/// [outlineInk] and [outlineSide] are the outlined button's text and border: the light ones by default; the
+/// technician app's dark palette passes its own (DD-53, tech_theme.dart).
+ThemeData dolphinButtons(ThemeData t,
+    {Color outlineInk = DolphinColors.ink, Color outlineSide = DolphinColors.lineStrong}) {
+  const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(DolphinRadii.control)));
+  const size = Size(64, 44);
+  const padding = EdgeInsets.symmetric(horizontal: 16);
+  const label = TextStyle(fontFamily: kDolphinFont, fontWeight: FontWeight.w700, fontSize: 14);
+  return t.copyWith(
+    filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+            minimumSize: size, padding: padding, shape: shape, textStyle: label, backgroundColor: DolphinColors.azure)),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+            minimumSize: size, padding: padding, shape: shape, textStyle: label, elevation: 0,
+            backgroundColor: DolphinColors.azure, foregroundColor: Colors.white)),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+            minimumSize: size, padding: padding, shape: shape, textStyle: label, foregroundColor: outlineInk,
+            side: BorderSide(color: outlineSide))),
+    textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(minimumSize: size, padding: padding, shape: shape, textStyle: label)),
+  );
+}
+
+/// The one theme of all our customer screens, whatever Windows' theme is (DR-1, owner 2026-10-28): light, as the
+/// portal. The technician app has a light and a dark one (DD-53, tech_theme.dart).
 /// Upstream's app follows the system theme, and in dark mode its text, scaffold and chip colours leaked into our
 /// views (white on white, 1.24:1 chips). Every Dolphin view wraps itself in this, so no view depends on the app theme.
 /// [paint] fills the view with the ground colour; false for overlays (permission strip, call status) that sit over
@@ -55,31 +83,7 @@ class DolphinLight extends StatelessWidget {
   final bool paint;
   const DolphinLight({super.key, required this.child, this.paint = true});
 
-  static final ThemeData data = _withButtons(dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false)));
-
-  /// One button system for every Dolphin view (DR-6, AUI-6): 44 px tall, the control radius, bold labels. Filled is the
-  /// one main action, outlined the others, text buttons for quiet links. Views set only colours, never sizes or radii.
-  static ThemeData _withButtons(ThemeData t) {
-    const shape = RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(DolphinRadii.control)));
-    const size = Size(64, 44);
-    const padding = EdgeInsets.symmetric(horizontal: 16);
-    const label = TextStyle(fontFamily: kDolphinFont, fontWeight: FontWeight.w700, fontSize: 14);
-    return t.copyWith(
-      filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-              minimumSize: size, padding: padding, shape: shape, textStyle: label, backgroundColor: DolphinColors.azure)),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-              minimumSize: size, padding: padding, shape: shape, textStyle: label, elevation: 0,
-              backgroundColor: DolphinColors.azure, foregroundColor: Colors.white)),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-              minimumSize: size, padding: padding, shape: shape, textStyle: label, foregroundColor: DolphinColors.ink,
-              side: const BorderSide(color: DolphinColors.lineStrong))),
-      textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(minimumSize: size, padding: padding, shape: shape, textStyle: label)),
-    );
-  }
+  static final ThemeData data = dolphinButtons(dolphinTheme(ThemeData(brightness: Brightness.light, useMaterial3: false)));
 
   @override
   Widget build(BuildContext context) => Theme(

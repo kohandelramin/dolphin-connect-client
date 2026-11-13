@@ -7,8 +7,8 @@ import '../models/platform_model.dart';
 import 'call_status.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
+import 'tech_theme.dart';
 import 'technician_header.dart';
-import 'theme.dart';
 
 /// How long the field waits for the panel's answer before saying it got none.
 const kDolphinCallWait = Duration(seconds: 8);
@@ -75,9 +75,15 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
     super.dispose();
   }
 
+  /// DD-53: upstream's `theme` option; MyTheme.changeDarkMode also tells the session windows.
+  Future<void> _setThemeMode(ThemeMode m) async {
+    await MyTheme.changeDarkMode(m);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) =>
-      DolphinLight(child: Builder(builder: _build)); // Dolphin Connect: light on any Windows theme (DR-1)
+      DolphinTechTheme(child: Builder(builder: _build)); // DD-53: light or dark as the technician chose
 
   Widget _build(BuildContext context) {
     return ListenableBuilder(
@@ -86,7 +92,13 @@ class _DolphinTechnicianHomeState extends State<DolphinTechnicianHome> {
       textDirection: TextDirection.rtl,
       child: Column(
         children: [
-          DolphinTechnicianHeader(myId: _myId, manual: _manual, call: _call, onConnect: _connectManual),
+          DolphinTechnicianHeader(
+              myId: _myId,
+              manual: _manual,
+              call: _call,
+              onConnect: _connectManual,
+              themeMode: MyTheme.getThemeModePreference(),
+              onThemeMode: _setThemeMode),
           if (_call.text != null) DolphinCallStatus(text: _call.text!, ok: _call.ok),
           Expanded(child: DolphinPortalView(path: '/staff/computers', onMessage: _onMessage, link: _panel)),
         ],
