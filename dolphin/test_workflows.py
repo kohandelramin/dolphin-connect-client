@@ -1313,3 +1313,17 @@ class OneWayAndLockWiringTest(unittest.TestCase):
         self.assertIn("self.lock_after_session_end,", block)
         self.assertIn("&& self.keyboard", block)
         self.assertIn("!raii::AuthedConnID::session_reconnected(", block)
+
+
+class GhcrReleaseOrderTest(unittest.TestCase):
+    """Portal ADR-0017: the portal follows the newest version tag by itself, so the release job tags a version only
+    after every pushed exe matches SHA256SUMS, and pushes SHA256SUMS as a layer for the portal to check."""
+
+    def test_push_under_staging_check_then_tag(self):
+        build = ROOT.joinpath(".github", "workflows", "dolphin-build.yml").read_text(encoding="utf-8")
+        step = build.split("- name: Push the exes to ghcr.io", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn('staging="staging-${GITHUB_RUN_ID}"', step)
+        self.assertIn('oras push "$repo:$staging"', step)
+        self.assertNotIn('oras push "$repo:$v"', step)
+        self.assertIn('"SHA256SUMS:text/plain"', step)
+        self.assertLess(step.index("diff -u expected.txt pushed.txt"), step.index('oras tag "$repo:$staging" "$v"'))

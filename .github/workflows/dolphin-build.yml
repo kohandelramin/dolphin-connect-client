@@ -439,10 +439,16 @@ jobs:
           cd out
           v="$DOLPHIN_VERSION"
           type=application/vnd.microsoft.portable-executable
-          oras push "$repo:$v" --artifact-type application/vnd.dolphin.connect.client.v1 \
-            "DolphinConnect-$v-x64.exe:$type" "DolphinConnect-$v-x86.exe:$type" "DolphinConnect-Technician-$v-x64.exe:$type"
-          # Every pushed layer must be the exact file the release lists in SHA256SUMS.
-          oras manifest fetch "$repo:$v" | jq -r '.layers[] | "\(.digest | sub("^sha256:"; ""))  \(.annotations["org.opencontainers.image.title"])"' | sort > pushed.txt
+          # Portal ADR-0017: the portal follows the newest X.Y.Z / X.Y.Z-rc.N tag by itself. So push under a staging tag
+          # it ignores, check every exe layer against SHA256SUMS, and only then add the version tag. SHA256SUMS rides
+          # along as a fourth layer so the portal checks the release's own list too.
+          staging="staging-${GITHUB_RUN_ID}"
+          oras push "$repo:$staging" --artifact-type application/vnd.dolphin.connect.client.v1 \
+            "DolphinConnect-$v-x64.exe:$type" "DolphinConnect-$v-x86.exe:$type" "DolphinConnect-Technician-$v-x64.exe:$type" \
+            "SHA256SUMS:text/plain"
+          # Every pushed exe layer must be the exact file the release lists in SHA256SUMS.
+          oras manifest fetch "$repo:$staging" | jq -r '.layers[] | select(.annotations["org.opencontainers.image.title"] | endswith(".exe")) | "\(.digest | sub("^sha256:"; ""))  \(.annotations["org.opencontainers.image.title"])"' | sort > pushed.txt
           grep '\.exe$' SHA256SUMS | sed 's/ \*/  /' | sort > expected.txt
           diff -u expected.txt pushed.txt
-          echo "pushed $repo:$v"
+          oras tag "$repo:$staging" "$v"
+          echo "pushed $repo:$v (checked as $staging)"
