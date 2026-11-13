@@ -13,6 +13,7 @@ import 'package:flutter_hbb/dolphin/about.dart';
 import 'package:flutter_hbb/dolphin/call_status.dart';
 import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
+import 'package:flutter_hbb/dolphin/demo.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
 import 'package:flutter_hbb/dolphin/no_picture.dart';
 import 'package:flutter_hbb/dolphin/request_outcome.dart';
@@ -323,6 +324,36 @@ void main() {
           onViewOnly: noop, onMyCursor: noop, onNoPicture: noop, onScreenshot: noop, onKeyboardLayout: noop,
           sound: sound, onSound: noop), theme: tech);
     }
+    await tester.pumpWidget(const SizedBox());
+  }, skip: _dir == null);
+  // Plan 19 (D1–D2): «ارائه دمو».
+  testWidgets('write demo previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    final tech = DolphinTechTheme.dataFor(Brightness.light);
+    Widget dialog(Widget child) => Center(
+        child: Card(margin: const EdgeInsets.all(16), child: Padding(padding: const EdgeInsets.all(20), child: child)));
+    await _shot(tester, '90-demo-tech-confirm', const Size(440, 300), dialog(DolphinDemoConfirmView(
+        peerName: 'PC-RECEPTION', allScreens: false, onAllScreens: (_) {}, onStart: noop, onCancel: noop)), theme: tech);
+    await _shot(tester, '91-demo-tech-bar', const Size(560, 44),
+        DolphinDemoBar(peerName: 'PC-RECEPTION', elapsed: const Duration(minutes: 2, seconds: 14), onEnd: noop));
+    await _shot(tester, '92-demo-customer-ask', const Size(300, 380), DolphinDemoAskView(
+        technician: 'علی رضایی', canSee: true, secondsLeft: 52, phone: '021-44280505', onSee: noop, onNo: noop));
+    // The window's own title bar is drawn by Windows; here a plain strip stands in for it, the picture a gradient.
+    await _shot(tester, '93-demo-customer-window', const Size(640, 420), Column(children: [
+      Container(
+          height: 30,
+          color: const Color(0xFFF0F4FB),
+          alignment: Alignment.center,
+          child: Text(demoWindowTitle('علی رضایی'),
+              style: const TextStyle(fontFamily: kDolphinFont, fontSize: 12, color: DolphinColors.muted))),
+      Expanded(
+          child: Container(
+              decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFF2C4A7C), Color(0xFF4F7FBF), Color(0xFF9CC3E8)])))),
+      DolphinDemoWindowBar(title: demoWindowTitle('علی رضایی'), screens: 2, current: 0, onScreen: (_) {}, onEnd: noop),
+    ]));
     await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }

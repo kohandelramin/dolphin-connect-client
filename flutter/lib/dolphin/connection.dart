@@ -11,6 +11,7 @@ import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'brand.dart';
 import 'connection_view.dart';
+import 'demo.dart';
 import 'home.dart';
 import 'home_view.dart';
 import 'reconnect.dart';
@@ -25,6 +26,10 @@ final _endedByCustomer = <int>{};
 /// D23: when each technician (peer ID) was last seen in a live session in this window. Forgotten when the customer ends
 /// the session, so only a drop, not the customer's «پایان», makes the next session «دوباره وصل شد».
 final _lastLive = <String, DateTime>{};
+
+/// Plan 19 (demo): connections whose «ارائه دمو» prompt was shown. The customer's PC ends such a connection after the
+/// answer (the demo window takes over, or the customer said «نه»), so its tab goes without the ended screen.
+final _demoAsked = <int>{};
 
 /// DD-36: the window size this window last asked for, and the size the window reported right after the small one was
 /// set; one window serves every tab.
@@ -57,6 +62,8 @@ class _DolphinConnectionState extends State<DolphinConnection> {
   DateTime? _inputOffSince;
   // DD-11: when the restart notice was first seen; null while there is none.
   DateTime? _restartSeenAt;
+  // Plan 19 (demo): when the prompt was first seen; null while there is none.
+  DateTime? _demoSeenAt;
 
   @override
   void initState() {
@@ -75,6 +82,7 @@ class _DolphinConnectionState extends State<DolphinConnection> {
         if (widget.client.disconnected) _endedAt ??= DateTime.now();
         _inputOffSince = inputOffSince(_inputOffSince, widget.client.dolphinInputBlocked, DateTime.now());
         _noteRestart();
+        _noteDemo();
       });
       _keepCompact();
     });
@@ -94,6 +102,19 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     }
     if (_restartSeenAt != null) return;
     _restartSeenAt = DateTime.now();
+    windowManager.show();
+    windowManager.focus();
+  }
+
+  /// Plan 19 (demo): the prompt brings the window forward when it first shows, so the customer sees it.
+  void _noteDemo() {
+    if (!widget.client.dolphinDemoAsk) {
+      _demoSeenAt = null;
+      return;
+    }
+    if (_demoSeenAt != null) return;
+    _demoSeenAt = DateTime.now();
+    _demoAsked.add(widget.client.id);
     windowManager.show();
     windowManager.focus();
   }
@@ -191,6 +212,11 @@ class _DolphinConnectionState extends State<DolphinConnection> {
     final peerName = c.name.isEmpty ? c.peerId : c.name;
     _fitWindow(model);
     if (c.disconnected) {
+      // Plan 19 (demo): ended by this PC after the customer's answer; nothing to report.
+      if (_demoAsked.remove(c.id)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _closeEnded());
+        return const SizedBox.shrink();
+      }
       if (!c.authorized) {
         // Refused or cut before Accept: nothing to report, so the tab goes as it did before (UX-6).
         WidgetsBinding.instance.addPostFrameCallback((_) => _closeEnded());
@@ -260,6 +286,25 @@ class _DolphinConnectionState extends State<DolphinConnection> {
       );
     }
     final technician = verdict.state == TechCheck.verified && verdict.name.isNotEmpty ? verdict.name : peerName;
+    // Plan 19 (demo): the technician asks to show his screen; nothing is shown before «دیدن» (src/server/connection.rs).
+    if (c.dolphinDemoAsk) {
+      void answer(bool see) {
+        bind.cmSwitchPermission(connId: c.id, name: kDolphinDemoAnswer, enabled: see);
+        setState(() => c.dolphinDemoAsk = false);
+      }
+
+      return DolphinDemoAskView(
+        technician: technician,
+        canSee: acceptAllowed(verdict),
+        secondsLeft: demoSecondsLeft(_demoSeenAt ?? DateTime.now(), DateTime.now()),
+        phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
+        // As the accept prompt (D5): asked again at the moment of the press.
+        onSee: () {
+          if (acceptAllowed(_verdict())) answer(true);
+        },
+        onNo: () => answer(false),
+      );
+    }
     final inputOffAt = _inputOffSince;
     return DolphinSessionView(
       technician: technician,
