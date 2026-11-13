@@ -155,6 +155,8 @@ pub struct Client {
     pub dolphin_paused: bool,
     /// Dolphin Connect (DD-11): "safe" or "normal" while the restart notice shows, "" otherwise.
     pub dolphin_restart: String,
+    /// Dolphin Connect (demo): the technician asks to show his screen; the prompt shows (src/dolphin_demo_core.rs).
+    pub dolphin_demo_ask: bool,
     #[serde(skip)]
     #[cfg(not(any(target_os = "ios")))]
     tx: UnboundedSender<Data>,
@@ -270,6 +272,7 @@ impl<T: InvokeUiCM> ConnectionManager<T> {
             dolphin_input_blocked: false,
             dolphin_paused: false,
             dolphin_restart: String::new(),
+            dolphin_demo_ask: false,
         };
         CLIENTS
             .write()
@@ -415,6 +418,15 @@ pub fn send_chat(id: i32, text: String) {
 #[inline]
 #[cfg(not(any(target_os = "ios")))]
 pub fn switch_permission(id: i32, name: String, enabled: bool) {
+    // Dolphin Connect (demo): «دیدن» / «نه» is the customer's answer, not a permission, so the policy below does not
+    // apply; the window's own record ends the prompt.
+    if name == crate::dolphin_demo_core::CM_ANSWER {
+        if let Some(client) = CLIENTS.write().unwrap().get_mut(&id) {
+            client.dolphin_demo_ask = false;
+            allow_err!(client.tx.send(Data::SwitchPermission { name, enabled }));
+        }
+        return;
+    }
     #[cfg(target_os = "android")]
     let is_keyboard_permission = name == "keyboard";
     #[cfg(not(target_os = "android"))]
@@ -625,6 +637,19 @@ impl<T: InvokeUiCM> IpcTaskRunner<T> {
                                             clients.get_mut(&self.conn_id).map(|c| {
                                                 c.dolphin_restart =
                                                     if enabled { kind.code().to_owned() } else { String::new() };
+                                                c.clone()
+                                            })
+                                        };
+                                        if let Some(client) = client {
+                                            self.cm.ui_handler.add_connection(&client);
+                                        }
+                                    }
+                                    // Dolphin Connect (demo): the connection shows or hides the «ارائه دمو» prompt.
+                                    if name == crate::dolphin_demo_core::CM_ASK {
+                                        let client = {
+                                            let mut clients = CLIENTS.write().unwrap();
+                                            clients.get_mut(&self.conn_id).map(|c| {
+                                                c.dolphin_demo_ask = enabled;
                                                 c.clone()
                                             })
                                         };

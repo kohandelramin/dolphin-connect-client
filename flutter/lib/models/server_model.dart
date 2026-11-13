@@ -538,6 +538,7 @@ class ServerModel with ChangeNotifier {
             _clients[index].dolphinInputBlocked = client.dolphinInputBlocked;
             _clients[index].dolphinPaused = client.dolphinPaused;
             _clients[index].dolphinRestart = client.dolphinRestart; // Dolphin Connect (DD-11)
+            _clients[index].dolphinDemoAsk = client.dolphinDemoAsk; // Dolphin Connect (demo)
             notifyListeners();
             return;
           }
@@ -831,6 +832,8 @@ class Client {
   bool dolphinPaused = false;
   // Dolphin Connect (DD-11): "safe" or "normal" while the restart notice counts down (flutter/lib/dolphin/safe_mode.dart).
   String dolphinRestart = '';
+  // Dolphin Connect (demo): the technician asks to show his screen (flutter/lib/dolphin/demo.dart).
+  bool dolphinDemoAsk = false;
 
   RxInt unreadChatMessageCount = 0.obs;
 
@@ -863,6 +866,7 @@ class Client {
     dolphinInputBlocked = json['dolphin_input_blocked'] ?? false; // Dolphin Connect (DD-37)
     dolphinPaused = json['dolphin_paused'] ?? false; // Dolphin Connect (DD-46)
     dolphinRestart = json['dolphin_restart'] ?? ''; // Dolphin Connect (DD-11)
+    dolphinDemoAsk = json['dolphin_demo_ask'] ?? false; // Dolphin Connect (demo)
   }
 
   Map<String, dynamic> toJson() {
@@ -891,6 +895,7 @@ class Client {
     data['dolphin_input_blocked'] = dolphinInputBlocked;
     data['dolphin_paused'] = dolphinPaused;
     data['dolphin_restart'] = dolphinRestart;
+    data['dolphin_demo_ask'] = dolphinDemoAsk;
     return data;
   }
 

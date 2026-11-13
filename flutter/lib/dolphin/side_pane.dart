@@ -10,6 +10,7 @@ import '../common.dart';
 import '../consts.dart';
 import '../models/model.dart';
 import '../models/platform_model.dart';
+import 'demo_hooks.dart';
 import 'panel_bridge.dart';
 import 'portal_view.dart';
 import 'session_toolbar_hook.dart';
@@ -295,6 +296,8 @@ class _DolphinSessionSideState extends State<DolphinSessionSide> {
   @override
   void initState() {
     super.initState();
+    // Plan 19 (demo): whether this new session window is the dashboard's «ارائه دمو» (demo_hooks.dart).
+    dolphinDemoWindowOpened(widget.ffi);
     // The technician build only (the customer's app has no staff panel), on Windows (WebView2), for a peer ID the
     // portal can know.
     if (isWindows && bind.isOutgoingOnly() && sidePanePath(widget.peerId) != null) {

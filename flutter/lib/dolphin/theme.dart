@@ -3,7 +3,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'theme_tokens.dart';
 
-export 'theme_tokens.dart' show DolphinTheme, DolphinThemeTokens, DolphinThemeSet, applyThemeOverrides;
+export 'theme_tokens.dart' show DolphinTheme, DolphinThemeTokens, DolphinThemeSet, applyThemeOverrides, kDolphinDemoRed;
 
 /// Dolphin's palette, as the customer screens name it: each colour reads the light tokens in use
 /// ([DolphinTheme.light], theme_tokens.dart), so a theme the portal pushes reaches every view. With the built-in tokens

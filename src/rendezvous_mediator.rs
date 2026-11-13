@@ -279,8 +279,10 @@ impl RendezvousMediator {
     pub async fn start_all() {
         crate::test_nat_type();
         if config::is_outgoing_only() {
+            let mut dolphin_demo_server = None; // Dolphin Connect (demo)
             loop {
                 sleep(1.).await;
+                Self::dolphin_demo_listen(&mut dolphin_demo_server).await; // Dolphin Connect (demo)
             }
         }
         // Dolphin Connect (DD-1): this process registers, so a network change registers again at once.
@@ -361,6 +363,40 @@ impl RendezvousMediator {
                 sleep(0.033).await;
             }
         }
+    }
+
+    /// Dolphin Connect (demo): an outgoing-only app registers with our server only while its demo waits for the
+    /// customer's PC to connect back (src/dolphin_demo.rs `listening`), and stops as soon as the demo connection is
+    /// in, is given up or runs out. No LAN listener, direct port, heartbeat or updater: only the registration the
+    /// customer's PC needs to find it. Every connection that arrives meets the gate in src/server/connection.rs
+    /// (`dolphin_demo_gate`, `dolphin_demo_claim`). The server lives as long as the process, so the demo connection
+    /// keeps its services after the registration stops.
+    async fn dolphin_demo_listen(server: &mut Option<ServerPtr>) {
+        if !crate::dolphin_demo::listening() {
+            return;
+        }
+        let server = server.get_or_insert_with(new_server).clone();
+        log::info!("Dolphin demo: reachable while the customer's PC connects back");
+        SHOULD_EXIT.store(false, Ordering::SeqCst);
+        let mut futs = Vec::new();
+        for host in Config::get_rendezvous_servers() {
+            let server = server.clone();
+            futs.push(tokio::spawn(async move {
+                if let Err(err) = Self::start(server, host).await {
+                    log::error!("Dolphin demo: rendezvous mediator error: {err}");
+                }
+                SHOULD_EXIT.store(true, Ordering::SeqCst);
+            }));
+        }
+        futs.push(tokio::spawn(async {
+            while crate::dolphin_demo::listening() && !SHOULD_EXIT.load(Ordering::SeqCst) {
+                sleep(0.5).await;
+            }
+            SHOULD_EXIT.store(true, Ordering::SeqCst);
+        }));
+        join_all(futs).await;
+        Config::reset_online();
+        log::info!("Dolphin demo: no longer reachable");
     }
 
     fn get_host_prefix(host: &str) -> String {

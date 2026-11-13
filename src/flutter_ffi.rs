@@ -2825,6 +2825,11 @@ pub fn main_set_common(_key: String, _value: String) {
         crate::dolphin_callback::start(_value);
         return;
     }
+    // Dolphin Connect (demo): the dashboard's «ارائه دمو»; the session window it opens takes it (session_get_common).
+    if _key == crate::dolphin_demo_core::INTENT_KEY {
+        crate::dolphin_demo::set_intent(&_value);
+        return;
+    }
     // Dolphin Connect (DD-34): «توقف اشتراک» / «شروع اشتراک», and the reset when the app starts.
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if _key == "dolphin-share-off" {
@@ -3000,6 +3005,10 @@ pub fn session_get_common(
     if let Some(s) = sessions::get_session_by_session_id(&session_id) {
         let v = if key == "is_screenshot_supported" {
             s.is_screenshot_supported().to_string()
+        } else if key == crate::dolphin_demo_core::INTENT_KEY {
+            // Dolphin Connect (demo): whether this new session window is the dashboard's «ارائه دمو».
+            use crate::client::Interface;
+            crate::dolphin_demo::take_intent(&s.get_id())
         } else {
             "".to_owned()
         };

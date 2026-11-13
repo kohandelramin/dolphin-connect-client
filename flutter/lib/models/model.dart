@@ -48,6 +48,7 @@ import 'package:flutter_hbb/dolphin/permissions.dart'; // Dolphin Connect (DD-46
 import 'package:flutter_hbb/dolphin/session_toolbar_hook.dart'; // Dolphin Connect (DD-16)
 import 'package:flutter_hbb/dolphin/request_outcome.dart'; // Dolphin Connect (DD-14)
 import 'package:flutter_hbb/dolphin/safe_mode_hooks.dart'; // Dolphin Connect (DD-11)
+import 'package:flutter_hbb/dolphin/demo_hooks.dart'; // Dolphin Connect (demo)
 
 import 'package:flutter_hbb/generated_bridge.dart'
     if (dart.library.html) 'package:flutter_hbb/web/bridge.dart';
@@ -940,6 +941,10 @@ class FfiModel with ChangeNotifier {
       parent.target?.inputModel.setRelativeMouseMode(false);
     }
 
+    // Dolphin Connect (demo): the PC's answers to «ارائه دمو» and the end after its last word; the customer's demo
+    // window says its end in Persian (flutter/lib/dolphin/demo_hooks.dart).
+    if (dolphinDemoMsgBox(parent.target, type, title, text)) return;
+    if (dolphinDemoWindowMsgBox(parent.target, type, title, text)) return;
     // Dolphin Connect (D23): a dropped link in the technician app is retried quietly for about 2 minutes.
     if (_dolphinQuietRetry(type, title, text, dialogManager)) return;
     // Dolphin Connect (DD-46): the customer paused or resumed; a card over the picture, not a dialog.
@@ -1590,6 +1595,7 @@ class FfiModel with ChangeNotifier {
 
     if (!isCache) {
       tryUseAllMyDisplaysForTheRemoteSession(peerId);
+      dolphinDemoOnPeerInfo(parent.target); // Dolphin Connect (demo): the dashboard's «ارائه دمو»
     }
   }
 
