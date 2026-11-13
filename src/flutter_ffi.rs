@@ -2959,6 +2959,10 @@ pub fn session_set_common(session_id: SessionID, key: String, value: String) {
             s.continue_insecure_connection(value == "Y");
             return;
         }
+        // Dolphin Connect (DD-50, DD-6): the side pane's paste and the keyboard language, to this session only.
+        if s.dolphin_panel_request(&key, &value) {
+            return;
+        }
     }
 }
 
