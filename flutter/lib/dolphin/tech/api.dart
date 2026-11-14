@@ -1,195 +1,30 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 
+import '../api_base.dart';
 import '../brand.dart';
 import '../switches.dart';
 
+export '../api_base.dart';
+
 /// Plan 19, the native technician app: a typed client for the portal's App API v1 (app/src/app/api/app/v1 in the
 /// portal repo). Pure Dart, no widgets, so every endpoint's parsing and errors are unit-tested with a fake client.
-///
-/// Rules kept here:
-/// - the Bearer token and the password are never logged, put in an exception's text or in a URL;
-/// - every error the technician sees is the portal's own Persian `message` (`{error, message}`), or a Persian
-///   fallback when the portal could not be reached or answered something unreadable;
-/// - connect timeout 8 s, read timeout 15 s; GETs (idempotent) are tried once more after a network failure or a
-///   502/503/504, nothing else is ever repeated (a repeated POST /calls could open a second call);
-/// - 401 `expired` (or `unauthorized`) means the sign-in is over: [SignInExpired] is thrown and [ApiClient.signInExpired]
-///   fires, so the session store can show the sign-in screen.
+/// The transport, the errors and the JSON readers are shared with the customer app (api_base.dart, Plan 19 C4).
 
-const kApiConnectTimeout = Duration(seconds: 8);
-const kApiReadTimeout = Duration(seconds: 15);
-const kApiPrefix = '/api/app/v1';
-
-// Persian texts for failures the portal could not word itself.
-const kMsgNoInternet = 'اینترنت این رایانه وصل نیست؛ اتصال شبکه را بررسی کنید.';
-const kMsgPortalDown = 'پورتال دلفین در دسترس نیست؛ چند لحظه بعد دوباره امتحان کنید.';
-const kMsgPortalSlow = 'پورتال دلفین دیر جواب می‌دهد؛ چند لحظه بعد دوباره امتحان کنید.';
-const kMsgBadAnswer = 'پاسخ پورتال دلفین خوانا نبود؛ چند لحظه بعد دوباره امتحان کنید.';
-const kMsgSignInExpired = 'ورود شما تمام شده است؛ دوباره وارد شوید.';
-const kMsgServer = 'خطای سرور؛ چند لحظه بعد دوباره امتحان کنید.';
-const kMsgInvalid = 'درخواست نامعتبر است.';
-const kMsgNotFound = 'پیدا نشد.';
 const kMsgForbidden = 'این بخش فقط برای کارشناسان دلفین است.';
 
-// ---------------------------------------------------------------------------------------------------------------
-// Errors
-
-/// The portal answered with an error: [status] is the HTTP status, [code] the portal's `error` (e.g. `not_found`,
-/// `in_session_other`, `taken`), [message] the Persian text to show. [extra] holds any other fields (e.g. `holderName`).
-class ApiError implements Exception {
-  final int status;
-  final String code;
-  final String message;
-  final Map<String, dynamic> extra;
-  const ApiError(this.status, this.code, this.message, [this.extra = const {}]);
-
-  @override
-  String toString() => 'ApiError($status, $code)'; // never the body or a header
-}
-
-/// 401 `expired` / `unauthorized`: the staff session is over (8 h, revoked, or the account deactivated).
-class SignInExpired extends ApiError {
-  const SignInExpired([String code = 'expired', String message = kMsgSignInExpired]) : super(401, code, message);
-
-  @override
-  String toString() => 'SignInExpired($code)';
-}
-
-/// Why the portal could not be reached (TD-1): the screen says which.
-enum OfflineReason {
-  /// No network on this PC, or names do not resolve.
-  noInternet,
-
-  /// The network is up but the portal refused, reset, or its proxy answered 502/503/504.
-  portalDown,
-
-  /// No answer within the timeouts.
-  slow,
-}
-
-String offlineMessage(OfflineReason r) => switch (r) {
-      OfflineReason.noInternet => kMsgNoInternet,
-      OfflineReason.portalDown => kMsgPortalDown,
-      OfflineReason.slow => kMsgPortalSlow,
-    };
-
-/// The portal could not be reached at all (no HTTP answer, or a gateway error after the retry).
-class PortalUnreachable implements Exception {
-  final OfflineReason reason;
-  const PortalUnreachable(this.reason);
-  String get message => offlineMessage(reason);
-
-  @override
-  String toString() => 'PortalUnreachable(${reason.name})';
-}
-
-/// Is there any network on this PC? Injected so tests can say no.
-abstract class NetworkProbe {
-  Future<bool> hasNetwork();
-}
-
-/// Any non-loopback interface with an address. Unverified on every Windows setup: a disconnected adapter that keeps
-/// an APIPA address would still count, which then reads as "portal down" rather than "no internet".
-class InterfaceNetworkProbe implements NetworkProbe {
-  const InterfaceNetworkProbe();
-  @override
-  Future<bool> hasNetwork() async {
-    try {
-      final list = await NetworkInterface.list(includeLoopback: false).timeout(const Duration(seconds: 2));
-      return list.any((i) => i.addresses.isNotEmpty);
-    } catch (_) {
-      return true; // cannot tell: do not claim "no internet"
-    }
-  }
-}
-
-/// TD-1: the reason behind a failure to reach the portal.
-Future<OfflineReason> classifyFailure(Object error, NetworkProbe probe) async {
-  if (error is TimeoutException) return OfflineReason.slow;
-  if (!await probe.hasNetwork()) return OfflineReason.noInternet;
-  if (isDnsFailure(error)) return OfflineReason.noInternet;
-  return OfflineReason.portalDown;
-}
-
-/// A name lookup failure: Dart's "Failed host lookup", or WSAHOST_NOT_FOUND / WSATRY_AGAIN / WSANO_DATA on Windows,
-/// EAI_* on others.
-bool isDnsFailure(Object error) {
-  final text = error.toString();
-  if (text.contains('Failed host lookup')) return true;
-  if (error is SocketException) {
-    final code = error.osError?.errorCode;
-    if (code == 11001 || code == 11002 || code == 11004) return true;
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Strict JSON reading: a field of the wrong type is a FormatException, which the client turns into [kMsgBadAnswer].
-
-Map<String, dynamic> _map(Object? v, String what) {
-  if (v is Map<String, dynamic>) return v;
-  if (v is Map) return v.map((k, val) => MapEntry(k.toString(), val));
-  throw FormatException('$what: not an object');
-}
-
-String _str(Map<String, dynamic> m, String k) {
-  final v = m[k];
-  if (v is String) return v;
-  throw FormatException('$k: not a string');
-}
-
-String? _strN(Map<String, dynamic> m, String k) {
-  final v = m[k];
-  if (v == null) return null;
-  if (v is String) return v;
-  throw FormatException('$k: not a string');
-}
-
-bool _bool(Map<String, dynamic> m, String k, {bool? missing}) {
-  final v = m[k];
-  if (v is bool) return v;
-  if (v == null && missing != null) return missing;
-  throw FormatException('$k: not a bool');
-}
-
-int _int(Map<String, dynamic> m, String k) {
-  final v = m[k];
-  if (v is int) return v;
-  if (v is double && v == v.roundToDouble()) return v.toInt();
-  throw FormatException('$k: not an int');
-}
-
-DateTime _date(Map<String, dynamic> m, String k) {
-  final d = _dateN(m, k);
-  if (d == null) throw FormatException('$k: missing date');
-  return d;
-}
-
-DateTime? _dateN(Map<String, dynamic> m, String k) {
-  final v = m[k];
-  if (v == null) return null;
-  if (v is String) {
-    final d = DateTime.tryParse(v);
-    if (d != null) return d;
-  }
-  throw FormatException('$k: not a date');
-}
-
-List<String> _strList(Map<String, dynamic> m, String k) {
-  final v = m[k];
-  if (v == null) return const [];
-  if (v is List && v.every((e) => e is String)) return List<String>.unmodifiable(v.cast<String>());
-  throw FormatException('$k: not a list of strings');
-}
-
-List<T> _list<T>(Object? v, String what, T Function(Map<String, dynamic>) one) {
-  if (v is! List) throw FormatException('$what: not a list');
-  return List<T>.unmodifiable(v.map((e) => one(_map(e, what))));
-}
+// The shared readers under the short names this file has always used.
+Map<String, dynamic> _map(Object? v, String what) => jsonMap(v, what);
+String _str(Map<String, dynamic> m, String k) => jsonStr(m, k);
+String? _strN(Map<String, dynamic> m, String k) => jsonStrN(m, k);
+bool _bool(Map<String, dynamic> m, String k, {bool? missing}) => jsonBool(m, k, missing: missing);
+int _int(Map<String, dynamic> m, String k) => jsonInt(m, k);
+DateTime _date(Map<String, dynamic> m, String k) => jsonDate(m, k);
+DateTime? _dateN(Map<String, dynamic> m, String k) => jsonDateN(m, k);
+List<String> _strList(Map<String, dynamic> m, String k) => jsonStrList(m, k);
+List<T> _list<T>(Object? v, String what, T Function(Map<String, dynamic>) one) => jsonList(v, what, one);
 
 /// `#rrggbb` → 0xFFrrggbb; anything else the brand's azure, so a tile is never transparent.
 int parseHexColor(String? hex) {
@@ -909,141 +744,29 @@ class AppConfig {
 // ---------------------------------------------------------------------------------------------------------------
 // The client
 
-typedef TokenSource = String? Function();
-
-/// The production HTTP client: 8 s to connect; the read timeout is applied per request.
-http.Client defaultHttpClient() => IOClient(HttpClient()
-  ..connectionTimeout = kApiConnectTimeout
-  ..idleTimeout = const Duration(seconds: 15));
-
-class ApiClient {
-  final Uri portal;
-  final http.Client _http;
-  final NetworkProbe _probe;
-  final Duration readTimeout;
-
-  /// Reads the current token; null when signed out.
-  TokenSource token;
-
-  final _expired = StreamController<SignInExpired>.broadcast();
-
+class ApiClient extends ApiTransport {
   ApiClient(
       {String? portalUrl,
       http.Client? client,
       TokenSource? token,
       NetworkProbe probe = const InterfaceNetworkProbe(),
-      this.readTimeout = kApiReadTimeout})
-      : portal = Uri.parse(portalUrl ?? DolphinBrand.portalUrl),
-        _http = client ?? defaultHttpClient(),
-        _probe = probe,
-        token = token ?? (() => null);
+      Duration readTimeout = kApiReadTimeout})
+      : super(
+            portalUrl: portalUrl ?? DolphinBrand.portalUrl,
+            client: client,
+            token: token,
+            probe: probe,
+            readTimeout: readTimeout,
+            forbiddenMessage: kMsgForbidden);
 
-  /// Fires on every 401 `expired`/`unauthorized` from a signed-in call.
-  Stream<SignInExpired> get signInExpired => _expired.stream;
-
-  void close() {
-    _http.close();
-    _expired.close();
-  }
-
-  Uri _uri(String path, [Map<String, String>? query]) {
-    final base = portal.toString().replaceAll(RegExp(r'/+$'), '');
-    final u = Uri.parse('$base$path');
-    return query == null || query.isEmpty ? u : u.replace(queryParameters: query);
-  }
-
-  static String _seg(String id) => Uri.encodeComponent(id);
-
-  /// One call. [retry]: GETs only, once, after a network failure or a gateway error.
-  Future<dynamic> _send(String method, String path,
-      {Map<String, String>? query, Object? body, bool auth = true, bool retry = false}) async {
-    final uri = _uri('$kApiPrefix$path', query);
-    for (var attempt = 0;; attempt++) {
-      final again = retry && attempt == 0;
-      http.Response res;
-      try {
-        final req = http.Request(method, uri)..headers['Accept'] = 'application/json';
-        if (auth) {
-          final t = token();
-          if (t == null || t.isEmpty) throw const SignInExpired('unauthorized');
-          req.headers['Authorization'] = 'Bearer $t';
-        }
-        if (body != null) {
-          req.headers['Content-Type'] = 'application/json; charset=utf-8';
-          req.bodyBytes = utf8.encode(jsonEncode(body));
-        }
-        final streamed = await _http.send(req).timeout(readTimeout);
-        res = await http.Response.fromStream(streamed).timeout(readTimeout);
-      } on ApiError {
-        rethrow;
-      } catch (e) {
-        if (again) continue;
-        throw PortalUnreachable(await classifyFailure(e, _probe));
-      }
-      if (res.statusCode == 502 || res.statusCode == 503 || res.statusCode == 504) {
-        if (again) continue;
-        throw const PortalUnreachable(OfflineReason.portalDown);
-      }
-      return _decode(res, auth);
-    }
-  }
-
-  dynamic _decode(http.Response res, bool auth) {
-    Object? data;
-    var readable = true;
-    try {
-      final text = utf8.decode(res.bodyBytes);
-      data = text.trim().isEmpty ? null : jsonDecode(text);
-    } catch (_) {
-      readable = false;
-    }
-    final s = res.statusCode;
-    if (s >= 200 && s < 300) {
-      if (!readable) throw ApiError(s, 'bad_answer', kMsgBadAnswer);
-      return data;
-    }
-    var code = '';
-    var message = '';
-    final extra = <String, dynamic>{};
-    if (readable && data is Map) {
-      final e = data['error'], msg = data['message'];
-      if (e is String) code = e;
-      if (msg is String) message = msg.trim();
-      data.forEach((k, v) {
-        if (k != 'error' && k != 'message') extra[k.toString()] = v;
-      });
-    }
-    if (s == 401 && auth && (code == 'expired' || code == 'unauthorized' || code.isEmpty)) {
-      final err = SignInExpired(code.isEmpty ? 'expired' : code, message.isEmpty ? kMsgSignInExpired : message);
-      if (!_expired.isClosed) _expired.add(err);
-      throw err;
-    }
-    if (code.isEmpty) {
-      code = switch (s) { 400 => 'invalid', 403 => 'forbidden', 404 => 'not_found', 429 => 'rate_limited', _ => 'server' };
-    }
-    if (message.isEmpty) {
-      message = switch (s) { 400 => kMsgInvalid, 403 => kMsgForbidden, 404 => kMsgNotFound, _ => kMsgServer };
-    }
-    throw ApiError(s, code, message, Map.unmodifiable(extra));
-  }
-
-  /// Runs [parse] on the answer; an answer of the wrong shape is [kMsgBadAnswer], never a crash.
-  Future<T> _call<T>(Future<dynamic> answer, T Function(dynamic) parse) async {
-    final data = await answer;
-    try {
-      return parse(data);
-    } on FormatException {
-      throw const ApiError(200, 'bad_answer', kMsgBadAnswer);
-    } on TypeError {
-      throw const ApiError(200, 'bad_answer', kMsgBadAnswer);
-    }
-  }
-
+  static String _seg(String id) => ApiTransport.seg(id);
+  Future<dynamic> _send(String method, String path, {Map<String, String>? query, bool retry = false}) =>
+      apiSend(method, path, query: query, retry: retry);
+  Future<T> _call<T>(Future<dynamic> answer, T Function(dynamic) parse) => apiParse(answer, parse);
   Future<T> _get<T>(String path, T Function(Map<String, dynamic>) parse, [Map<String, String>? query]) =>
-      _call(_send('GET', path, query: query, retry: true), (d) => parse(_map(d, 'answer')));
-
+      apiGet(path, parse, query);
   Future<T> _post<T>(String path, Object? body, T Function(Map<String, dynamic>) parse, {bool auth = true}) =>
-      _call(_send('POST', path, body: body ?? const <String, dynamic>{}, auth: auth), (d) => parse(_map(d, 'answer')));
+      apiPost(path, body, parse, auth: auth);
 
   static bool _ok(Map<String, dynamic> m) => _bool(m, 'ok', missing: true);
 
@@ -1152,43 +875,11 @@ class ApiClient {
     if (!relative.startsWith('$kApiPrefix/') || relative.contains('..') || relative.contains('//')) {
       throw const ApiError(400, 'invalid', kMsgInvalid);
     }
-    return _uri(relative);
+    return portalUri(relative);
   }
 
   /// Streams a portal file (a report, a screenshot, the technician build) into [target] with the Bearer token.
   /// Returns the bytes written. The file is removed when the download fails or [expectedSize] does not match.
-  Future<int> download(String relative, File target, {int? expectedSize}) async {
-    final uri = downloadUri(relative);
-    final t = token();
-    if (t == null || t.isEmpty) throw const SignInExpired('unauthorized');
-    final req = http.Request('GET', uri)..headers['Authorization'] = 'Bearer $t';
-    http.StreamedResponse res;
-    try {
-      res = await _http.send(req).timeout(readTimeout);
-    } catch (e) {
-      throw PortalUnreachable(await classifyFailure(e, _probe));
-    }
-    if (res.statusCode != 200) {
-      _decode(await http.Response.fromStream(res), true);
-      throw ApiError(res.statusCode, 'server', kMsgServer);
-    }
-    final sink = target.openWrite();
-    var written = 0;
-    try {
-      await for (final chunk in res.stream.timeout(readTimeout)) {
-        written += chunk.length;
-        sink.add(chunk);
-      }
-      await sink.close();
-    } catch (e) {
-      await sink.close().catchError((_) {});
-      if (await target.exists()) await target.delete();
-      throw PortalUnreachable(await classifyFailure(e, _probe));
-    }
-    if (expectedSize != null && written != expectedSize) {
-      if (await target.exists()) await target.delete();
-      throw const ApiError(200, 'bad_answer', kMsgBadAnswer);
-    }
-    return written;
-  }
+  Future<int> download(String relative, File target, {int? expectedSize}) =>
+      downloadTo(downloadUri(relative), target, expectedSize: expectedSize);
 }
