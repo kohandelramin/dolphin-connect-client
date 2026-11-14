@@ -3,7 +3,7 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased (next: 2.2.0, `dolphin/version.txt`; not built)
+## 2.2.0 — ۲۳ آبان ۱۴۰۵ (2026-11-14)
 
 ### Plan 19 C4: «درخواست‌ها و پیام‌ها» native in the customer app (customer x64)
 
