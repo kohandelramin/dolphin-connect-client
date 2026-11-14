@@ -9,7 +9,7 @@ on:
         options: [dev, production]
         default: dev
       builds:
-        description: "dev only: which apps to build (production always builds all three)"
+        description: "which apps to build (a release, i.e. a release tag, always builds all three)"
         type: choice
         options: [customer-x64, technician-x64, customer-x86, x64, all]
         default: customer-x64
@@ -63,7 +63,7 @@ jobs:
       prerelease: ${{ steps.plan.outputs.prerelease }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Apps and version (production builds all three; a tag must match dolphin/version.txt)
+      - name: Apps and version (a release builds all three; a tag must match dolphin/version.txt)
         id: plan
         shell: bash
         env:

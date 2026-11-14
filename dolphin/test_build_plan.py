@@ -18,9 +18,19 @@ class SelectTest(unittest.TestCase):
         self.assertEqual(b.select("dev", "x64"), (["customer", "technician"], False))
         self.assertEqual(b.select("dev", "all"), (["customer", "technician"], True))
 
-    def test_production_always_builds_all_three(self):
+    def test_a_production_release_always_builds_all_three(self):
         for builds in b.BUILDS:
-            self.assertEqual(b.select("production", builds), (["customer", "technician"], True))
+            self.assertEqual(b.select("production", builds, "v2.2.0"), (["customer", "technician"], True))
+            self.assertEqual(b.plan("production", builds, "v2.2.0-rc.1", "2.2.0", 7)["x86"], "true")
+
+    def test_a_production_test_build_builds_what_was_asked(self):
+        # No tag: an artifact for the owner's PCs (version X.Y.Z-dev.<run>, never offered by the portal), so the
+        # technician can be built while the customer app is still being coded (owner, 2026-11-14).
+        self.assertEqual(b.select("production", "technician-x64", ""), (["technician"], False))
+        self.assertEqual(b.select("production", "customer-x64", ""), (["customer"], False))
+        self.assertEqual(b.select("production", "all", ""), (["customer", "technician"], True))
+        p = b.plan("production", "technician-x64", "", "2.2.0", 31)
+        self.assertEqual((p["x64"], p["x86"], p["version"]), ('["technician"]', "false", "2.2.0-dev.31"))
 
     def test_an_unknown_choice_is_refused(self):
         with self.assertRaises(ValueError):

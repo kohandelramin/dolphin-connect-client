@@ -30,10 +30,10 @@ PUBSPEC_VERSION = re.compile(r"^version: .*$", re.M)
 RC_VERSION_LINE = re.compile(r'^([ \t]*VALUE "(FileVersion|ProductVersion)", )VERSION_AS_STRING( "\\0"\r?)$', re.M)
 
 
-def select(profile, builds):
+def select(profile, builds, tag=""):
     """(x64 variants, x86?). Most dev work is in flutter/lib/dolphin, which the Sciter x86 build does not use, so a
-    dev run builds what was asked; a production run always builds all three, because a release is never partial."""
-    if profile == "production":
+    test run builds what was asked; a release (a tag) always builds all three, because a release is never partial."""
+    if profile == "production" and tag:
         return ["customer", "technician"], True
     if builds not in BUILDS:
         raise ValueError(f"builds must be one of {', '.join(BUILDS)}, not {builds!r}")
@@ -61,7 +61,7 @@ def version(base, tag, run):
 def plan(profile, builds, tag, base, run):
     if tag and profile != "production":
         raise ValueError("Releases are production builds only.")
-    x64, x86 = select(profile, builds)
+    x64, x86 = select(profile, builds, tag)
     v, file_version = version(base, tag, run)
     return {
         "x64": json.dumps(x64),
