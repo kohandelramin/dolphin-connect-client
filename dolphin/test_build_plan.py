@@ -122,7 +122,8 @@ class VersionAccuracyTest(unittest.TestCase):
             b.set_rc_versions("no version block", "2.1.0", "2.1.0.1")
 
     def test_the_real_runner_rc_has_both_lines(self):
-        rc = (b.ROOT / "flutter" / "windows" / "runner" / "Runner.rc").read_text(encoding="utf-8", newline="")
+        with (b.ROOT / "flutter" / "windows" / "runner" / "Runner.rc").open(encoding="utf-8", newline="") as f:
+            rc = f.read()
         self.assertEqual(len(b.RC_VERSION_LINE.findall(rc)), 2)
 
     def test_a_job_version_belongs_to_version_txt_and_the_run(self):
@@ -131,6 +132,14 @@ class VersionAccuracyTest(unittest.TestCase):
         for bad in ("2.1.1", "2.1.0-rc.0", "2.1.0-dev.411", "2.1.0-beta.1", "v2.1.0", "2.1.0+412", ""):
             with self.assertRaises(ValueError, msg=bad):
                 b.check_build_version("2.1.0", 412, bad)
+
+    def test_the_build_scripts_run_on_the_runners_python(self):
+        # The Windows runner's Python is older than 3.13, which added Path.read_text(newline=) (run 43567939887).
+        for path in b.ROOT.joinpath("dolphin").glob("*.py"):
+            if path.name.startswith("test_"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"read_text\([^)]*newline", path.name)
 
     def test_the_local_generated_files_carry_version_txt(self):
         # src/dolphin_generated.rs and brand.dart are not in git (.gitignore); CI writes them from build_plan's version

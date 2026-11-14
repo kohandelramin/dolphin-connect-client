@@ -119,8 +119,10 @@ def main(argv, root=ROOT):
             check_build_version(base, args.run, args.version)
             pubspec = root / "flutter" / "pubspec.yaml"
             rc = root / "flutter" / "windows" / "runner" / "Runner.rc"
-            # newline="": Runner.rc keeps its CRLF line ends.
-            new_rc = set_rc_versions(rc.read_text(encoding="utf-8", newline=""), args.version, file_version)
+            # newline="": Runner.rc keeps its CRLF line ends. open(), not read_text with a newline argument: the Windows runner's
+            # Python is older than 3.13 (run 43567939887).
+            with rc.open(encoding="utf-8", newline="") as f:
+                new_rc = set_rc_versions(f.read(), args.version, file_version)
             pubspec.write_text(set_pubspec_version(pubspec.read_text(encoding="utf-8"), base, args.run), encoding="utf-8")
             with rc.open("w", encoding="utf-8", newline="") as f:
                 f.write(new_rc)
