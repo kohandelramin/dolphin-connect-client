@@ -130,18 +130,26 @@ class SealedFileBox implements SecretBox {
   }
 }
 
-/// The folder the technician app keeps its own files in (the user's application-support folder).
-Future<Directory> techDataDir() async {
+/// The folder an app keeps its own files in: [folder] under the user's application-support folder.
+Future<Directory> appDataDir(String folder) async {
   final base = await getApplicationSupportDirectory();
-  return Directory('${base.path}${Platform.pathSeparator}tech');
+  return Directory('${base.path}${Platform.pathSeparator}$folder');
 }
 
-/// The production boxes: DPAPI-sealed files on Windows, memory elsewhere (the technician app is Windows only).
-Future<SecretBox> openBox(String name) async {
+/// The folder the technician app keeps its own files in.
+Future<Directory> techDataDir() => appDataDir('tech');
+
+/// A DPAPI-sealed file [name] in [folder] on Windows, memory elsewhere. [entropy] keeps one app's blobs apart from
+/// another's.
+Future<SecretBox> openSealedBox(String folder, String name, {List<int>? entropy}) async {
   if (!Platform.isWindows) return MemoryBox();
-  final dir = await techDataDir();
-  return SealedFileBox(File('${dir.path}${Platform.pathSeparator}$name'));
+  final dir = await appDataDir(folder);
+  return SealedFileBox(File('${dir.path}${Platform.pathSeparator}$name'),
+      sealer: entropy == null ? const DpapiSealer() : DpapiSealer(entropy));
 }
+
+/// The production boxes of the technician app (Windows only).
+Future<SecretBox> openBox(String name) => openSealedBox('tech', name);
 
 /// The sealed file of the sign-in (token, expiry, staff).
 const kSessionBoxName = 'session.bin';

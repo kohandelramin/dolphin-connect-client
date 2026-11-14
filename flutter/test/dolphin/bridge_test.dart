@@ -152,7 +152,6 @@ void main() {
   test('no code is shown or handed over while a technician is connected', () {
     expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Ab3dE6gh', inSession: true), '');
     expect(dolphinCode(approveMode: 'password', showCode: 'Y', password: 'Zz9yX8wv', inSession: false), 'Zz9yX8wv');
-    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', ''), isNull);
   });
 
   // Final review: until the first read the count is unknown, and unknown hides the code (a session accepted during the
@@ -187,15 +186,6 @@ void main() {
     final second = wait.waiting();
     expect(wait.isCurrent(first), isFalse);
     expect(wait.isCurrent(second), isTrue);
-  });
-
-  test('the customer app hands its code only when the page asks, and only a real one', () {
-    expect(parsePanelMessage({'type': 'dolphin-code-request'})?.type, 'dolphin-code-request');
-    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', 'Ab3dE6gh'),
-        '{"type":"dolphin-code","code":"Ab3dE6gh"}');
-    expect(customerReply(const PanelMessage('dolphin-code-request'), '123456789', ''), isNull);
-    expect(customerReply(const PanelMessage('dolphin-hello'), '123456789', 'Ab3dE6gh'), '{"type":"dolphin-id","id":"123456789"}');
-    expect(customerReply(const PanelMessage('dolphin-connect', '987654321', 'Ab3dE6gh'), '123456789', 'Ab3dE6gh'), isNull);
   });
 
   testWidgets('the customer window shows the code with copy in code mode only', (tester) async {

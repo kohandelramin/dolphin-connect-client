@@ -12,7 +12,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hbb/dolphin/about.dart';
 import 'package:flutter_hbb/dolphin/chat.dart';
 import 'package:flutter_hbb/dolphin/connection_view.dart';
+import 'package:flutter_hbb/dolphin/customer_api/api.dart';
 import 'package:flutter_hbb/dolphin/customer_settings.dart';
+import 'package:flutter_hbb/dolphin/customer_ui/views.dart';
+import 'package:flutter_hbb/dolphin/customer_ui/widgets.dart' show NoticeTone;
 import 'package:flutter_hbb/dolphin/demo.dart';
 import 'package:flutter_hbb/dolphin/monitor_picker.dart';
 import 'package:flutter_hbb/dolphin/no_picture.dart';
@@ -651,5 +654,85 @@ void main() {
         onLater: noop)), theme: light);
     await tester.pumpWidget(const SizedBox());
     debugDisableShadows = true;
+  }, skip: _dir == null);
+
+  // Plan 19 C4: «درخواست‌ها و پیام‌ها» native, 460 × 640, light and dark.
+  testWidgets('write C4 previews', (tester) async {
+    await _loadFonts();
+    Directory(_dir!).createSync(recursive: true);
+    void noop() {}
+    const win = Size(460, 640);
+    final now = DateTime.now();
+    final customer = CustomerInfo(
+        id: 'c1', name: 'پذیرش پارس‌کار', username: 'parskar.reception', organizationId: 'o1', organizationName: 'پارس‌کار');
+    final rows = [
+      CustomerRequestRow(
+          id: 'r1', number: 124, subject: 'چاپگر حسابداری کار نمی‌کند', product: 'نرم‌افزار حسابداری', status: 'claimed',
+          updatedAt: now.subtract(const Duration(minutes: 20)), unread: true,
+          lastMessage: LastMessage(true, 'علی رضایی', 'ساعت ۱۱ وصل می‌شوم، برنامه باز باشد.', now.subtract(const Duration(minutes: 20)))),
+      CustomerRequestRow(
+          id: 'r2', number: 119, subject: 'نصب نسخه‌ی تازه', product: 'فروشگاهی', status: 'submitted',
+          updatedAt: now.subtract(const Duration(days: 1))),
+      CustomerRequestRow(
+          id: 'r3', number: 117, subject: 'گزارش فروش ماهانه خالی می‌آید و دکمه‌ی چاپ هم کار نمی‌کند', status: 'in_session',
+          updatedAt: now.subtract(const Duration(hours: 2)),
+          lastMessage: LastMessage(false, 'پذیرش', 'برنامه باز است.', now.subtract(const Duration(hours: 2)))),
+    ];
+    final detail = CustomerRequestDetail(
+      row: rows.first,
+      description: 'از صبح فاکتورها چاپ نمی‌شوند.',
+      connect: const ConnectInfo(show: true, technicianName: 'علی رضایی', codeMode: true, codeState: CodeState.waiting),
+      messages: [
+        RequestMessage('m1', false, 'پذیرش', 'از صبح فاکتورها چاپ نمی‌شوند.', now.subtract(const Duration(minutes: 64))),
+        RequestMessage('m2', true, 'علی رضایی', 'ساعت ۱۱ وصل می‌شوم، برنامه باز باشد.', now.subtract(const Duration(minutes: 20))),
+      ],
+      files: [RequestFile('f1', 'invoice-error.png', 284000, now.subtract(const Duration(minutes: 60)), true)],
+    );
+    final empty = TextEditingController();
+    for (final dark in [false, true]) {
+      DolphinCustomerTheme.apply(dark ? DolphinThemeChoice.dark : DolphinThemeChoice.light, platform: Brightness.light);
+      final tag = dark ? '-dark' : '';
+      await tester.pumpWidget(const SizedBox());
+      await _shot(tester, '130-c4-signin$tag', win, CustomerSignInView(
+          username: TextEditingController(text: 'parskar.reception'), password: TextEditingController(text: 'password1'),
+          phone: '021-44280505', onSubmit: noop, onBack: noop));
+      await _shot(tester, '131-c4-list$tag', win, CustomerListView(
+          customer: customer, scope: CustomerScope.open, rows: rows, openCount: 3, now: now, onScope: (_) {}, onOpen: (_) {},
+          onNew: noop, onAccount: (_) {}, onBack: noop));
+      await _shot(tester, '132-c4-new$tag', win, CustomerNewRequestView(
+          products: const [Product('p1', 'نرم‌افزار حسابداری'), Product('p2', 'فروشگاهی')], productId: 'p1',
+          subject: TextEditingController(text: 'چاپگر حسابداری کار نمی‌کند'),
+          description: TextEditingController(text: 'از صبح فاکتورها چاپ نمی‌شوند…'), id: '123456789',
+          onUrgent: (_) {}, onScreenshot: (_) {}, onProduct: (_) {}, onSend: noop, onCancel: noop));
+      await _shot(tester, '133-c4-request$tag', win, CustomerRequestView(
+          detail: detail, now: now, message: empty, onBack: noop, onAllow: noop, onEndSession: noop, onSend: noop,
+          onAttach: noop, onDownload: (_) {}, onCancelRequest: noop));
+      await _shot(tester, '134-c4-account$tag', win, CustomerAccountView(
+          customer: customer, current: empty, next: empty, repeat: empty, onSave: noop, onSignOut: noop, onBack: noop));
+      await _shot(tester, '135-c4-home-row$tag', const Size(380, 580), DolphinHomeView(
+          id: '123456789', state: DolphinServerState.ready, onCopy: noop, phone: '021-44280505',
+          siteLabel: 'support.dolphindev.ir', network: net, version: '2.2.0', onHealth: noop, onReport: noop,
+          onScreenshot: noop, onRequests: noop, unread: 1, requestsHint: false, onSettings: noop, onAbout: noop));
+    }
+    // The other states worth a look, light only.
+    DolphinCustomerTheme.reset();
+    await _shot(tester, '136-c4-request-click-live', win, CustomerRequestView(
+        detail: CustomerRequestDetail(
+            row: rows[2],
+            connect: const ConnectInfo(technicianName: 'علی رضایی', sessionLive: true),
+            messages: detail.messages,
+            files: const []),
+        now: now, message: empty, notice: 'ثبت شد. کارشناس دلفین به‌زودی وصل می‌شود.', noticeTone: NoticeTone.success,
+        onBack: noop, onAllow: noop, onEndSession: noop, onSend: noop, onAttach: noop));
+    await _shot(tester, '137-c4-account-forced', win, CustomerAccountView(
+        customer: customer, forced: true, current: empty, next: empty, repeat: empty, error: 'رمز فعلی درست نیست.',
+        onSave: noop, onSignOut: noop));
+    await _shot(tester, '138-c4-signin-expired-min', const Size(349, 502), CustomerSignInView(
+        username: TextEditingController(), password: TextEditingController(), expired: true,
+        error: 'نام کاربری یا رمز درست نیست.', phone: '021-44280505', onSubmit: noop, onBack: noop));
+    await _shot(tester, '139-c4-request-min', const Size(349, 502), CustomerRequestView(
+        detail: detail, now: now, message: empty, connectedNow: true, onBack: noop, onAllow: noop, onEndSession: noop,
+        onSend: noop, onAttach: noop, onDownload: (_) {}, onCancelRequest: noop));
+    await tester.pumpWidget(const SizedBox());
   }, skip: _dir == null);
 }
