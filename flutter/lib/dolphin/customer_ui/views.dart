@@ -259,8 +259,7 @@ class CustomerListView extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           child: Container(
             constraints: const BoxConstraints(minHeight: 34),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: on ? DolphinColors.azure : DolphinColors.surface,
               borderRadius: BorderRadius.circular(999),

@@ -28,7 +28,8 @@ class CustomerBar extends StatelessWidget {
           TextButton.icon(
             key: const ValueKey('c4-back'),
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_forward, size: 18),
+            // Mirrored in RTL: points right, «→ بازگشت» as the design and the web portal draw it.
+            icon: const Icon(Icons.arrow_back, size: 18),
             label: const Text('بازگشت'),
             style: TextButton.styleFrom(foregroundColor: DolphinColors.muted, padding: const EdgeInsets.symmetric(horizontal: 10)),
           ),
