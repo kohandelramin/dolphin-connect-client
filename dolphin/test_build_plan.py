@@ -132,12 +132,18 @@ class VersionAccuracyTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 b.check_build_version("2.1.0", 412, bad)
 
-    def test_the_committed_placeholders_carry_version_txt(self):
-        # The generated files in git (overwritten in CI) say <version.txt>-dev.0, so a local check or analysis run
-        # shows this release line and never an old number.
+    def test_the_local_generated_files_carry_version_txt(self):
+        # src/dolphin_generated.rs and brand.dart are not in git (.gitignore); CI writes them from build_plan's version
+        # before building. A local checkout keeps generated copies, and they must say <version.txt>-dev.0 so a local
+        # check or analysis run shows this release line and never an old number. On a fresh checkout there is nothing
+        # to check (run 43567207772 failed on that).
+        rust_path = b.ROOT / "src" / "dolphin_generated.rs"
+        dart_path = b.ROOT / "flutter" / "lib" / "dolphin" / "brand.dart"
+        if not (rust_path.exists() and dart_path.exists()):
+            self.skipTest("no generated files in this checkout; CI writes them from build_plan's version")
         base = b.read_base()
-        rust = (b.ROOT / "src" / "dolphin_generated.rs").read_text(encoding="utf-8")
-        dart = (b.ROOT / "flutter" / "lib" / "dolphin" / "brand.dart").read_text(encoding="utf-8")
+        rust = rust_path.read_text(encoding="utf-8")
+        dart = dart_path.read_text(encoding="utf-8")
         self.assertIn(f'pub const DOLPHIN_VERSION: &str = "{base}-dev.0";', rust)
         self.assertIn(f"static const String version = '{base}-dev.0';", dart)
 
