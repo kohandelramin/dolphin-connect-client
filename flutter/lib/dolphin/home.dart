@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -15,8 +16,11 @@ import '../common/formatter/id_formatter.dart';
 import '../models/platform_model.dart';
 import '../models/server_model.dart';
 import 'about.dart';
+import 'access_profile.dart' show clickIsLocal, kDolphinRemoteClickMs;
 import 'brand.dart';
 import 'callback.dart';
+import 'customer_api/api.dart' show CustomerApi;
+import 'customer_api/session.dart';
 import 'customer_requests.dart';
 import 'customer_settings.dart';
 import 'digits.dart';
@@ -57,7 +61,7 @@ Size _screenSize() {
 }
 
 
-/// Customer build's main window: the ID screen, or the request section (the customer portal).
+/// Customer build's main window: the ID screen, or «درخواست‌ها و پیام‌ها» (Plan 19 C4, native).
 class DolphinHome extends StatefulWidget {
   const DolphinHome({super.key});
 
@@ -81,6 +85,9 @@ class _DolphinHomeState extends State<DolphinHome> {
   int _ticks = 0;
   // DD-40: what to do on a PC with no monitor; '' when it has one.
   String _headlessFix = '';
+  // Plan 19 C4: the customer's sign-in (DPAPI) and the 30 s unread count, for the row and the section.
+  CustomerSession? _customer;
+  UnreadPoller? _unread;
 
   @override
   void initState() {
@@ -103,12 +110,87 @@ class _DolphinHomeState extends State<DolphinHome> {
     _cleanLogs();
     _readHeadless();
     _readService();
+    _startCustomer();
   }
 
   @override
   void dispose() {
     _options?.cancel();
+    _unread?.dispose();
+    _customer?.removeListener(_onCustomer);
+    _customer?.dispose();
+    _customer?.api.close();
     super.dispose();
+  }
+
+  /// Plan 19 C4: the stored sign-in of this Windows user, if any. The unread count is asked only while signed in.
+  Future<void> _startCustomer() async {
+    final session = CustomerSession(CustomerApi(), await openCustomerBox());
+    if (!mounted) {
+      session.dispose();
+      session.api.close();
+      return;
+    }
+    final unread = UnreadPoller(session);
+    unread.count.addListener(_onCustomer);
+    session.addListener(_onCustomer);
+    setState(() {
+      _customer = session;
+      _unread = unread;
+    });
+    await session.load();
+  }
+
+  void _onCustomer() {
+    if (mounted) setState(() {});
+  }
+
+  /// C4: this PC's one-time password exactly as the home's code card reads it, and only in code mode (portalCode):
+  /// '' in click mode, during a session and before the session count is known. Called only from the customer's press
+  /// of «اجازه‌ی اتصال به این رایانه» (customer_requests.dart); nothing keeps what it returns.
+  String _codeForPortal() {
+    final model = gFFI.serverModel;
+    final code = dolphinCode(
+        approveMode: model.approveMode,
+        showCode: bind.mainGetOptionSync(key: kDolphinShowCodeOption),
+        password: model.serverPasswd.text,
+        inSession: codeHiddenFor(_connected));
+    return portalCode(model.approveMode, code);
+  }
+
+  /// C4: a press in this window just now was the customer's own. Upstream's rule (access_profile.dart clickIsLocal)
+  /// against the last remote pointer input the server reports to this process (`mainGetMouseTime`, the same reading
+  /// upstream's remote block in the main window uses; the connection window's click time is only in the --cm process).
+  Future<bool> _pressIsLocal() async {
+    final pressed = DateTime.now().millisecondsSinceEpoch;
+    try {
+      await bind.mainCheckMouseTime();
+      await Future.delayed(const Duration(milliseconds: kDolphinRemoteClickMs));
+      final remote = (await bind.mainGetMouseTime()).toInt();
+      return clickIsLocal(pressedMs: pressed, remoteClickMs: remote);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// C4 📎: Windows' file picker (upstream's file_picker).
+  Future<ChosenFile?> _pickFile() async {
+    final r = await FilePicker.platform.pickFiles(dialogTitle: 'فرستادن فایل', lockParentWindow: true);
+    final f = r?.files.single;
+    final path = f?.path;
+    if (f == null || path == null) return null;
+    return ChosenFile(path, f.name, f.size);
+  }
+
+  /// C4 «دریافت»: Windows' save dialog.
+  Future<String?> _saveAs(String name) async {
+    try {
+      // Windows refuses some characters in a file name; the portal's names are the uploader's own.
+      return await FilePicker.platform.saveFile(
+          dialogTitle: 'ذخیره‌ی فایل', fileName: name.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1f]'), '_'), lockParentWindow: true);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _readConnected() async {
@@ -271,9 +353,8 @@ class _DolphinHomeState extends State<DolphinHome> {
   void _openReport() => showDolphinPanel(
       context, (close) => DolphinUploadForm(kind: UploadKind.diagnostics, onSend: _sendReport, onClose: close));
 
-  /// DD-48: our window steps aside, the screen is read, and the window comes back with the picture to look at before
-  /// anything is sent.
-  Future<void> _takeScreenshot() async {
+  /// DD-48: our window steps aside, the screen is read, and the window comes back. Null when nothing was read.
+  Future<Uint8List?> _captureScreen() async {
     RawScreen? raw;
     try {
       await windowManager.minimize();
@@ -284,7 +365,12 @@ class _DolphinHomeState extends State<DolphinHome> {
       await windowManager.restore();
       await windowManager.show();
     }
-    final png = raw == null ? null : await encodeScreen(raw);
+    return raw == null ? null : await encodeScreen(raw);
+  }
+
+  /// DD-48: the picture to look at before anything is sent.
+  Future<void> _takeScreenshot() async {
+    final png = await _captureScreen();
     if (!mounted) return;
     if (png == null) {
       showToast('عکس صفحه گرفته نشد.');
@@ -299,7 +385,8 @@ class _DolphinHomeState extends State<DolphinHome> {
   Future<void> _fitWindow() async {
     if (_requests) {
       setResizable(true);
-      // UX-18: fit the screen (a 1366 × 768 laptop cannot take 980 × 720 plus the title bar).
+      // Plan 19 C4: 460 × 640, resizable, never under the home window's minimum (every C4 screen fits it).
+      await windowManager.setMinimumSize(kDolphinHomeMinSize);
       await windowManager.setSize(requestsSize(_screenSize()));
       await windowManager.center();
     } else {
@@ -360,7 +447,21 @@ class _DolphinHomeState extends State<DolphinHome> {
             password: model.serverPasswd.text,
             inSession: codeHiddenFor(_connected));
         if (_requests) {
-          return DolphinCustomerRequests(id: id, code: portalCode(model.approveMode, code), onBack: () => _show(false));
+          final customer = _customer;
+          if (customer == null) return const SizedBox.shrink(); // the sealed file is being opened (a few ms)
+          return DolphinCustomerRequests(
+            session: customer,
+            unread: _unread,
+            id: id,
+            readCode: _codeForPortal,
+            connectedNow: codeHiddenFor(_connected),
+            pressIsLocal: _pressIsLocal,
+            takeScreenshot: isWindows ? _captureScreen : null,
+            pickFile: _pickFile,
+            saveAs: _saveAs,
+            phone: supportPhone(bind.mainGetOptionSync(key: kDolphinSupportPhoneOption), DolphinBrand.supportPhone),
+            onBack: () => _show(false),
+          );
         }
         // DD-44: the clipboard always gets Latin digits.
         void copyId() => _copy(idForClipboard(id));
@@ -382,6 +483,8 @@ class _DolphinHomeState extends State<DolphinHome> {
           siteLabel: DolphinBrand.siteLabel,
           onCopy: copyId,
           onRequests: () => _show(true),
+          unread: _unread?.count.value ?? 0,
+          requestsHint: !(_customer?.signedIn ?? false),
           recent: parseRecentSessions(bind.mainGetOptionSync(key: kDolphinRecentSessionsOption)),
           coming: _tech(),
           connected: _connected,

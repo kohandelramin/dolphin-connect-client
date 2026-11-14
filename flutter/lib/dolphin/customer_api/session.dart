@@ -102,6 +102,9 @@ class CustomerSession extends ChangeNotifier {
 
   bool get busy => _busy;
 
+  /// The portal's answer to the last password change («رمز عوض شد.»), null before one.
+  String? lastPasswordMessage;
+
   /// The last sign-in error in Persian, null after success.
   String? get error => _error;
 
@@ -163,14 +166,15 @@ class CustomerSession extends ChangeNotifier {
     return false;
   }
 
-  /// POST /customer/password. Returns null on success, otherwise the Persian reason. The checks the web form makes
+  /// POST /customer/password. Returns null on success (the portal's own words in [lastPasswordMessage]), otherwise the
+  /// Persian reason. The checks the web form makes
   /// before sending are made here too.
   Future<String?> changePassword(String current, String next, String confirm) async {
     if (current.isEmpty || next.isEmpty) return kMsgPasswordFill;
     if (next != confirm) return kMsgPasswordMismatch;
     if (next == current) return kMsgPasswordSame;
     try {
-      await api.changePassword(current, next);
+      lastPasswordMessage = await api.changePassword(current, next);
     } catch (e) {
       return apiErrorText(e);
     }

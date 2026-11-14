@@ -116,12 +116,8 @@ void main() {
     expect(find.text('درخواست‌ها و پیام‌ها'), findsNothing);
   });
 
-  test('the customer app only answers hello with its own ID and never connects out', () {
-    expect(customerReply(const PanelMessage('dolphin-hello'), '123456789'), '{"type":"dolphin-id","id":"123456789"}');
-    // WF-7: only the technician app tags its ID; the customer app's answer never carries the tag.
+  test('only the technician app tags its ID (WF-7)', () {
     expect(idReply('123456789', technician: true), '{"type":"dolphin-id","id":"123456789","app":"technician"}');
-    expect(customerReply(const PanelMessage('dolphin-connect', '987654321'), '123456789'), isNull);
-    expect(customerReply(const PanelMessage('dolphin-hello'), ''), isNull);
   });
 
   testWidgets('home says when the server is unreachable', (tester) async {

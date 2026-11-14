@@ -21,9 +21,6 @@ const kMsgCustomerForbidden = 'این کار برای حساب شما مجاز �
 const kAttachmentMaxBytes = 500 * 1024 * 1024;
 const kAttachmentChunkBytes = 4 * 1024 * 1024;
 
-/// The header the attachment routes ask for on writes (src/lib/upload-guard.ts UPLOAD_HEADER).
-const kUploadHeader = 'x-dolphin-upload';
-
 // The web portal's own texts for attachment failures (src/components/attachments.tsx).
 const kMsgFileClosed = 'این درخواست بسته شده است.';
 const kMsgFileTooMany = 'به این درخواست بیش از این نمی‌شود فایل فرستاد.';
@@ -33,6 +30,9 @@ const kMsgFileTooBig = 'حداکثر اندازه‌ی هر فایل ۵۰۰ مگ
 const kMsgFileEmpty = 'این فایل خالی است.';
 const kMsgFileOffline =
     'اتصال اینترنت قطع است. بعداً همان فایل را دوباره انتخاب کنید؛ از جایی که مانده ادامه پیدا می‌کند.';
+
+/// A refusal of «اجازه‌ی اتصال» that is a normal next step, shown as information, not as an error.
+bool isNextStep(Object error) => error is ApiError && error.extra['notice'] == true;
 
 /// What a customer must do before anything else (403 `password_change`, UN-10).
 const kErrPasswordChange = 'password_change';
@@ -367,9 +367,10 @@ class CustomerApi extends ApiTransport {
 
   Future<CustomerMe> me() => apiGet('$_c/me', CustomerMe.fromJson);
 
-  /// The web's rules and messages (too short, wrong current, rate limited) come back as [ApiError].
-  Future<void> changePassword(String current, String next) =>
-      apiPost('$_c/password', {'current': current, 'next': next}, jsonOk);
+  /// The web's rules and messages (same, wrong current, too short, too long, rate limited) come back as [ApiError].
+  /// Returns the portal's Persian answer (`message`), or null.
+  Future<String?> changePassword(String current, String next) =>
+      apiPost('$_c/password', {'current': current, 'next': next}, (m) => jsonStrN(m, 'message'));
 
   // -- requests
 
@@ -389,15 +390,22 @@ class CustomerApi extends ApiTransport {
   Future<CustomerRequestDetail> request(String id) =>
       apiGet('$_c/requests/${_seg(id)}', CustomerRequestDetail.fromJson);
 
-  /// [rustdeskId]: this PC's own ID, sent with every request the app opens (the customer never types it).
+  /// [rustdeskId]: this PC's own ID, sent with every request the app opens (the customer never types it; the portal
+  /// attaches it through submitDevice with no code, and a failure there does not undo the request). [urgent]: the
+  /// web's «فوری است» box.
   Future<CreatedRequest> createRequest(
-          {String? productId, required String subject, required String description, String? rustdeskId}) =>
+          {String? productId,
+          required String subject,
+          required String description,
+          String? rustdeskId,
+          bool urgent = false}) =>
       apiPost(
           '$_c/requests',
           {
             'productId': productId ?? '',
             'subject': subject.trim(),
             'description': description.trim(),
+            'priority': urgent ? 'urgent' : 'normal',
             if (rustdeskId != null && rustdeskId.isNotEmpty) 'rustdeskId': rustdeskId,
           },
           CreatedRequest.fromJson);
@@ -407,10 +415,12 @@ class CustomerApi extends ApiTransport {
 
   /// «اجازه‌ی اتصال به این رایانه» (the web's `submitDevice`): this PC's ID, and in code mode its current one-time
   /// password. Called only from the customer's own press; [code] lives in this request's body and nowhere else.
-  Future<void> allowConnect(String requestId, {required String rustdeskId, String? code}) => apiPost(
+  /// Returns the portal's Persian answer (`message`), or null. A refusal is [ApiError]; a normal next step
+  /// (`code_after_link`, `session_live`, `staff_call`) carries `extra['notice'] == true` ([isNextStep]).
+  Future<String?> allowConnect(String requestId, {required String rustdeskId, String? code}) => apiPost(
       '$_c/requests/${_seg(requestId)}/device',
       {'rustdeskId': rustdeskId, if (code != null && code.isNotEmpty) 'code': code},
-      jsonOk);
+      (m) => jsonStrN(m, 'message'));
 
   Future<void> endSession(String requestId) => apiPost('$_c/requests/${_seg(requestId)}/end-session', null, jsonOk);
 
@@ -419,7 +429,8 @@ class CustomerApi extends ApiTransport {
   // -- attachments (UN-11's routes, with the customer's Bearer token)
 
   /// Sends a file of [size] bytes in 4 MB chunks: POST /api/requests/{id}/attachments starts (or resumes, by name and
-  /// size), then PUT /api/attachments/{aid}?offset=… until the server has it all. A dropped link waits and goes on from
+  /// size), then PUT /api/attachments/{aid}?offset=… until the server has it all. With the Bearer token the routes need
+  /// no `x-dolphin-upload` header (that one guards the web's cookie path). A dropped link waits and goes on from
   /// where the server stopped, up to [maxFailures] times in a row. Errors are [ApiError] with the web's Persian texts.
   Future<void> upload(String requestId,
       {required String name,
@@ -430,13 +441,12 @@ class CustomerApi extends ApiTransport {
       Future<void> Function(Duration) wait = _wait}) async {
     if (size <= 0) throw const ApiError(400, 'empty', kMsgFileEmpty);
     if (size > kAttachmentMaxBytes) throw const ApiError(400, 'too_big', kMsgFileTooBig);
-    const headers = {kUploadHeader: '1'};
     final String fileId;
     int received;
     try {
       final start = await apiParse(
           apiSend('POST', '/api/requests/${_seg(requestId)}/attachments',
-              body: {'name': name, 'size': size}, headers: headers, prefixed: false),
+              body: {'name': name, 'size': size}, prefixed: false),
           (d) => jsonMap(d, 'answer'));
       fileId = jsonStr(start, 'id');
       received = jsonInt(start, 'received');
@@ -453,7 +463,7 @@ class CustomerApi extends ApiTransport {
       try {
         final bytes = await read(received, (size - received).clamp(0, kAttachmentChunkBytes));
         final answer = await apiSend('PUT', '/api/attachments/${_seg(fileId)}',
-            query: {'offset': '$received'}, bytes: bytes, headers: headers, prefixed: false);
+            query: {'offset': '$received'}, bytes: bytes, prefixed: false);
         final r = jsonMap(answer, 'answer')['received'];
         if (r is int) received = r;
         failures = 0;

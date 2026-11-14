@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_hbb/dolphin/customer_api/api.dart';
@@ -28,7 +27,7 @@ Map<String, dynamic> loginJson({bool mustChange = false, String token = 'cust-to
       'customer': customerJson(),
     };
 
-Map<String, dynamic> rowJson({String id = reqId, String status = 'claimed', bool unread = true, Object? product = 'حسابداری'}) => {
+Map<String, dynamic> rowJson({String id = reqId, String status = 'claimed', bool unread = true, String? product = 'حسابداری'}) => {
       'id': id,
       'number': 124,
       'subject': 'چاپگر حسابداری کار نمی‌کند',
@@ -93,7 +92,7 @@ void main() {
     });
 
     test('the list, unread, products (a bare list) and a request parse; the scope is in the query', () async {
-      portal.on('GET /customer/requests', (_) => {'rows': [rowJson(), rowJson(id: 'x', status: 'submitted', unread: false, product: {'id': 'p', 'name': 'فروشگاهی'})]});
+      portal.on('GET /customer/requests', (_) => {'rows': [rowJson(), rowJson(id: 'x', status: 'submitted', unread: false, product: null)]});
       portal.on('GET /customer/unread', (_) => {'count': 2});
       portal.on('GET /customer/products', (_) => [{'id': 'p1', 'name': 'حسابداری'}]);
       portal.on('GET /customer/requests/$reqId', (_) => detailJson());
@@ -101,7 +100,7 @@ void main() {
       expect(portal.sent('GET /customer/requests').single.url.queryParameters, {'scope': 'closed'});
       expect(rows.first.unread, isTrue);
       expect(rows.first.lastMessage!.fromStaff, isTrue);
-      expect(rows[1].product, 'فروشگاهی');
+      expect(rows[1].product, isNull);
       expect(rows.first.open, isTrue);
       expect(await api.unread(), 2);
       expect((await api.products()).single.name, 'حسابداری');
@@ -115,6 +114,13 @@ void main() {
       }
     });
 
+    test('a call a technician opened has no description (null): nothing to show', () async {
+      final j = detailJson();
+      (j['request'] as Map<String, dynamic>)['description'] = null;
+      portal.on('GET /customer/requests/$reqId', (_) => j);
+      expect((await api.request(reqId)).description, '');
+    });
+
     test('attachments null means the server keeps no files', () async {
       portal.on('GET /customer/requests/$reqId', (_) => detailJson(attachments: null));
       expect((await api.request(reqId)).files, isNull);
@@ -125,12 +131,14 @@ void main() {
       final c = await api.createRequest(subject: ' چاپگر ', description: 'فاکتورها چاپ نمی‌شوند', rustdeskId: '123456789');
       expect(c.number, 125);
       expect(portal.body(portal.sent('POST /customer/requests').single),
-          {'productId': '', 'subject': 'چاپگر', 'description': 'فاکتورها چاپ نمی‌شوند', 'rustdeskId': '123456789'});
+          {'productId': '', 'subject': 'چاپگر', 'description': 'فاکتورها چاپ نمی‌شوند', 'priority': 'normal', 'rustdeskId': '123456789'});
+      await api.createRequest(productId: 'p1', subject: 'abc', description: 'abcde', urgent: true);
+      expect(portal.body(portal.sent('POST /customer/requests').last)['priority'], 'urgent');
     });
 
     test('allowConnect: the ID alone in click mode, the code only when given', () async {
-      portal.on('POST /customer/requests/$reqId/device', (_) => {'ok': true});
-      await api.allowConnect(reqId, rustdeskId: '123456789');
+      portal.on('POST /customer/requests/$reqId/device', (_) => {'ok': true, 'message': 'ثبت شد.'});
+      expect(await api.allowConnect(reqId, rustdeskId: '123456789'), 'ثبت شد.');
       await api.allowConnect(reqId, rustdeskId: '123456789', code: 'Ab3dE6gh');
       final sent = portal.sent('POST /customer/requests/$reqId/device');
       expect(portal.body(sent[0]), {'rustdeskId': '123456789'});
@@ -148,6 +156,19 @@ void main() {
       }
     });
 
+    test('a next step (notice: true) is told apart from a refusal', () async {
+      portal.on('POST /customer/requests/$reqId/device',
+          (_) => FakePortal.json({'error': 'session_live', 'message': 'جلسه باز است.', 'notice': true}, 409));
+      try {
+        await api.allowConnect(reqId, rustdeskId: '123456789');
+        fail('should throw');
+      } on ApiError catch (e) {
+        expect(isNextStep(e), isTrue);
+        expect(e.message, 'جلسه باز است.');
+      }
+      expect(isNextStep(const ApiError(400, 'invalid_id', 'x')), isFalse);
+    });
+
     test('403 password_change fires its stream', () async {
       portal.on('GET /customer/unread', (_) => FakePortal.error(403, 'password_change', 'اول رمز را عوض کنید.'));
       var fired = 0;
@@ -157,7 +178,7 @@ void main() {
       expect(fired, 1);
     });
 
-    test('upload: start with the upload header, chunks at the server\'s offsets, resumes after a 409 and a drop', () async {
+    test('upload: start with the Bearer token, chunks at the server\'s offsets, resumes after a 409 and a drop', () async {
       final size = kAttachmentChunkBytes + 10;
       portal.on('POST /api/requests/$reqId/attachments', (_) => {'id': fileId, 'received': 0});
       var puts = 0;
@@ -177,7 +198,7 @@ void main() {
           onProgress: progress.add,
           wait: (d) async => waits.add(d));
       final start = portal.sent('POST /api/requests/$reqId/attachments').single;
-      expect(start.headers[kUploadHeader], '1');
+      expect(start.headers['Authorization'], 'Bearer cust-token-xyz'); // the Bearer path needs no upload header
       expect(portal.body(start), {'name': 'invoice.png', 'size': size});
       final offsets = portal.sent('PUT /api/attachments/$fileId').map((r) => r.url.queryParameters['offset']).toList();
       expect(offsets, ['0', '5', '5', '${kAttachmentChunkBytes + 5}']);
@@ -291,10 +312,11 @@ void main() {
       expect(await session.changePassword('old-pass-1', 'new-pass-12', 'other'), kMsgPasswordMismatch);
       expect(await session.changePassword('old-pass-1', 'old-pass-1', 'old-pass-1'), kMsgPasswordSame);
       expect(portal.sent('POST /customer/password'), isEmpty);
-      portal.on('POST /customer/password', (_) => {'ok': true});
+      portal.on('POST /customer/password', (_) => {'ok': true, 'message': 'رمز عوض شد.'});
       expect(await session.changePassword('old-pass-1', 'new-pass-12', 'new-pass-12'), isNull);
       expect(portal.body(portal.sent('POST /customer/password').single), {'current': 'old-pass-1', 'next': 'new-pass-12'});
       expect(session.ready, isTrue);
+      expect(session.lastPasswordMessage, 'رمز عوض شد.');
       expect(await box.read(), contains('"mustChangePassword":false'));
     });
 

@@ -1,13 +1,13 @@
 import 'package:flutter/widgets.dart';
 
-/// The request section's preferred window: room for the portal's pages.
-const kDolphinRequestsSize = Size(980, 720);
+/// Plan 19 C4: «درخواست‌ها و پیام‌ها» (native since 2.2.0) opens at 460 × 640 and can be resized, never under the home
+/// window's minimum ([kDolphinHomeMinSize], which every C4 screen fits).
+const kDolphinRequestsSize = Size(460, 640);
 
-/// The request section's window on this screen (UX-18): up to 980 × 720, never larger than the screen leaves room for.
-/// A 1366 × 768 laptop has about 728 px under the taskbar, so 720 + the title bar did not fit.
+/// The request section's window on this screen (UX-18): 460 × 640, smaller only on a screen that cannot hold it.
 Size requestsSize(Size screen) => Size(
-      (screen.width - 40).clamp(640.0, kDolphinRequestsSize.width),
-      (screen.height - 90).clamp(480.0, kDolphinRequestsSize.height),
+      (screen.width - 20).clamp(kDolphinHomeMinSize.width, kDolphinRequestsSize.width),
+      (screen.height - 60).clamp(kDolphinHomeMinSize.height, kDolphinRequestsSize.height),
     );
 
 /// Plan 19 C1: the customer window is 380 × 580, as approved. A screen that cannot hold that (a 1366 × 768 laptop at

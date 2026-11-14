@@ -18,7 +18,7 @@ const kCodeForPortalLine = 'رمز را فقط در «درخواست‌ها و �
 /// ADR-0012, click mode: the code may be read to the Dolphin technician instead of pressing «پذیرفتن».
 const kCodeSpokenLine = 'این رمز را فقط به کارشناس دلفین بگویید؛ کارشناس با آن بدون «پذیرفتن» وصل می‌شود. رمز بعد از هر اتصال عوض می‌شود.';
 
-/// Under «درخواست‌ها و پیام‌ها» (UX-8): the section is the customer portal, which needs a username from Dolphin.
+/// Under «درخواست‌ها و پیام‌ها» (UX-8) while signed out: the section needs a username from Dolphin.
 const kRequestsWhoFor = 'با نام کاربری‌ای که دلفین به شما داده است؛ حساب ندارید؟ با پشتیبانی تماس بگیرید.';
 
 /// What the stopped state says and its button.
@@ -65,8 +65,14 @@ class DolphinHomeView extends StatelessWidget {
   /// The support site's name; shown small under the helpers.
   final String siteLabel;
 
-  /// Opens the request section (the customer portal inside the app); hidden when null.
+  /// Opens «درخواست‌ها و پیام‌ها» (Plan 19 C4, native); hidden when null.
   final VoidCallback? onRequests;
+
+  /// C4.6: requests with a new message from Dolphin (the red count on the row); 0 hides it.
+  final int unread;
+
+  /// UX-8's line under the row («با نام کاربری‌ای که دلفین به شما داده است…»): only while signed out.
+  final bool requestsHint;
 
   /// The one-time code (WF-3); '' hides it.
   final String code;
@@ -133,6 +139,8 @@ class DolphinHomeView extends StatelessWidget {
       required this.phone,
       required this.siteLabel,
       this.onRequests,
+      this.unread = 0,
+      this.requestsHint = true,
       this.code = '',
       this.codeSpoken = false,
       this.onCopyCode,
@@ -314,6 +322,19 @@ class DolphinHomeView extends StatelessWidget {
                     gap,
                     _idCard(down),
                     if (!tools.isEmpty) ...[gap, tools],
+                    if (onRequests != null) ...[
+                      gap,
+                      DolphinRequestsRow(onTap: onRequests, unread: unread),
+                      // UX-8: most customers have no account; say so before they meet the sign-in.
+                      if (requestsHint) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          kRequestsWhoFor,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
+                        ),
+                      ],
+                    ],
                     if (network.isNotEmpty) ...[gap, DolphinNetworkPanel(rows: network)],
                     if (share != null) ...[gap, share],
                     // As before: not while a technician is on the way, nor while the server is unreachable.
@@ -355,30 +376,6 @@ class DolphinHomeView extends StatelessWidget {
                               ),
                           ],
                         ),
-                      ),
-                    ],
-                    if (onRequests != null) ...[
-                      gap,
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: TextButton.icon(
-                          onPressed: onRequests,
-                          icon: const Icon(Icons.forum_outlined, size: 18),
-                          label: const Text('درخواست‌ها و پیام‌ها', style: TextStyle(fontWeight: FontWeight.w700)),
-                          style: TextButton.styleFrom(
-                            foregroundColor: DolphinColors.azureText,
-                            backgroundColor: DolphinColors.azureSoft,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(DolphinRadii.control)),
-                          ),
-                        ),
-                      ),
-                      // UX-8: most customers have no portal account; say so before they meet a sign-in page.
-                      const SizedBox(height: 6),
-                      Text(
-                        kRequestsWhoFor,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: DolphinColors.muted, fontSize: 12.5, height: 1.6),
                       ),
                     ],
                     if (!helpers.isEmpty) ...[

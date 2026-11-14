@@ -1380,7 +1380,7 @@ class ThemeTokensWiringTest(unittest.TestCase):
         self.assertNotIn("static const azure", theme)
         self.assertIn("static DolphinTechPalette get dark => DolphinTechPalette.fromTokens(DolphinTheme.dark);", tech)
         # no hard-coded brand colour left in the views
-        for path in ROOT.joinpath("flutter", "lib", "dolphin").glob("*.dart"):
+        for path in ROOT.joinpath("flutter", "lib", "dolphin").rglob("*.dart"):
             if path.name in ("theme_tokens.dart", "brand.dart"):
                 continue
             self.assertNotIn("Color(0xFF", path.read_text(encoding="utf-8"), path.name)
@@ -1437,6 +1437,51 @@ class CustomerLookWiringTest(unittest.TestCase):
         self.assertIn("const kDolphinHomeWindowSize = Size(380, 580);", sizes)
         self.assertIn("const kDolphinSessionWindowSize = Size(300, 380);",
                       self.read("flutter", "lib", "dolphin", "session_controls.dart"))
+
+
+class CustomerRequestsWiringTest(unittest.TestCase):
+    """Plan 19 C4: «درخواست‌ها و پیام‌ها» native in the customer app, on the customer App API. The views and the consent
+    rules are tested in flutter/test/dolphin/customer_c4_test.dart; these hold the wiring an edit could drop."""
+
+    def read(self, *parts):
+        return ROOT.joinpath(*parts).read_text(encoding="utf-8")
+
+    def test_the_customer_app_no_longer_opens_the_portal_page(self):
+        lib = ROOT / "flutter" / "lib" / "dolphin"
+        importers = sorted(p.relative_to(lib).as_posix() for p in lib.rglob("*.dart")
+                           if "portal_view.dart'" in p.read_text(encoding="utf-8"))
+        self.assertEqual(importers, ["side_pane.dart"])  # the technician's side pane only
+        requests = self.read("flutter", "lib", "dolphin", "customer_requests.dart")
+        self.assertNotIn("DolphinPortalView", requests)
+        self.assertNotIn("String? customerReply(", self.read("flutter", "lib", "dolphin", "panel_bridge.dart"))
+
+    def test_home_opens_the_native_section_at_its_size(self):
+        home = self.read("flutter", "lib", "dolphin", "home.dart")
+        self.assertIn("return DolphinCustomerRequests(", home)
+        self.assertIn("readCode: _codeForPortal,", home)
+        self.assertIn("pressIsLocal: _pressIsLocal,", home)
+        self.assertIn("connectedNow: codeHiddenFor(_connected),", home)
+        self.assertIn("return portalCode(model.approveMode, code);", home)
+        self.assertIn("return clickIsLocal(pressedMs: pressed, remoteClickMs: remote);", home)
+        self.assertIn("await windowManager.setSize(requestsSize(_screenSize()));", home)
+        self.assertIn("const kDolphinRequestsSize = Size(460, 640);",
+                      self.read("flutter", "lib", "dolphin", "window_sizes.dart"))
+
+    def test_the_code_is_read_only_inside_the_allow_press(self):
+        requests = self.read("flutter", "lib", "dolphin", "customer_requests.dart")
+        self.assertEqual(requests.count("widget.readCode()"), 1)
+        allow = requests.split("Future<void> _allow() async {", 1)[1].split("\n  }\n", 1)[0]
+        self.assertIn("widget.readCode()", allow)
+        self.assertIn("if (local != null && !await local()) return;", allow)
+        self.assertIsNone(re.search(r"\b(debugPrint|print|log)\(", requests), "nothing in the section logs")
+        api = self.read("flutter", "lib", "dolphin", "customer_api", "api.dart")
+        self.assertIn("if (code != null && code.isNotEmpty) 'code': code", api)
+
+    def test_the_token_is_sealed_per_user_and_the_count_polled_every_30_s(self):
+        session = self.read("flutter", "lib", "dolphin", "customer_api", "session.dart")
+        self.assertIn("openSealedBox(kCustomerBoxFolder, kCustomerBoxName, entropy: kCustomerBoxEntropy)", session)
+        self.assertIn("const kUnreadEvery = Duration(seconds: 30);", session)
+        self.assertIn("if (session.ready) {", session)
 
 
 class StartUpdatePopupWiringTest(unittest.TestCase):

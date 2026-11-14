@@ -171,6 +171,9 @@ class DolphinUploadPanel extends StatelessWidget {
   final TextEditingController note;
   final VoidCallback onSend;
   final VoidCallback onClose;
+
+  /// Plan 19 C4: false hides the note (a new request's screenshot goes with its own description).
+  final bool showNote;
   const DolphinUploadPanel(
       {super.key,
       required this.kind,
@@ -179,7 +182,8 @@ class DolphinUploadPanel extends StatelessWidget {
       required this.onSend,
       required this.onClose,
       this.message = '',
-      this.png});
+      this.png,
+      this.showNote = true});
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +211,7 @@ class DolphinUploadPanel extends StatelessWidget {
               ),
             ),
           ],
-          if (!done) ...[
+          if (!done && showNote) ...[
             const SizedBox(height: 10),
             TextField(
               controller: note,

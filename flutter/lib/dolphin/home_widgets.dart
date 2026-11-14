@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'customer_ui/format.dart' show unreadBadge;
 import 'home_helpers.dart';
 import 'home_status.dart';
 import 'network_status.dart';
@@ -241,5 +242,62 @@ class DolphinHomeHelpers extends StatelessWidget {
         Wrap(alignment: WrapAlignment.center, spacing: 6, runSpacing: 6, children: copies),
       ],
     ]);
+  }
+}
+
+/// Plan 19 C4.6: «درخواست‌ها و پیام‌ها» as one row under the three tiles, with the red count of requests that have a
+/// new message from Dolphin (asked every 30 s while signed in, customer_api/session.dart UnreadPoller).
+class DolphinRequestsRow extends StatelessWidget {
+  final VoidCallback onTap;
+  final int unread;
+  const DolphinRequestsRow({super.key, required this.onTap, this.unread = 0});
+
+  static const label = 'درخواست‌ها و پیام‌ها';
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(DolphinRadii.control);
+    return Semantics(
+      button: true,
+      label: unread > 0 ? '$label، ${unreadBadge(unread)} پیام تازه' : label,
+      excludeSemantics: true,
+      child: Material(
+        key: const ValueKey('dolphin-requests-row'),
+        color: DolphinColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: radius, side: BorderSide(color: DolphinColors.line)),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 8, 8),
+              child: Row(children: [
+                Icon(Icons.forum_outlined, size: 18, color: DolphinColors.azureText),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: DolphinColors.ink, fontWeight: FontWeight.w700, fontSize: 14)),
+                ),
+                if (unread > 0)
+                  Container(
+                    key: const ValueKey('dolphin-requests-unread'),
+                    constraints: const BoxConstraints(minWidth: 22),
+                    height: 22,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: DolphinColors.danger, borderRadius: BorderRadius.circular(11)),
+                    child: Text(unreadBadge(unread),
+                        style: TextStyle(color: DolphinColors.onFill, fontSize: 12.5, fontWeight: FontWeight.w800, height: 1.2)),
+                  ),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_left, size: 20, color: DolphinColors.muted),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

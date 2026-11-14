@@ -158,7 +158,8 @@ String dolphinCode(
 /// ADR-0012: in click mode ("both") the customer reads the code to the technician on the phone.
 bool codeSpoken(String approveMode) => approveMode == 'both';
 
-/// Only code mode hands the code to the portal page (the request form); in click mode it never leaves the window.
+/// Only code mode hands the code to the portal (C4: the press of «اجازه‌ی اتصال به این رایانه»); in click mode it never
+/// leaves the window.
 String portalCode(String approveMode, String code) => approveMode == 'password' ? code : '';
 
 /// Until the first read of the session count it is unknown, and unknown hides the code: a session accepted while the
@@ -178,13 +179,5 @@ int connectedCount(String statusJson) {
   }
 }
 
-/// The customer app's answer to the request form's code request (app/src/lib/app-bridge.ts parseAppMessage).
-String codeReply(String code) => jsonEncode({'type': 'dolphin-code', 'code': code});
-
-/// The customer's app answers hello with its ID and, in code mode, a code request with its one-time code. The form
-/// asks only when the customer presses «ثبت» (SECURITY.md). It never connects out, whatever the page asks.
-String? customerReply(PanelMessage m, String myId, [String myCode = '']) {
-  if (m.type == 'dolphin-hello') return panelIdPattern.hasMatch(myId) ? idReply(myId) : null;
-  if (m.type == 'dolphin-code-request') return panelCodePattern.hasMatch(myCode) ? codeReply(myCode) : null;
-  return null;
-}
+// Plan 19 C4: the customer app no longer shows the portal page, so it answers no page at all (`customerReply` and
+// `codeReply` are gone). Its code reaches the portal only from «اجازه‌ی اتصال به این رایانه» (customer_requests.dart).

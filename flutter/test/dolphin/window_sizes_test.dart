@@ -4,10 +4,12 @@ import 'package:flutter_hbb/dolphin/window_sizes.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('the request window fits a small laptop and keeps its size on a big screen (UX-18)', () {
-    expect(requestsSize(const Size(1366, 768)), const Size(980, 678));
+  test('the request window is 460 × 640 (C4), smaller only on a small screen, never under the home minimum', () {
+    expect(kDolphinRequestsSize, const Size(460, 640));
+    expect(requestsSize(const Size(1366, 768)), const Size(460, 640));
     expect(requestsSize(const Size(1920, 1080)), kDolphinRequestsSize);
-    expect(requestsSize(const Size(800, 500)), const Size(760, 480)); // never smaller than the portal can use
+    expect(requestsSize(const Size(1093, 614)), const Size(460, 554)); // a 1366 × 768 laptop at 125 %
+    expect(requestsSize(const Size(300, 400)), kDolphinHomeMinSize);
   });
 
   test('the request button says who it is for (UX-8)', () {
