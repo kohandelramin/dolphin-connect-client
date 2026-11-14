@@ -5,6 +5,35 @@ released together. Each entry has a short Persian note for customers.
 
 ## Unreleased (next: 2.2.0, `dolphin/version.txt`; not built)
 
+### Plan 19 C4: «درخواست‌ها و پیام‌ها» native in the customer app (customer x64)
+
+Compiled here: `cargo check --features flutter` (no Rust change), the Python tests, the Dart analysis and the widget tests
+(customer App API client, sign-in store, unread count, the six screens with both consent modes, sign-out, expiry,
+`mustChangePassword`, sizes at 460 × 640 and the minimum, AA in light and dark); previews 130–139 looked at, light and dark.
+Built against the C4 contract and the portal's shapes on a scripted portal: not run against the live portal, not built
+into an exe, not run on a PC.
+
+- The customer app no longer opens the customer portal inside itself: «درخواست‌ها و پیام‌ها» is native, on the customer
+  App API (`/api/app/v1/customer/...`), at 460 × 640, resizable (never under 360 × 540). The browser portal stays.
+- C4.1 sign-in (username and password only), remembered for this Windows user with DPAPI until «خروج» or expiry; an
+  expired sign-in comes back to this form with «ورود شما تمام شده است». C4.2 the list (باز / بسته‌شده, a blue dot for a new
+  message from Dolphin, «حساب» with «تغییر رمز» and «خروج»). C4.3 a new request: product, subject, description,
+  «فوری است», «عکس صفحه را هم بفرست» (off; the picture is shown first, DD-48, and sent as the first file); this PC's ID
+  goes with it by itself. C4.4 one request: the connect box («اجازه‌ی اتصال به این رایانه»), «پایان جلسه» during a
+  session, the chat, files (📎 with Windows' picker, «دریافت» with the save dialog; 500 MB, resumable), «لغو درخواست».
+  C4.5 the account: password change (the portal's rules) and «خروج از این رایانه» (calls `/logout`, deletes the token).
+  A customer who must change the password goes there first. C4.6 the main window's row with the red count of requests
+  with a new message, asked every 30 s only while signed in.
+- Consent: click mode sends only this PC's ID and the customer still presses «پذیرفتن»; code mode sends the ID and the
+  current one-time password only on that press (never automatically, never shown, never logged, kept in no field), not
+  while a technician is connected, and not for a press the technician made from his side.
+- The App API transport (errors, JSON readers, timeouts, retry) is shared by both apps (`api_base.dart`); the
+  technician app is unchanged and its tests pass. The page bridge's `customerReply` and `codeReply` are removed.
+
+**یادداشت فارسی:** «درخواست‌ها و پیام‌ها» حالا صفحه‌های خود برنامه است، نه پورتال داخل برنامه: ورود یک بار، فهرست
+درخواست‌ها با نقطه‌ی پیام تازه، درخواست تازه که شناسه‌ی رایانه را خودش می‌فرستد، گفت‌وگو و فایل، و دکمه‌ی «اجازه‌ی اتصال به
+این رایانه». عدد قرمز روی ردیف پنجره‌ی اصلی پیام‌های تازه را نشان می‌دهد.
+
 ### Plan 19 wave 2: the native technician app (T1–T7, RO-8, RO-10, technician x64)
 
 Compiled here: `cargo check --features flutter` (no new warnings), the Python tests, the Dart analysis and the widget
