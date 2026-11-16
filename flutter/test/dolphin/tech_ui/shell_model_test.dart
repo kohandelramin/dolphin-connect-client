@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_hbb/dolphin/tech/actions.dart';
 import 'package:flutter_hbb/dolphin/tech/api.dart';
+import 'package:flutter_hbb/dolphin/tech_ui/sections_state.dart';
 import 'package:flutter_hbb/dolphin/tech_ui/settings_model.dart';
 import 'package:flutter_hbb/dolphin/tech_ui/shell_model.dart';
 import 'package:flutter_hbb/dolphin/theme_tokens.dart';
@@ -232,6 +233,91 @@ void main() {
     platform.sessions.update([], DateTime.now());
     await drain();
     expect(prompts.endAsked, isEmpty);
+  });
+
+  test('F5 / «تازه کردن» reads the shown section again; coming back to «رایانه‌ها» and a closed session do too', () async {
+    await m.start();
+    await drain();
+    portal.requests.clear();
+    await m.refreshSection();
+    expect(portal.sent('GET /computers'), hasLength(1));
+
+    m.go(TechSection.organizations);
+    await drain();
+    portal.requests.clear();
+    await m.refreshSection();
+    expect(portal.sent('GET /organizations'), hasLength(1));
+    m.go(TechSection.computers);
+    await drain();
+    expect(portal.sent('GET /computers'), hasLength(1));
+
+    platform.sessions.update(['412700913'], DateTime.now());
+    portal.requests.clear();
+    platform.sessions.update([], DateTime.now());
+    await drain();
+    expect(portal.sent('GET /computers'), hasLength(1));
+  });
+
+  test('the list and the open card are read again on their own while the portal answers', () async {
+    final s = servicesOn(portal, launcher: launcher);
+    await signIn(s);
+    final quick = TechShellModel(s, platform, prompts: prompts, autoRefreshEvery: const Duration(milliseconds: 40));
+    await quick.start();
+    quick.openCard('pc-1');
+    await drain();
+    portal.requests.clear();
+    await Future<void>.delayed(const Duration(milliseconds: 130));
+    expect(portal.sent('GET /computers').length, greaterThanOrEqualTo(2));
+    expect(portal.sent('GET /computers/pc-1').length, greaterThanOrEqualTo(2));
+    await shutDown(quick);
+  });
+
+  test('OR-6 «سازمان تازه»: admins only; made on the portal, then listed and opened; a refusal is said in the form',
+      () async {
+    await m.start();
+    expect(m.isAdmin, isFalse); // the sample technician
+    const created = '55555555-5555-4555-8555-555555555555';
+    portal.on('POST /organizations', (_) => FakePortal.json({'id': created, 'customerId': 'c-1'}, 201));
+    portal.on('GET /organizations/$created', (_) => {
+          'organization': {'id': created, 'name': 'نمایندگی کرج', 'color': '#0f766e', 'consentMode': 'click', 'active': true, 'fixedPassword': true},
+          'customers': [
+            {'id': 'c-1', 'name': 'نمایندگی کرج', 'phone': null, 'active': true}
+          ],
+        });
+    // The form's own checks first: nothing reaches the portal.
+    expect(await m.createOrganization(const NewOrganization(name: 'ک')), contains('نام سازمان'));
+    expect(
+        await m.createOrganization(const NewOrganization(
+            name: 'نمایندگی کرج', account: NewCustomerAccount(username: 'کرج', password: 'Abcdefgh2345'))),
+        contains('نام کاربری'));
+    expect(
+        await m.createOrganization(
+            const NewOrganization(name: 'نمایندگی کرج', account: NewCustomerAccount(username: 'karaj', password: 'short'))),
+        contains('دست‌کم ۱۰'));
+    expect(portal.sent('POST /organizations'), isEmpty);
+
+    portal.requests.clear();
+    final problem = await m.createOrganization(const NewOrganization(
+        name: 'نمایندگی کرج', dealerCode: '1410', account: NewCustomerAccount(username: '1410', password: 'Abcdefgh2345')));
+    await drain();
+    expect(problem, isNull);
+    expect(portal.sent('POST /organizations'), hasLength(1));
+    expect(portal.sent('GET /organizations'), hasLength(1)); // the list again
+    expect(m.organizations.detail?.organization.id, created);
+    expect(m.notice, contains('نمایندگی کرج'));
+    expect(m.noticeOk, isTrue);
+
+    portal.on('POST /organizations', (_) => FakePortal.error(409, 'dealer_code_taken', 'این کد نمایندگی قبلاً ثبت شده است.'));
+    expect(await m.createOrganization(const NewOrganization(name: 'نمایندگی کرج ۲', dealerCode: '1410')),
+        'این کد نمایندگی قبلاً ثبت شده است.');
+  });
+
+  test('«ساختن رمز»: 12 characters without look-alikes, different each time', () {
+    final a = generateCustomerPassword(), b = generateCustomerPassword();
+    expect(a, hasLength(12));
+    expect(a, isNot(b));
+    expect(RegExp(r'^[a-km-np-zA-HJ-NP-Z2-9]{12}$').hasMatch(a), isTrue);
+    expect(newOrganizationProblem(NewOrganization(name: 'سازمان', account: NewCustomerAccount(username: 'u.1', password: a))), isNull);
   });
 
   test('settings write upstream\'s own options; «بازنشانی این بخش» puts the defaults back', () async {

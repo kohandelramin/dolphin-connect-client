@@ -104,6 +104,10 @@ const kTechViewModeOption = 'dolphin-tech-view';
 /// While the portal is away the list is retried this often (TD-1).
 const kOfflineRetry = Duration(seconds: 15);
 
+/// While the portal answers, the shown list is read again this often (as the web's «رایانه‌ها», 30 s), so a PC that
+/// came online, a new PC or another technician's session shows without a click.
+const kAutoRefresh = Duration(seconds: 30);
+
 class DashboardController extends ChangeNotifier {
   final TechRepository repo;
   final ConnectionController connection;
@@ -124,6 +128,8 @@ class DashboardController extends ChangeNotifier {
   String? _next;
   bool _loading = false;
   bool _loadingMore = false;
+  bool _refreshing = false;
+  int _pages = 0;
   bool _offline = false;
   DateTime? _lastUpdated;
   String? _error;
@@ -138,6 +144,9 @@ class DashboardController extends ChangeNotifier {
   ComputerCounts get counts => _counts;
   bool get loading => _loading;
   bool get loadingMore => _loadingMore;
+
+  /// A refresh is reading the list again behind the shown one (the refresh button spins; the list stays).
+  bool get refreshing => _refreshing;
   bool get hasMore => !_offline && _next != null;
 
   /// Showing the cached list read-only (TD-2).
@@ -177,6 +186,7 @@ class DashboardController extends ChangeNotifier {
       _items = page.rows;
       _counts = page.counts;
       _next = page.next;
+      _pages = 1;
       _offline = false;
       _lastUpdated = null;
       _error = null;
@@ -213,7 +223,7 @@ class DashboardController extends ChangeNotifier {
   /// The next page (online only).
   Future<void> loadMore() async {
     final cursor = _next;
-    if (cursor == null || _loadingMore || _loading || _offline) return;
+    if (cursor == null || _loadingMore || _loading || _refreshing || _offline) return;
     final gen = _generation;
     _loadingMore = true;
     _changed();
@@ -224,12 +234,72 @@ class DashboardController extends ChangeNotifier {
       _items = [..._items, ...page.rows.where((c) => !known.contains(c.id))];
       _counts = page.counts;
       _next = page.next;
+      _pages++;
     } catch (e) {
       if (gen == _generation) _error = errorText(e);
     } finally {
       _loadingMore = false;
       _changed();
     }
+  }
+
+  /// «تازه کردن» and the 30-second refresh: reads the pages already shown again, for the same query, and swaps the list
+  /// in one step (no spinner over the list, the scroll stays). With the portal away it is a plain [load] (the retry).
+  /// Skipped while a load, a next page or a typed search is pending; a newer load or query wins over it.
+  Future<void> refresh() async {
+    if (_offline || _pages == 0) return load();
+    if (_loading || _loadingMore || _refreshing || _debounce.pending) return;
+    final gen = _generation;
+    final pages = _pages;
+    _refreshing = true;
+    _changed();
+    try {
+      final rows = <Computer>[];
+      final seen = <String>{};
+      String? cursor;
+      ComputerCounts counts = _counts;
+      var read = 0;
+      do {
+        final page = await connection.track(() => repo.computers(_query, cursor: cursor));
+        if (gen != _generation || _disposed) return;
+        for (final c in page.rows) {
+          if (seen.add(c.id)) rows.add(c);
+        }
+        counts = page.counts;
+        cursor = page.next;
+        read++;
+      } while (cursor != null && read < pages);
+      _items = rows;
+      _counts = counts;
+      _next = cursor;
+      _pages = read;
+      _error = null;
+    } on PortalUnreachable catch (e) {
+      if (gen != _generation || _disposed) return;
+      await _showOffline(e, gen);
+    } catch (e) {
+      if (gen == _generation && !_disposed) _error = errorText(e);
+    } finally {
+      _refreshing = false;
+      _changed();
+    }
+  }
+
+  Timer? _auto;
+
+  /// Starts the refresh every [every] (after a sign-in); [stopAutoRefresh] or [reset] ends it. [alsoEvery] runs on the
+  /// same beat while the portal answers (the open PC card).
+  void startAutoRefresh({Duration every = kAutoRefresh, VoidCallback? alsoEvery}) {
+    _auto ??= Timer.periodic(every, (_) {
+      if (_offline) return;
+      refresh();
+      alsoEvery?.call();
+    });
+  }
+
+  void stopAutoRefresh() {
+    _auto?.cancel();
+    _auto = null;
   }
 
   void _requery(ComputerQuery q, {bool debounced = false}) {
@@ -314,10 +384,13 @@ class DashboardController extends ChangeNotifier {
     _debounce.cancel();
     _retry?.cancel();
     _retry = null;
+    stopAutoRefresh();
     _query = const ComputerQuery();
     _items = const [];
     _counts = ComputerCounts.zero;
     _next = null;
+    _pages = 0;
+    _refreshing = false;
     _offline = false;
     _lastUpdated = null;
     _error = null;
@@ -331,6 +404,7 @@ class DashboardController extends ChangeNotifier {
     _disposed = true;
     _debounce.cancel();
     _retry?.cancel();
+    _auto?.cancel();
     super.dispose();
   }
 }

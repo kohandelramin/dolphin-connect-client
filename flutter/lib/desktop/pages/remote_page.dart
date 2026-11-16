@@ -789,7 +789,11 @@ class _RemotePageState extends State<RemotePage>
                   builder: (context, _) => DolphinPermissionStrip(
                       permissions: _ffi.ffiModel.permissions,
                       ready: _ffi.ffiModel.pi.isSet.isTrue && !isDolphinDemoWindow(), // Dolphin Connect (demo)
-                      paused: _ffi.ffiModel.dolphinPaused)), // DD-46
+                      paused: _ffi.ffiModel.dolphinPaused, // DD-46
+                      // Dolphin Connect: folded like the top toolbar, kept between sessions.
+                      initiallyFolded: bind.getLocalFlutterOption(k: kDolphinPermStripFoldedOption) == 'Y',
+                      onFoldedChanged: (folded) => bind.setLocalFlutterOption(
+                          k: kDolphinPermStripFoldedOption, v: folded ? 'Y' : ''))),
             ],
           ),
         ],

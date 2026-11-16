@@ -352,3 +352,29 @@ class TechHeading extends StatelessWidget {
   Widget build(BuildContext context) =>
       Text(text, style: TextStyle(fontSize: size, fontWeight: FontWeight.w800, color: tokensOf(context).text));
 }
+
+/// «تازه کردن» (F5): reads the list again now. A small spinner while it reads; disabled meanwhile.
+class TechRefreshButton extends StatelessWidget {
+  final bool busy;
+  final VoidCallback? onPressed;
+  final String tooltip;
+  const TechRefreshButton({super.key, required this.busy, required this.onPressed, this.tooltip = 'تازه کردن (F5)'});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tokensOf(context);
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: busy
+          ? Center(
+              child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: t.primary)))
+          : IconButton(
+              tooltip: tooltip,
+              padding: EdgeInsets.zero,
+              icon: Icon(Icons.refresh, size: 19, color: t.textMuted),
+              onPressed: onPressed,
+            ),
+    );
+  }
+}

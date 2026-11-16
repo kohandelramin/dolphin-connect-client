@@ -1,11 +1,14 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../tech/api.dart';
 import '../tech/repository.dart';
 import '../tech/state.dart';
 
-/// Plan 19: the smaller sections' state (سازمان‌ها، تاریخچه، متن‌های آماده), over [TechRepository]. Read only: the
-/// organizations' admin pages stay on the portal (opened in the browser).
+/// Plan 19: the smaller sections' state (سازمان‌ها، تاریخچه، متن‌های آماده), over [TechRepository]. An admin can make
+/// a new organization here (OR-6); editing an organization stays on the portal (opened in the browser).
 
 class OrganizationsController extends ChangeNotifier {
   final TechRepository repo;
@@ -98,12 +101,69 @@ class OrganizationsController extends ChangeNotifier {
     _changed();
   }
 
+  bool _creating = false;
+
+  /// A new organization is being sent (the form's button waits).
+  bool get creating => _creating;
+
+  /// OR-6 «سازمان تازه» (admin only; the portal refuses anyone else). Null when it was made: the list is read again and
+  /// the new organization opens. Otherwise the Persian reason (the portal's text, or the form's own check).
+  Future<String?> create(NewOrganization org) async {
+    final problem = newOrganizationProblem(org);
+    if (problem != null) return problem;
+    if (_creating) return kMsgOrgCreating;
+    _creating = true;
+    _changed();
+    try {
+      final id = await connection.track(() => repo.createOrganization(org));
+      await load();
+      unawaited(open(id));
+      return null;
+    } catch (e) {
+      return errorText(e);
+    } finally {
+      _creating = false;
+      _changed();
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _debounce.cancel();
     super.dispose();
   }
+}
+
+const kMsgOrgCreating = 'در حال ساختن سازمان…';
+
+/// The portal's username rule (lib/orgs.ts USERNAME_PATTERN).
+final kCustomerUsernamePattern = RegExp(r'^[A-Za-z0-9._-]{3,50}$');
+
+/// The form's own check before anything is sent, with the web form's texts; null when the portal may be asked.
+/// The portal checks all of it again.
+String? newOrganizationProblem(NewOrganization org) {
+  final name = org.name.trim();
+  if (name.length < 2 || name.length > 200) return 'نام سازمان را وارد کنید (۲ تا ۲۰۰ نویسه).';
+  if (org.dealerCode.trim().length > 50) return 'نام سازمان ۲ تا ۲۰۰ نویسه و کد نمایندگی حداکثر ۵۰ نویسه باشد.';
+  final a = org.account;
+  if (a == null) return null;
+  if (!kCustomerUsernamePattern.hasMatch(a.username.trim())) {
+    return 'نام کاربری فقط حروف انگلیسی، رقم، نقطه، خط تیره و زیرخط، ۳ تا ۵۰ نویسه.';
+  }
+  if (a.password.length < 10 || a.password.length > 200) return 'رمز اولیه دست‌کم ۱۰ نویسه باشد («ساختن رمز» را بزنید).';
+  if (a.name.trim().length > 100) return 'نام حساب حداکثر ۱۰۰ نویسه باشد.';
+  return null;
+}
+
+/// A password staff can read out on the phone, as the web's «ساختن رمز» (lib/password-gen.ts): 12 characters from
+/// letters and digits that are not easily confused (no 0/O, 1/l/I), from the system's secure random source.
+const kPasswordAlphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+String generateCustomerPassword([Random? random]) {
+  final r = random ?? Random.secure();
+  return String.fromCharCodes(
+      List.generate(12, (_) => kPasswordAlphabet.codeUnitAt(r.nextInt(kPasswordAlphabet.length))));
 }
 
 /// «تاریخچه»: the last contacts of one organization (the API answers per PC or per organization).

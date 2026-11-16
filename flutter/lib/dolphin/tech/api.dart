@@ -617,7 +617,39 @@ class CustomerAccount {
       CustomerAccount(_str(m, 'id'), _str(m, 'name'), _strN(m, 'phone'), _bool(m, 'active', missing: true));
 }
 
-/// GET /organizations/{id}: read only.
+/// The first customer account of a new organization (the customer changes the password at the first sign-in).
+class NewCustomerAccount {
+  /// Empty: the organization's name.
+  final String name;
+  final String username;
+
+  /// Secret: sent once to the portal, never stored or logged.
+  final String password;
+  const NewCustomerAccount({this.name = '', required this.username, required this.password});
+
+  @override
+  String toString() => 'NewCustomerAccount($username)';
+}
+
+/// POST /organizations (OR-6).
+class NewOrganization {
+  final String name;
+  final String dealerCode;
+
+  /// Null: «بدون حساب مشتری».
+  final NewCustomerAccount? account;
+  const NewOrganization({required this.name, this.dealerCode = '', this.account});
+
+  Map<String, dynamic> toJson() => {
+        'name': name.trim(),
+        'dealerCode': dealerCode.trim().isEmpty ? null : dealerCode.trim(),
+        'account': account == null
+            ? null
+            : {'name': account!.name.trim(), 'username': account!.username.trim(), 'password': account!.password},
+      };
+}
+
+/// GET /organizations/{id}.
 class OrganizationDetail {
   final OrganizationRow organization;
 
@@ -834,6 +866,13 @@ class ApiClient extends ApiTransport {
 
   Future<OrganizationDetail> organization(String id) =>
       _get('/organizations/${_seg(id)}', OrganizationDetail.fromJson);
+
+  /// POST /organizations (OR-6, admin only): the organization and, unless [account] is null, its first customer account.
+  /// Returns the new organization's ID. Refusals are [ApiError] with the portal's Persian message: 403 `not_admin`,
+  /// 409 `dealer_code_taken` / `username_taken`, 400 `invalid_username` / `password_too_short` / `invalid`.
+  /// The password is sent once and never kept or logged here.
+  Future<String> createOrganization(NewOrganization org) =>
+      _post('/organizations', org.toJson(), (m) => _str(m, 'id'));
 
   /// The last contacts with one PC, or with one organization. Exactly one of the two.
   Future<List<HistoryEntry>> history({String? deviceId, String? organizationId}) {

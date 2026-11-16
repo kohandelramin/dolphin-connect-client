@@ -337,6 +337,30 @@ void main() {
       expect(d.customers.single.name, 'مینا');
     });
 
+    test('new organization (OR-6): the web form body, the new ID back; refusals keep the portal text', () async {
+      portal.on('POST /organizations', (_) => FakePortal.json({'id': 'o-new', 'customerId': 'c-new'}, 201));
+      final id = await api.createOrganization(const NewOrganization(
+          name: ' نمایندگی تازه ',
+          dealerCode: ' 1402 ',
+          account: NewCustomerAccount(username: ' n1402 ', password: 'Abcdefgh2345')));
+      expect(id, 'o-new');
+      expect(portal.body(portal.requests.last), {
+        'name': 'نمایندگی تازه',
+        'dealerCode': '1402',
+        'account': {'name': '', 'username': 'n1402', 'password': 'Abcdefgh2345'},
+      });
+      expect('${const NewCustomerAccount(username: 'u1', password: 'Abcdefgh2345')}', isNot(contains('Abcdefgh2345')));
+      await api.createOrganization(const NewOrganization(name: 'بدون حساب'));
+      expect(portal.body(portal.requests.last), {'name': 'بدون حساب', 'dealerCode': null, 'account': null});
+      portal.on('POST /organizations', (_) => FakePortal.error(403, 'not_admin', 'فقط مدیر می‌تواند سازمان بسازد.'));
+      await expectLater(
+          api.createOrganization(const NewOrganization(name: 'سازمان')),
+          throwsA(isA<ApiError>()
+              .having((e) => e.code, 'code', 'not_admin')
+              .having((e) => e.message, 'message', 'فقط مدیر می‌تواند سازمان بسازد.')));
+      expect(portal.sent('POST /organizations'), hasLength(3)); // a POST is never sent twice by itself
+    });
+
     test('history by device or organization', () async {
       portal.on('GET /history', (_) => {'rows': []});
       await api.history(deviceId: pcId);

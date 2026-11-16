@@ -439,6 +439,114 @@ void main() {
     }
   });
 
+  group('OR-6 «سازمان تازه»', () {
+    for (final (name, app) in [('light', lightApp), ('dark', darkApp)]) {
+      testWidgets('the form ($name): username follows the dealer code, «ساختن رمز» and copy, the portal\'s refusal shown',
+          (tester) async {
+        big(tester);
+        final sent = <NewOrganization>[];
+        final copies = <String>[];
+        String? answer = 'این کد نمایندگی قبلاً ثبت شده است.';
+        await tester.pumpWidget(app(Center(
+          child: TechNewOrganizationView(
+            makePassword: () => 'Kp7mWq3xRt9a',
+            onCopy: (t) async => copies.add(t),
+            onCancel: () {},
+            onCreate: (org) async {
+              sent.add(org);
+              return answer;
+            },
+          ),
+        )));
+        expectAllTextReadable(tester);
+        await tester.enterText(find.byKey(const ValueKey('neworg-name')), 'نمایندگی کرج');
+        await tester.enterText(find.byKey(const ValueKey('neworg-dealer')), '1410');
+        await tester.pump();
+        expect(tester.widget<TextField>(find.byKey(const ValueKey('neworg-username'))).controller!.text, '1410');
+        await tester.tap(find.byKey(const ValueKey('neworg-generate')));
+        await tester.pump();
+        expect(find.text('Kp7mWq3xRt9a'), findsOneWidget); // shown once made, to read out
+        await tester.tap(find.byKey(const ValueKey('neworg-copy')));
+        await tester.pump();
+        expect(copies, ['Kp7mWq3xRt9a']);
+        expect(find.text('کپی شد'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('neworg-submit')));
+        await tester.pump();
+        expect(sent.single.account!.username, '1410');
+        expect(sent.single.account!.password, 'Kp7mWq3xRt9a');
+        expect(find.text('این کد نمایندگی قبلاً ثبت شده است.'), findsOneWidget);
+        expectAllTextReadable(tester);
+
+        // «بدون حساب مشتری»: the account fields go, the button says so.
+        await tester.tap(find.byKey(const ValueKey('neworg-no-account')));
+        await tester.pump();
+        expect(find.byKey(const ValueKey('neworg-username')), findsNothing);
+        expect(find.text('ساختن سازمان'), findsOneWidget);
+        answer = null;
+        await tester.tap(find.byKey(const ValueKey('neworg-submit')));
+        await tester.pump();
+        expect(sent.last.account, isNull);
+      });
+    }
+
+    testWidgets('only an admin sees «سازمان تازه»; it opens the form and a made organization closes it', (tester) async {
+      big(tester);
+      final portal = samplePortal();
+      final m = await model(tester, portal);
+      await tester.pumpWidget(lightApp(TechShell(model: m)));
+      await tester.tap(find.byKey(const ValueKey('nav-organizations')));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('orgs-new')), findsNothing); // the sample technician
+      expect(find.byKey(const ValueKey('orgs-refresh')), findsOneWidget);
+      await close(tester, m);
+
+      final adminPortal = samplePortal();
+      adminPortal.on('POST /login', (_) => {
+            'token': 'tok-secret-123',
+            'expiresAt': DateTime.now().add(const Duration(hours: 8)).toUtc().toIso8601String(),
+            'staff': {'id': 's2', 'name': 'مدیر دلفین', 'role': 'admin', 'rustdeskId': '287654321'},
+          });
+      const created = '55555555-5555-4555-8555-555555555555';
+      adminPortal.on('POST /organizations', (_) => FakePortal.json({'id': created, 'customerId': null}, 201));
+      adminPortal.on('GET /organizations/$created', (_) => {
+            'organization': {'id': created, 'name': 'نمایندگی کرج', 'color': '#0f766e', 'consentMode': 'click', 'active': true, 'fixedPassword': true},
+            'customers': [],
+          });
+      final admin = await model(tester, adminPortal);
+      await tester.pumpWidget(lightApp(TechShell(model: admin)));
+      await tester.tap(find.byKey(const ValueKey('nav-organizations')));
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('orgs-new')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const ValueKey('tech-new-org')), findsOneWidget);
+      await tester.enterText(find.byKey(const ValueKey('neworg-name')), 'نمایندگی کرج');
+      await tester.tap(find.byKey(const ValueKey('neworg-no-account')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('neworg-submit')));
+      await settle(tester);
+      await settle(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const ValueKey('tech-new-org')), findsNothing);
+      expect(adminPortal.body(adminPortal.sent('POST /organizations').single),
+          {'name': 'نمایندگی کرج', 'dealerCode': null, 'account': null});
+      expect(find.byKey(const ValueKey('org-detail')), findsOneWidget);
+      await close(tester, admin);
+    });
+  });
+
+  testWidgets('«رایانه‌ها»: the refresh button reads the list again', (tester) async {
+    big(tester);
+    final portal = samplePortal();
+    final m = await model(tester, portal);
+    await tester.pumpWidget(lightApp(TechShell(model: m)));
+    portal.requests.clear();
+    await tester.tap(find.byKey(const ValueKey('pcs-refresh')));
+    await settle(tester);
+    expect(portal.sent('GET /computers'), hasLength(1));
+    await close(tester, m);
+  });
+
   group('RO-8 view and the code box', () {
     for (final (name, app) in [('light', lightApp), ('dark', darkApp)]) {
       testWidgets('the end-of-call view ($name) reads at AA and reports the choice', (tester) async {

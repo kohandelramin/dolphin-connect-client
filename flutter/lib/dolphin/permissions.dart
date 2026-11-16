@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'digits.dart';
 import 'theme.dart';
 
 /// What the customer allows right now, as the technician's client last heard it (FfiModel.permissions, updated live
@@ -29,36 +30,75 @@ bool? dolphinPauseFromMsgBox(dynamic type, dynamic title) {
 const kDolphinCustomerPaused = 'مشتری مکث کرد';
 const kDolphinCustomerPausedNote = 'تا مشتری «ادامه» را بزند، تصویر و کنترل متوقف است. اتصال برقرار می‌ماند.';
 
+/// The local option that keeps the strip folded between sessions ('Y' folded), as the top toolbar keeps its own state.
+const kDolphinPermStripFoldedOption = 'dolphin-perm-strip-folded';
+
+/// Folded, the strip is a small tab; a red mark with the count when something is off, so a fold never hides a block.
+String permissionsFoldedTooltip(Map<String, bool> p) {
+  final off = permissionStates(p).where((s) => !s.$2).map((s) => s.$1).toList();
+  return off.isEmpty ? 'نمایش اجازه‌های مشتری (همه روشن)' : 'نمایش اجازه‌های مشتری (خاموش: ${off.join('، ')})';
+}
+
 /// A small strip at the bottom of the technician's remote window (UX-13), so "copy does not work" is not guesswork on
-/// the phone, and the pause card over the picture (DD-46). It never takes input.
-class DolphinPermissionStrip extends StatelessWidget {
+/// the phone, and the pause card over the picture (DD-46). Only its fold button takes input: the ▾ folds it into a
+/// small tab at the bottom edge (like the top toolbar's), the tab's ▴ opens it again.
+class DolphinPermissionStrip extends StatefulWidget {
   final Map<String, bool> permissions;
   /// False until the peer info is set: an unknown permission counts as allowed, which would show a false all-green.
   final bool ready;
 
   /// DD-46: the customer paused; the picture is the last one before the pause.
   final bool paused;
-  const DolphinPermissionStrip({super.key, required this.permissions, this.ready = true, this.paused = false});
+
+  /// Folded at the start (the remote page reads [kDolphinPermStripFoldedOption]).
+  final bool initiallyFolded;
+
+  /// The technician folded or opened it (the remote page saves it).
+  final ValueChanged<bool>? onFoldedChanged;
+  const DolphinPermissionStrip(
+      {super.key,
+      required this.permissions,
+      this.ready = true,
+      this.paused = false,
+      this.initiallyFolded = false,
+      this.onFoldedChanged});
+
+  @override
+  State<DolphinPermissionStrip> createState() => _DolphinPermissionStripState();
+}
+
+class _DolphinPermissionStripState extends State<DolphinPermissionStrip> {
+  late bool _folded = widget.initiallyFolded;
+
+  void _toggle() {
+    setState(() => _folded = !_folded);
+    widget.onFoldedChanged?.call(_folded);
+  }
 
   @override
   Widget build(BuildContext context) =>
       DolphinLight(child: Builder(builder: _build), paint: false); // Dolphin Connect: light on any Windows theme (DR-1)
 
-  Widget _build(BuildContext context) {
-    if (!ready) return const SizedBox.shrink();
-    final states = permissionStates(permissions);
-    final strip = IgnorePointer(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.92),
-                borderRadius: BorderRadius.circular(99),
-                border: Border.all(color: DolphinColors.line)),
+  Widget _foldButton(IconData icon, String tooltip, Key key) => Tooltip(
+        message: tooltip,
+        child: InkWell(
+          key: key,
+          onTap: _toggle,
+          borderRadius: BorderRadius.circular(99),
+          child: Padding(padding: const EdgeInsets.all(2), child: Icon(icon, size: 18, color: DolphinColors.muted)),
+        ),
+      );
+
+  Widget _open(List<(String, bool)> states) => Container(
+        key: const ValueKey('perm-strip'),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsetsDirectional.only(start: 12, end: 6, top: 3, bottom: 3),
+        decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.92),
+            borderRadius: BorderRadius.circular(99),
+            border: Border.all(color: DolphinColors.line)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          IgnorePointer(
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Text('اجازه‌های مشتری:', style: TextStyle(fontSize: 11.5, color: DolphinColors.muted)),
               for (final s in states) ...[
@@ -70,10 +110,51 @@ class DolphinPermissionStrip extends StatelessWidget {
               ],
             ]),
           ),
+          const SizedBox(width: 6),
+          _foldButton(Icons.expand_more, 'پنهان کردن اجازه‌های مشتری', const ValueKey('perm-strip-fold')),
+        ]),
+      );
+
+  /// The folded tab: on the bottom edge, as the top toolbar's tab hangs from the top edge.
+  Widget _tab(List<(String, bool)> states) {
+    final off = states.where((s) => !s.$2).length;
+    return Tooltip(
+      message: permissionsFoldedTooltip(widget.permissions),
+      child: InkWell(
+        key: const ValueKey('perm-strip-unfold'),
+        onTap: _toggle,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+          decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.92),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              border: Border.all(color: DolphinColors.line)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.expand_less, size: 18, color: DolphinColors.muted),
+            const SizedBox(width: 2),
+            if (off == 0)
+              Icon(Icons.check_circle, size: 13, color: DolphinColors.aqua)
+            else ...[
+              Icon(Icons.block, size: 13, color: DolphinColors.danger),
+              const SizedBox(width: 3),
+              Text(faDigits('$off'), style: TextStyle(fontSize: 11.5, color: DolphinColors.dangerText)),
+            ],
+          ]),
         ),
       ),
     );
-    if (!paused) return strip;
+  }
+
+  Widget _build(BuildContext context) {
+    if (!widget.ready) return const SizedBox.shrink();
+    final states = permissionStates(widget.permissions);
+    // Align passes taps outside its child through to the picture; only the fold button and the tab take input.
+    final strip = Align(
+      alignment: Alignment.bottomCenter,
+      child: Directionality(textDirection: TextDirection.rtl, child: _folded ? _tab(states) : _open(states)),
+    );
+    if (!widget.paused) return strip;
     return Stack(children: [
       Positioned.fill(child: IgnorePointer(child: ColoredBox(color: DolphinColors.ink.withOpacity(0.8)))),
       IgnorePointer(

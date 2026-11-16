@@ -164,10 +164,13 @@ class TechRecentStrip extends StatelessWidget {
   }
 }
 
-/// The filter row: همه / در دسترس N / ★ علاقه‌مندی / برچسب ▾ / سازمان ▾ / مرتب ▾, and فهرست / کاشی.
+/// The filter row: همه / در دسترس N / ★ علاقه‌مندی / برچسب ▾ / سازمان ▾ / مرتب ▾, then تازه کردن and فهرست / کاشی.
 class TechFilterBar extends StatelessWidget {
   final DashboardController dash;
-  const TechFilterBar({super.key, required this.dash});
+
+  /// «تازه کردن»; null: the list only ([DashboardController.refresh]).
+  final VoidCallback? onRefresh;
+  const TechFilterBar({super.key, required this.dash, this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +222,11 @@ class TechFilterBar extends StatelessWidget {
         ]),
       ),
       const SizedBox(width: 8),
+      TechRefreshButton(
+          key: const ValueKey('pcs-refresh'),
+          busy: dash.refreshing || dash.loading,
+          onPressed: onRefresh ?? dash.refresh),
+      const SizedBox(width: 4),
       Container(
         decoration: BoxDecoration(border: Border.all(color: t.line), borderRadius: BorderRadius.circular(t.radiusSmall)),
         padding: const EdgeInsets.all(2),
@@ -568,8 +576,17 @@ class TechDashboard extends StatefulWidget {
   /// Why the portal is away (null while it answers).
   final OfflineReason? offlineReason;
   final String? selectedId;
+
+  /// «تازه کردن» (the list and the open card); null: the list only.
+  final VoidCallback? onRefresh;
   const TechDashboard(
-      {super.key, required this.dash, required this.actions, required this.connectId, this.offlineReason, this.selectedId});
+      {super.key,
+      required this.dash,
+      required this.actions,
+      required this.connectId,
+      this.offlineReason,
+      this.selectedId,
+      this.onRefresh});
 
   @override
   State<TechDashboard> createState() => _TechDashboardState();
@@ -614,7 +631,7 @@ class _TechDashboardState extends State<TechDashboard> {
                 connectId: widget.connectId,
                 offline: d.offline),
             if (d.recent.isNotEmpty || favorites.isNotEmpty) const SizedBox(height: 10),
-            TechFilterBar(dash: d),
+            TechFilterBar(dash: d, onRefresh: widget.onRefresh),
             const SizedBox(height: 10),
             if (d.error != null && d.items.isNotEmpty) ...[
               TechNotice(d.error!, onClose: d.clearError),

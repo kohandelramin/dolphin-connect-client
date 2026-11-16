@@ -6,7 +6,7 @@ import 'pc_card.dart' show historyLine;
 import 'sections_state.dart';
 import 'widgets.dart';
 
-/// Plan 19: «سازمان‌ها» (read only), «تاریخچه» (per organization) and «متن‌های آماده» (copy; «چسباندن» into a
+/// Plan 19: «سازمان‌ها» (an admin can add one, OR-6; editing stays on the portal), «تاریخچه» (per organization) and «متن‌های آماده» (copy; «چسباندن» into a
 /// session stays in the panel beside the session, DD-50).
 
 String consentLabel(ConsentMode m) => m == ConsentMode.code ? 'با کد یک‌بار مصرف' : 'با «پذیرفتن» مشتری';
@@ -15,7 +15,11 @@ class TechOrganizationsView extends StatefulWidget {
   final OrganizationsController orgs;
   final void Function(OrganizationRow org) onShowPcs;
   final void Function(OrganizationRow org) onHistory;
-  const TechOrganizationsView({super.key, required this.orgs, required this.onShowPcs, required this.onHistory});
+
+  /// OR-6 «سازمان تازه»: null hides the button (only an admin may make one; the portal refuses anyone else).
+  final VoidCallback? onNew;
+  const TechOrganizationsView(
+      {super.key, required this.orgs, required this.onShowPcs, required this.onHistory, this.onNew});
 
   @override
   State<TechOrganizationsView> createState() => _TechOrganizationsViewState();
@@ -52,6 +56,12 @@ class _TechOrganizationsViewState extends State<TechOrganizationsView> {
                   decoration: techField(context, hint: 'جستجوی نام، شهر یا کد نمایندگی'),
                 ),
               ),
+              const SizedBox(width: 4),
+              TechRefreshButton(key: const ValueKey('orgs-refresh'), busy: o.loading, onPressed: o.load),
+              const Spacer(),
+              if (widget.onNew != null)
+                TechButton('سازمان تازه',
+                    key: const ValueKey('orgs-new'), icon: Icons.add, kind: TechButtonKind.primary, onPressed: widget.onNew),
             ]),
             const SizedBox(height: 10),
             Expanded(
@@ -283,6 +293,187 @@ class TechSnippetsView extends StatelessWidget {
                         },
                       ),
           ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// OR-6 «سازمان تازه» (admin only), as the web form: the organization and, unless «بدون حساب مشتری», its first customer
+/// account. The username follows the dealer code until typed; «ساختن رمز» makes a password to read out on the phone.
+class TechNewOrganizationView extends StatefulWidget {
+  /// Null when it was made (the dialog closes), else the Persian reason shown in the form.
+  final Future<String?> Function(NewOrganization org) onCreate;
+  final VoidCallback onCancel;
+
+  /// Copies the password to the clipboard.
+  final Future<void> Function(String text) onCopy;
+
+  /// Test hook: the «ساختن رمز» source.
+  final String Function() makePassword;
+  const TechNewOrganizationView(
+      {super.key,
+      required this.onCreate,
+      required this.onCancel,
+      required this.onCopy,
+      this.makePassword = generateCustomerPassword});
+
+  @override
+  State<TechNewOrganizationView> createState() => _TechNewOrganizationViewState();
+}
+
+class _TechNewOrganizationViewState extends State<TechNewOrganizationView> {
+  final _name = TextEditingController();
+  final _dealer = TextEditingController();
+  final _accountName = TextEditingController();
+  final _username = TextEditingController();
+  final _password = TextEditingController();
+  bool _usernameTouched = false;
+  bool _noAccount = false;
+  bool _shown = false;
+  bool _copied = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final c in [_name, _dealer, _accountName, _username, _password]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final problem = await widget.onCreate(NewOrganization(
+      name: _name.text,
+      dealerCode: _dealer.text,
+      account: _noAccount
+          ? null
+          : NewCustomerAccount(name: _accountName.text, username: _username.text, password: _password.text),
+    ));
+    if (!mounted) return;
+    if (problem != null) {
+      setState(() {
+        _busy = false;
+        _error = problem;
+      });
+    }
+  }
+
+  Widget _label(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 4, top: 10),
+        child: Text(text, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: tokensOf(context).text)),
+      );
+
+  Widget _field(BuildContext context, String key, TextEditingController c,
+      {bool ltr = false, bool obscure = false, int? maxLength, String? hint, ValueChanged<String>? onChanged}) {
+    final t = tokensOf(context);
+    return TextField(
+      key: ValueKey(key),
+      controller: c,
+      enabled: !_busy,
+      obscureText: obscure,
+      maxLength: maxLength,
+      autocorrect: false,
+      enableSuggestions: false,
+      textDirection: ltr ? TextDirection.ltr : null,
+      onChanged: onChanged,
+      onSubmitted: (_) => _busy ? null : _submit(),
+      style: TextStyle(color: t.text, fontSize: 13),
+      decoration: techField(context, hint: hint).copyWith(counterText: ''),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tokensOf(context);
+    return Container(
+      key: const ValueKey('tech-new-org'),
+      width: 460,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+          color: t.surface, border: Border.all(color: t.line), borderRadius: BorderRadius.circular(t.radiusLarge)),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('سازمان تازه', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: t.text)),
+          const SizedBox(height: 4),
+          const TechHint('سازمان و نخستین حساب مشتری‌اش با هم ساخته می‌شوند؛ بقیه‌ی تنظیمات در صفحه‌ی سازمان در پورتال است.'),
+          _label(context, 'نام سازمان یا نمایندگی'),
+          _field(context, 'neworg-name', _name, maxLength: 200),
+          _label(context, 'کد نمایندگی (اختیاری)'),
+          _field(context, 'neworg-dealer', _dealer, ltr: true, maxLength: 50, onChanged: (v) {
+            if (!_usernameTouched) _username.text = v.trim();
+          }),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            decoration: BoxDecoration(border: Border.all(color: t.line), borderRadius: BorderRadius.circular(t.radius)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                Checkbox(
+                  key: const ValueKey('neworg-no-account'),
+                  value: _noAccount,
+                  activeColor: t.primary,
+                  onChanged: _busy ? null : (v) => setState(() => _noAccount = v ?? false),
+                ),
+                Expanded(
+                  child: Text('بدون حساب مشتری (بعداً در صفحه‌ی سازمان هم می‌شود ساخت)',
+                      style: TextStyle(fontSize: 12.5, color: t.text)),
+                ),
+              ]),
+              if (!_noAccount) ...[
+                _label(context, 'نام حساب (اختیاری؛ خالی = نام سازمان)'),
+                _field(context, 'neworg-account-name', _accountName, maxLength: 100, hint: 'مثلاً آقای محمدی، حسابداری'),
+                _label(context, 'نام کاربری'),
+                _field(context, 'neworg-username', _username,
+                    ltr: true, maxLength: 50, onChanged: (_) => _usernameTouched = true),
+                const TechHint('از کد نمایندگی پر می‌شود و قابل تغییر است. حرف لاتین، رقم، نقطه، خط تیره؛ ۳ تا ۵۰ نویسه.'),
+                _label(context, 'رمز اولیه (دست‌کم ۱۰ نویسه)'),
+                _field(context, 'neworg-password', _password,
+                    ltr: true, obscure: !_shown, maxLength: 200, onChanged: (_) => setState(() => _copied = false)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  TechButton(_shown ? 'پنهان کردن' : 'نمایش رمز',
+                      key: const ValueKey('neworg-show'),
+                      icon: _shown ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      onPressed: () => setState(() => _shown = !_shown)),
+                  TechButton('ساختن رمز',
+                      key: const ValueKey('neworg-generate'),
+                      icon: Icons.auto_fix_high,
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                                _password.text = widget.makePassword();
+                                _shown = true;
+                                _copied = false;
+                              })),
+                  TechButton(_copied ? 'کپی شد' : 'کپی رمز',
+                      key: const ValueKey('neworg-copy'),
+                      icon: Icons.copy,
+                      onPressed: _password.text.isEmpty
+                          ? null
+                          : () async {
+                              await widget.onCopy(_password.text);
+                              if (mounted) setState(() => _copied = true);
+                            }),
+                ]),
+                const SizedBox(height: 6),
+                const TechHint('رمز را همین حالا یادداشت یا کپی کنید؛ دوباره نشان داده نمی‌شود. مشتری در اولین ورود رمز خودش را انتخاب می‌کند.'),
+              ],
+            ]),
+          ),
+          if (_error != null) ...[const SizedBox(height: 10), TechNotice(_error!)],
+          const SizedBox(height: 14),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            TechButton('انصراف', key: const ValueKey('neworg-cancel'), onPressed: _busy ? null : widget.onCancel),
+            const SizedBox(width: 8),
+            TechButton(_busy ? 'در حال ساختن…' : (_noAccount ? 'ساختن سازمان' : 'ساختن سازمان و حساب'),
+                key: const ValueKey('neworg-submit'), kind: TechButtonKind.primary, onPressed: _busy ? null : _submit),
+          ]),
         ]),
       ),
     );

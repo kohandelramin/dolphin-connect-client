@@ -182,6 +182,31 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
     );
   }
 
+  /// OR-6 «سازمان تازه» (admin only).
+  Future<void> _showNewOrganization() => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: DolphinTechTheme(
+            paint: false,
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: TechNewOrganizationView(
+                onCancel: () => Navigator.of(ctx).pop(),
+                onCopy: m.platform.copy,
+                onCreate: (org) async {
+                  final problem = await m.createOrganization(org);
+                  if (problem == null && ctx.mounted) Navigator.of(ctx).pop();
+                  return problem;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
   // -- actions
 
   PcActions _pcActions() => PcActions(
@@ -228,6 +253,8 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
               _searchFocus.requestFocus();
               _search.selection = TextSelection(baseOffset: 0, extentOffset: _search.text.length);
             },
+            const SingleActivator(LogicalKeyboardKey.f5): m.refreshSection,
+            const SingleActivator(LogicalKeyboardKey.keyR, control: true): m.refreshSection,
             const SingleActivator(LogicalKeyboardKey.escape): () {
               if (m.bellOpen) {
                 m.closeBell();
@@ -352,6 +379,7 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
           connectId: (id) => m.connectTyped(id),
           offlineReason: m.services.connection.value.reason,
           selectedId: m.cardId,
+          onRefresh: m.refreshSection,
         );
       case TechSection.requests:
         return TechRequestsView(
@@ -386,6 +414,7 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
             m.go(TechSection.history);
             m.history.show(org);
           },
+          onNew: m.isAdmin ? _showNewOrganization : null,
         );
       case TechSection.history:
         return TechHistoryView(history: m.history, orgs: m.organizations, now: widget.now);

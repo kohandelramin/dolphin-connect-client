@@ -215,6 +215,84 @@ void main() {
       expect(dash.recent.single.displayName, 'پذیرش');
     });
 
+    test('refresh: the shown pages are read again and swapped in one step, no spinner over the list', () async {
+      var round = 0;
+      portal.on('GET /computers', (r) => r.url.queryParameters['cursor'] == '2'
+          ? pageJson([pcJson('b', rustdeskId: '222333444', online: round == 0)], online: round == 0 ? 2 : 1)
+          : pageJson([pcJson('a')], next: '2', online: round == 0 ? 2 : 1));
+      await dash.load();
+      await dash.loadMore();
+      expect(dash.items.map((c) => c.id), ['a', 'b']);
+      round = 1;
+      portal.requests.clear();
+      final states = <(bool, bool, int)>[];
+      dash.addListener(() => states.add((dash.loading, dash.refreshing, dash.items.length)));
+      await dash.refresh();
+      // Both pages again (the scroll keeps its place), the list never emptied, never the full-list spinner.
+      expect(portal.requests.map((r) => r.url.queryParameters['cursor']), [null, '2']);
+      expect(dash.items.map((c) => c.id), ['a', 'b']);
+      expect(dash.items.last.online, isFalse);
+      expect(dash.counts.online, 1);
+      expect(states.first, (false, true, 2));
+      expect(states.every((s) => !s.$1 && s.$3 == 2), isTrue);
+      expect(dash.refreshing, isFalse);
+    });
+
+    test('refresh waits for a typed search, and a newer query wins over a running refresh', () async {
+      portal.on('GET /computers', (_) => pageJson([pcJson('a')]));
+      await dash.load();
+      portal.requests.clear();
+      dash.search('ab'); // debounce pending
+      await dash.refresh();
+      expect(portal.requests, isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(portal.sent('GET /computers'), hasLength(1)); // only the search
+
+      portal.on('GET /computers', (r) async {
+        if (r.url.queryParameters['online'] == null) {
+          await Future<void>.delayed(const Duration(milliseconds: 40));
+          return pageJson([pcJson('stale')]);
+        }
+        return pageJson([pcJson('online-only')]);
+      });
+      final running = dash.refresh();
+      dash.setView(PcView.online);
+      await running;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(dash.items.map((c) => c.id), ['online-only']);
+    });
+
+    test('refresh with the portal away is the plain retry; before any load it is the first load', () async {
+      portal.on('GET /computers', (_) => pageJson([pcJson('a')]));
+      await dash.refresh(); // nothing shown yet: a load
+      expect(dash.items.map((c) => c.id), ['a']);
+      portal.on('GET /computers', (_) => throw const SocketException('refused'));
+      await dash.refresh();
+      expect(dash.offline, isTrue);
+      expect(dash.items.single.fromCache, isTrue);
+      portal.on('GET /computers', (_) => pageJson([pcJson('a'), pcJson('b', rustdeskId: '222333444')]));
+      await dash.refresh();
+      expect(dash.offline, isFalse);
+      expect(dash.items.map((c) => c.id), ['a', 'b']);
+    });
+
+    test('auto refresh: the list is read again on its own beat until reset; the extra hook runs with it', () async {
+      var n = 0;
+      portal.on('GET /computers', (_) => pageJson([pcJson('a', online: ++n < 3)]));
+      await dash.load();
+      var extra = 0;
+      dash.startAutoRefresh(every: const Duration(milliseconds: 30), alsoEvery: () => extra++);
+      dash.startAutoRefresh(every: const Duration(milliseconds: 30)); // a second start adds no second timer
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(portal.sent('GET /computers').length, greaterThanOrEqualTo(3));
+      expect(dash.items.single.online, isFalse); // a PC that went off shows without a click
+      expect(extra, greaterThanOrEqualTo(2));
+      dash.reset();
+      final after = portal.sent('GET /computers').length;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(portal.sent('GET /computers').length, after);
+    });
+
     test('reset empties everything', () async {
       portal.on('GET /computers', (_) => pageJson([pcJson(pcId)]));
       dash.search('x');

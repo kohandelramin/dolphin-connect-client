@@ -122,6 +122,37 @@ void main() {
     expect(latchReason(DolphinEndReason.portal, null), DolphinEndReason.portal);
   });
 
+  testWidgets('the strip folds into a small tab like the top toolbar, and a fold never hides a block', (tester) async {
+    final saved = <bool>[];
+    var tapsBelow = 0;
+    await tester.pumpWidget(_app(Stack(children: [
+      Positioned.fill(child: GestureDetector(onTap: () => tapsBelow++, child: const ColoredBox(color: Colors.black))),
+      DolphinPermissionStrip(permissions: const {'clipboard': false}, onFoldedChanged: saved.add),
+    ])));
+    expect(find.text('کپی و چسباندن'), findsOneWidget);
+    // The picture still takes clicks beside the strip.
+    await tester.tapAt(const Offset(20, 20));
+    expect(tapsBelow, 1);
+    await tester.tap(find.byKey(const ValueKey('perm-strip-fold')));
+    await tester.pump();
+    expect(saved, [true]);
+    expect(find.text('کپی و چسباندن'), findsNothing);
+    expect(find.byKey(const ValueKey('perm-strip-unfold')), findsOneWidget);
+    expect(find.byIcon(Icons.block), findsOneWidget); // the red mark stays
+    expect(find.text('۱'), findsOneWidget);
+    expect(permissionsFoldedTooltip(const {'clipboard': false}), contains('کپی و چسباندن'));
+    await tester.tap(find.byKey(const ValueKey('perm-strip-unfold')));
+    await tester.pump();
+    expect(saved, [true, false]);
+    expect(find.text('کپی و چسباندن'), findsOneWidget);
+
+    // Kept between sessions: a new window starts folded.
+    await tester.pumpWidget(_app(const DolphinPermissionStrip(permissions: {}, initiallyFolded: true)));
+    expect(find.byKey(const ValueKey('perm-strip-unfold')), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.text('انتقال فایل'), findsNothing);
+  });
+
   testWidgets('the technician strip shows nothing until the peer info is set', (tester) async {
     await tester.pumpWidget(_app(const DolphinPermissionStrip(permissions: {}, ready: false)));
     expect(find.byIcon(Icons.check_circle), findsNothing);

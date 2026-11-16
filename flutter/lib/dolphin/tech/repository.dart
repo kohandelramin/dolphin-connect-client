@@ -60,6 +60,7 @@ class TechRepository {
   Future<void> takeRequest(String id) => api.takeRequest(id);
   Future<OrganizationPage> organizations({String q = '', String? cursor}) => api.organizations(q: q, cursor: cursor);
   Future<OrganizationDetail> organization(String id) => api.organization(id);
+  Future<String> createOrganization(NewOrganization org) => api.createOrganization(org);
   Future<List<HistoryEntry>> deviceHistory(String deviceId) => api.history(deviceId: deviceId);
   Future<List<HistoryEntry>> organizationHistory(String organizationId) => api.history(organizationId: organizationId);
 

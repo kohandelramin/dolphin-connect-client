@@ -81,6 +81,9 @@ class TechShellModel extends ChangeNotifier {
   TechPrompts? prompts;
   final DateTime Function() now;
 
+  /// How often the PC list (and the open card) is read again while the portal answers.
+  final Duration autoRefreshEvery;
+
   late final DashboardController dashboard = services.dashboard();
   late final RequestsController requests = services.requests();
   late final RequestsController myCalls = RequestsController(services.repo, services.connection, scope: RequestScope.mine);
@@ -93,7 +96,9 @@ class TechShellModel extends ChangeNotifier {
   late final SnippetsController snippets = SnippetsController(services.repo, services.connection);
   late final TechSettingsModel settings = TechSettingsModel(platform.settings);
 
-  TechShellModel(this.services, this.platform, {this.prompts, DateTime Function()? now}) : now = now ?? DateTime.now {
+  TechShellModel(this.services, this.platform,
+      {this.prompts, DateTime Function()? now, this.autoRefreshEvery = kAutoRefresh})
+      : now = now ?? DateTime.now {
     notifications = services.notifications();
   }
 
@@ -134,6 +139,9 @@ class TechShellModel extends ChangeNotifier {
   bool get offline => services.connection.offline;
   StaffInfo? get staff => services.session.staff;
 
+  /// Only an admin makes organizations (OR-6); the portal refuses anyone else.
+  bool get isAdmin => staff?.role == StaffRole.admin;
+
   void _changed() {
     if (!_disposed) notifyListeners();
   }
@@ -155,6 +163,7 @@ class TechShellModel extends ChangeNotifier {
       if (c != null) applyThemeOverrides(c.themeJson);
     }));
     await dashboard.load();
+    dashboard.startAutoRefresh(every: autoRefreshEvery, alsoEvery: _refreshCard);
     unawaited(dashboard.loadRecent());
     unawaited(requests.load());
     unawaited(myCalls.load());
@@ -195,6 +204,8 @@ class TechShellModel extends ChangeNotifier {
     _section = s;
     _bellOpen = false;
     switch (s) {
+      case TechSection.computers:
+        unawaited(dashboard.refresh());
       case TechSection.requests:
         unawaited(requests.load());
       case TechSection.myCalls:
@@ -209,6 +220,41 @@ class TechShellModel extends ChangeNotifier {
         break;
     }
     _changed();
+  }
+
+  /// «تازه کردن» / F5: reads the shown section again now.
+  Future<void> refreshSection() async {
+    switch (_section) {
+      case TechSection.computers:
+        _refreshCard();
+        await dashboard.refresh();
+      case TechSection.requests:
+        await requests.load();
+      case TechSection.myCalls:
+        await myCalls.load();
+      case TechSection.organizations:
+        await organizations.load();
+      case TechSection.history:
+        final org = history.organization;
+        if (org != null) await history.show(org);
+      case TechSection.snippets:
+        await snippets.load(refresh: true);
+      case TechSection.settings:
+        break;
+    }
+  }
+
+  /// The open card is read again with the list, unless an action or a read is running on it.
+  void _refreshCard() {
+    final c = _card;
+    if (c != null && !c.busy && !c.loading) unawaited(c.load());
+  }
+
+  /// OR-6 «سازمان تازه». Null when it was made (the list shows it, its detail opens), else the Persian reason.
+  Future<String?> createOrganization(NewOrganization org) async {
+    final problem = await organizations.create(org);
+    if (problem == null) say('سازمان «${org.name.trim()}» ساخته شد.', ok: true);
+    return problem;
   }
 
   /// A short line under the header (green for done, amber for a problem); gone after a while.
@@ -471,6 +517,8 @@ class TechShellModel extends ChangeNotifier {
       final pc = _launched.remove(id);
       if (pc != null) unawaited(_afterSession(pc));
     }
+    // A session ended: the PCs' state («در جلسه») has changed on the portal.
+    if (gone.isNotEmpty) unawaited(dashboard.refresh());
     _changed();
   }
 

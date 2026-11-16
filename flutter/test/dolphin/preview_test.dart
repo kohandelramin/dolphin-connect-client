@@ -46,7 +46,8 @@ import 'package:flutter_hbb/dolphin/support_upload.dart';
 import 'package:flutter_hbb/dolphin/support_views.dart';
 import 'package:flutter_hbb/dolphin/tech/api.dart' show CallReason;
 import 'package:flutter_hbb/dolphin/tech/state.dart' show MemoryPrefs;
-import 'package:flutter_hbb/dolphin/tech_ui/sections.dart' show TechEndOfCallView;
+import 'package:flutter_hbb/dolphin/permissions.dart';
+import 'package:flutter_hbb/dolphin/tech_ui/sections.dart' show TechEndOfCallView, TechNewOrganizationView;
 import 'package:flutter_hbb/dolphin/tech_ui/shell.dart';
 import 'package:flutter_hbb/dolphin/tech_ui/shell_model.dart';
 import 'tech_ui/harness.dart' as h;
@@ -69,7 +70,8 @@ Future<void> _loadFonts() async {
   await icons.load();
 }
 
-Future<void> _shot(WidgetTester tester, String name, Size size, Widget child, {ThemeData? theme, Duration wait = const Duration(milliseconds: 300)}) async {
+Future<void> _shot(WidgetTester tester, String name, Size size, Widget child,
+    {ThemeData? theme, Duration wait = const Duration(milliseconds: 300), Future<void> Function()? before}) async {
   await tester.binding.setSurfaceSize(size);
   tester.view.physicalSize = size * 2;
   tester.view.devicePixelRatio = 2;
@@ -83,6 +85,7 @@ Future<void> _shot(WidgetTester tester, String name, Size size, Widget child, {T
     ),
   ));
   await tester.pump(wait);
+  if (before != null) await before();
   await tester.pump(const Duration(milliseconds: 50));
   await tester.runAsync(() async {
     final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
@@ -652,6 +655,52 @@ void main() {
         initialReasonId: 'install',
         onEnd: (_, __) async => true,
         onLater: noop)), theme: light);
+    // 2026-11-16: «سازمان تازه» (admin), its form, and the folding «اجازه‌های مشتری» strip.
+    final adminPortal = h.samplePortal();
+    adminPortal.on('POST /login', (_) => {
+          'token': 'tok-secret-123',
+          'expiresAt': DateTime.now().add(const Duration(hours: 8)).toUtc().toIso8601String(),
+          'staff': {'id': 's2', 'name': 'مدیر دلفین', 'role': 'admin', 'rustdeskId': '287654321'},
+        });
+    adminPortal.on('GET /organizations/${h.orgGardesh['id']}', (_) => {
+          'organization': {...h.orgGardesh, 'dealerCode': '1201', 'consentMode': 'click', 'active': true, 'fixedPassword': true,
+            'city': 'تهران', 'phones': '021-88001122', 'contactName': 'آقای محمدی'},
+          'customers': [
+            {'id': 'c1', 'name': 'نمایندگی گردش‌کار', 'phone': null, 'active': true}
+          ],
+        });
+    m = await model(portal: adminPortal);
+    m.go(TechSection.organizations);
+    await tester.runAsync(() async {
+      await h.drain(30);
+      await m.organizations.open(h.orgGardesh['id']!);
+    });
+    await _shot(tester, '121-orgs-admin', win, TechShell(model: m), theme: light);
+    await done(m);
+
+    for (final (name, theme) in [('122-new-org-light', light), ('123-new-org-dark', dark)]) {
+      await _shot(tester, name, const Size(560, 760), Center(child: TechNewOrganizationView(
+          makePassword: () => 'Kp7mWq3xRt9a', onCopy: (_) async {}, onCancel: noop, onCreate: (_) async => null)),
+          theme: theme, before: () async {
+        await tester.enterText(find.byKey(const ValueKey('neworg-name')), 'نمایندگی کرج');
+        await tester.enterText(find.byKey(const ValueKey('neworg-dealer')), '1410');
+        await tester.pump();
+        await tester.tap(find.byKey(const ValueKey('neworg-generate')));
+        await tester.pump();
+      });
+    }
+
+    Widget picture(Widget strip) => Stack(children: [
+          const Positioned.fill(child: ColoredBox(color: Color(0xFF2B3A4A))),
+          strip,
+        ]);
+    await _shot(tester, '124-perm-strip-open', const Size(760, 160),
+        picture(const DolphinPermissionStrip(permissions: {'clipboard': false})));
+    await _shot(tester, '125-perm-strip-folded', const Size(760, 160),
+        picture(const DolphinPermissionStrip(permissions: {'clipboard': false}, initiallyFolded: true)));
+    await _shot(tester, '126-perm-strip-folded-all-on', const Size(760, 160),
+        picture(const DolphinPermissionStrip(permissions: {}, initiallyFolded: true)));
+
     await tester.pumpWidget(const SizedBox());
     debugDisableShadows = true;
   }, skip: _dir == null);
