@@ -3,7 +3,7 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased (2.2.1; not built, owner 2026-11-16: "don't build yet")
+## Unreleased (2.2.1; technician test build only, owner 2026-11-16; no release tag, so the portal and customers stay on 2.2.0)
 
 Owner's report on the technician app 2.2.0. Checked here: the Dart analysis, all Flutter tests under `test/dolphin`
 (599), previews 110 and 121–128 looked at. Not built into an exe, not run on a PC.
@@ -29,6 +29,9 @@ Owner's report on the technician app 2.2.0. Checked here: the Dart analysis, all
   Start menu and desktop shortcuts on by default), so the app is in Windows search as «DolphinConnectTech». Not offered
   while a session window is open (the installer closes them). Not tried on a PC: the install of the outgoing-only build
   and the self-update of an installed technician app.
+- File transfer limits checked (owner 2026-11-16, "up it to 1gb"): none on size. The file manager streams any size and
+  has no count limit (`file-transfer-max-files` is unset); clipboard copy-paste of files reads 64-bit sizes in 16 MB
+  pieces, at most 16,384 files and 260-character names per copy, 30 s wait per piece. Nothing changed.
 - Persian: «در برنامه‌ی کارشناس، فهرست رایانه‌ها خودکار به‌روز می‌شود، مدیر سازمان تازه می‌سازد، نوار اجازه‌های مشتری جمع و جابه‌جا می‌شود، پیام پایان اجازه‌ی اتصال نمی‌آید و برنامه نصب می‌شود.»
 
 ## 2.2.0 — ۲۳ آبان ۱۴۰۵ (2026-11-14)
