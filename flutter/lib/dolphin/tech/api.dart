@@ -683,7 +683,7 @@ class Snippet {
   factory Snippet.fromJson(Map<String, dynamic> m) => Snippet(_str(m, 'id'), _str(m, 'title'), _str(m, 'body'));
 }
 
-enum NotificationKind { callback, request, authExpiring }
+enum NotificationKind { callback, request }
 
 /// GET /notifications (TD-6). [id] is stable per event.
 class AppNotification {
@@ -702,7 +702,8 @@ class AppNotification {
     final kind = switch (_str(m, 'kind')) {
       'callback' => NotificationKind.callback,
       'request' => NotificationKind.request,
-      'auth_expiring' => NotificationKind.authExpiring,
+      // «اجازه‌ی اتصال رو به پایان است» is dropped (owner 2026-11-16): no time limit while connected (ADR-0013), and
+      // portal 2.5.0 still sends it.
       _ => null,
     };
     if (kind == null) return null;

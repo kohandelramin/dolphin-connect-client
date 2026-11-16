@@ -77,6 +77,14 @@ class FakePlatform implements TechPlatform {
 
   @override
   String get version => '2.1.0';
+
+  /// Not installed (the install offer shows) when true.
+  bool installable = false;
+  int installs = 0;
+  @override
+  bool get canInstall => installable;
+  @override
+  Future<void> install() async => installs++;
 }
 
 class AnswerPrompts implements TechPrompts {

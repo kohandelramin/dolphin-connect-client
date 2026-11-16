@@ -387,7 +387,8 @@ void main() {
           ]);
       final list = await api.notifications(since: DateTime.utc(2026, 11, 14, 9, 30));
       expect(portal.requests.single.url.queryParameters['since'], '2026-11-14T09:30:00.000Z');
-      expect(list.map((n) => n.kind), [NotificationKind.callback, NotificationKind.authExpiring]);
+      // «اجازه‌ی اتصال رو به پایان است» is never shown (no time limit while connected, ADR-0013).
+      expect(list.map((n) => n.kind), [NotificationKind.callback]);
       expect(list.first.requestId, 'r1');
     });
 

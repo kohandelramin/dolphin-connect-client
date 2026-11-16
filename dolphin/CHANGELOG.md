@@ -6,7 +6,7 @@ released together. Each entry has a short Persian note for customers.
 ## Unreleased (2.2.1; not built, owner 2026-11-16: "don't build yet")
 
 Owner's report on the technician app 2.2.0. Checked here: the Dart analysis, all Flutter tests under `test/dolphin`
-(593), previews 110 and 121–126 looked at. Not built into an exe, not run on a PC.
+(599), previews 110 and 121–128 looked at. Not built into an exe, not run on a PC.
 
 - **«سازمان تازه»** in «سازمان‌ها» (admins only; the portal refuses anyone else): the web form's fields, the username
   follows the dealer code, «ساختن رمز» (12 characters without look-alikes, as the web) and «کپی رمز». Needs the portal's
@@ -19,7 +19,17 @@ Owner's report on the technician app 2.2.0. Checked here: the Dart analysis, all
 - **«اجازه‌های مشتری» folds** at the bottom of the session window, like the top toolbar: ▾ folds it into a small tab on
   the bottom edge, ▴ opens it. Folded, a red mark with the count stays when something is off. Kept between sessions
   (local option `dolphin-perm-strip-folded`). Only the button and the tab take clicks; the picture around them still does.
-- Persian: «در برنامه‌ی کارشناس، فهرست رایانه‌ها خودکار به‌روز می‌شود، مدیر سازمان تازه می‌سازد و نوار اجازه‌های مشتری جمع می‌شود.»
+- The strip also **moves left or right** along the bottom edge (drag it, open or folded; a grip shows it moves); the place
+  is kept between sessions (local option `dolphin-perm-strip-x`, -1 … 1).
+- **No «اجازه‌ی اتصال رو به پایان است»** popup or bell item (owner 2026-11-16): the app drops the `auth_expiring` kind
+  (no time limit while connected, ADR-0013); the portal stops sending it too.
+- **«نصب روی این رایانه»** (owner 2026-11-16: "technician version is portable and it never installs"): a portable
+  technician copy on a PC without the installed app shows a banner under the header («نصب روی این رایانه» / «بعداً» for
+  this run) and a button in تنظیمات › درباره. It opens upstream's installer (`--install`, the same as the customer app's;
+  Start menu and desktop shortcuts on by default), so the app is in Windows search as «DolphinConnectTech». Not offered
+  while a session window is open (the installer closes them). Not tried on a PC: the install of the outgoing-only build
+  and the self-update of an installed technician app.
+- Persian: «در برنامه‌ی کارشناس، فهرست رایانه‌ها خودکار به‌روز می‌شود، مدیر سازمان تازه می‌سازد، نوار اجازه‌های مشتری جمع و جابه‌جا می‌شود، پیام پایان اجازه‌ی اتصال نمی‌آید و برنامه نصب می‌شود.»
 
 ## 2.2.0 — ۲۳ آبان ۱۴۰۵ (2026-11-14)
 

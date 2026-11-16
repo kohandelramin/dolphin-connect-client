@@ -29,6 +29,9 @@ class TechSettingsView extends StatefulWidget {
 
   /// «بررسی نسخه‌ی تازه» (the app's DolphinUpdateCheckButton; a placeholder in tests).
   final Widget? updateButton;
+
+  /// «نصب روی این رایانه» in «درباره»; null when this PC has the installed app (or installing is not possible).
+  final VoidCallback? onInstall;
   final TechSettingsSection initial;
 
   const TechSettingsView({
@@ -47,6 +50,7 @@ class TechSettingsView extends StatefulWidget {
     this.portalReachable = true,
     this.version = '',
     this.updateButton,
+    this.onInstall,
     this.initial = TechSettingsSection.display,
   });
 
@@ -209,9 +213,17 @@ class _TechSettingsViewState extends State<TechSettingsView> {
         return [
           _info(context, 'برنامه', DolphinBrand.technicianNameFa, null),
           _info(context, 'نسخه', faDigits(widget.version), null),
+          _info(context, 'نصب', widget.onInstall == null ? 'نصب‌شده روی این رایانه' : 'نسخه‌ی قابل حمل (نصب نشده)', null),
           _info(context, 'پشتیبانی دلفین', faDigits(kSupportPhone), null, ltr: true),
           const SizedBox(height: 10),
           if (widget.updateButton != null) widget.updateButton!,
+          if (widget.onInstall != null) ...[
+            const SizedBox(height: 8),
+            TechButton('نصب روی این رایانه',
+                key: const ValueKey('settings-install'), icon: Icons.install_desktop, onPressed: widget.onInstall),
+            const SizedBox(height: 4),
+            const TechHint('نصب‌شده، برنامه در منوی Start، روی میز کار و در جستجوی ویندوز پیدا می‌شود.'),
+          ],
         ];
     }
   }

@@ -34,6 +34,8 @@ const kMsgDemoNotOpened = 'اجازه‌ی دمو گرفته شد ولی پنج�
 const kMsgIdNotInList = 'این شناسه در فهرست رایانه‌های دلفین نیست؛ شناسه را دوباره بپرسید.';
 const kMsgIdFormat = 'شناسه‌ی رایانه ۹ تا ۱۰ رقم است.';
 const kMsgOfflineOpened = 'پورتال در دسترس نیست؛ پنجره‌ی اتصال بدون تماس تازه باز شد. اگر اجازه‌ی قبلی تمام شده باشد، سرور اجازه نمی‌دهد.';
+const kMsgInstallSessionsOpen = 'برای نصب، اول جلسه‌های باز را ببندید؛ نصب برنامه را دوباره باز می‌کند.';
+const kMsgInstallOffer = 'برنامه‌ی کارشناس روی این رایانه نصب نیست. نصب‌شده، از منوی Start، روی میز کار و با جستجوی ویندوز باز می‌شود.';
 const kMsgTakeoverQuestion = 'این رایانه در جلسه با «{name}» است. جلسه را از او بگیرید؟';
 
 /// The PC's page on the portal, where «روشن کن» (Wake-on-LAN through another PC of the organization) lives.
@@ -141,6 +143,25 @@ class TechShellModel extends ChangeNotifier {
 
   /// Only an admin makes organizations (OR-6); the portal refuses anyone else.
   bool get isAdmin => staff?.role == StaffRole.admin;
+
+  bool _installLater = false;
+
+  /// The «نصب روی این رایانه» banner: a portable copy on a PC without the installed app, until «بعداً» (this run).
+  bool get offerInstall => platform.canInstall && !_installLater;
+
+  void installLater() {
+    _installLater = true;
+    _changed();
+  }
+
+  /// «نصب روی این رایانه». With a session window open it only says why not (the installer closes them).
+  Future<void> install() async {
+    if (platform.sessions.open.isNotEmpty) {
+      say(kMsgInstallSessionsOpen);
+      return;
+    }
+    await platform.install();
+  }
 
   void _changed() {
     if (!_disposed) notifyListeners();
@@ -487,9 +508,7 @@ class TechShellModel extends ChangeNotifier {
   }
 
   Future<void> _onNotification(AppNotification n) async {
-    if (n.kind != NotificationKind.authExpiring) {
-      unawaited(requests.load());
-    }
+    unawaited(requests.load());
     // The first answer is the backlog of the last day: listed under the bell, never a toast (it would ring for old news).
     if (services.poller.answeredPolls <= 1) return;
     _toast = n;

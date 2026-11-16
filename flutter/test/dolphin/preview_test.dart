@@ -607,8 +607,8 @@ void main() {
     notePortal.onSeq('GET /notifications', [
       (_) => [
             h.note('n0', 'request', 'درخواست تازه در صف', 'نصب نسخه‌ی تازه · نیک‌خودرو', ago: const Duration(hours: 1)),
-            h.note('n1', 'auth_expiring', 'اجازه‌ی اتصال به PC-RECEPTION تا ۵ دقیقه‌ی دیگر تمام می‌شود', '',
-                deviceId: 'pc-1', ago: const Duration(minutes: 3)),
+            h.note('n1', 'request', 'درخواست فوری در صف', 'پارس‌کار: چاپگر حسابداری کار نمی‌کند',
+                ago: const Duration(minutes: 3)),
           ],
       (_) => [h.note('n2', 'callback', '«با من تماس بگیرید»', 'ACC-02 · پارس‌کار — «برنامه باز نمی‌شود»', deviceId: 'pc-2')],
     ]);
@@ -700,6 +700,12 @@ void main() {
         picture(const DolphinPermissionStrip(permissions: {'clipboard': false}, initiallyFolded: true)));
     await _shot(tester, '126-perm-strip-folded-all-on', const Size(760, 160),
         picture(const DolphinPermissionStrip(permissions: {}, initiallyFolded: true)));
+    await _shot(tester, '127-perm-strip-moved-left', const Size(760, 160),
+        picture(const DolphinPermissionStrip(permissions: {'file': false}, initialX: -1)));
+
+    m = await model(platform: h.FakePlatform()..installable = true);
+    await _shot(tester, '128-install-offer', win, TechShell(model: m), theme: light);
+    await done(m);
 
     await tester.pumpWidget(const SizedBox());
     debugDisableShadows = true;

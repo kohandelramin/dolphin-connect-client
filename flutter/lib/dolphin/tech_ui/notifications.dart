@@ -10,7 +10,6 @@ import 'widgets.dart';
 IconData notificationIcon(NotificationKind k) => switch (k) {
       NotificationKind.callback => Icons.phone_callback_outlined,
       NotificationKind.request => Icons.inbox_outlined,
-      NotificationKind.authExpiring => Icons.timer_outlined,
     };
 
 /// The list under the bell, newest first. [unreadBefore]: how many were unread when it opened (shown with ●).

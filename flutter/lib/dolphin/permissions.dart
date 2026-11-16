@@ -33,6 +33,15 @@ const kDolphinCustomerPausedNote = 'تا مشتری «ادامه» را بزند
 /// The local option that keeps the strip folded between sessions ('Y' folded), as the top toolbar keeps its own state.
 const kDolphinPermStripFoldedOption = 'dolphin-perm-strip-folded';
 
+/// Where along the bottom edge the strip sits (-1 left … 0 middle … 1 right), kept between sessions as a number.
+const kDolphinPermStripXOption = 'dolphin-perm-strip-x';
+
+/// The saved position, or the middle when there is none or it is not a number in range.
+double permStripXFrom(String saved) {
+  final v = double.tryParse(saved.trim());
+  return v == null || v.isNaN ? 0 : v.clamp(-1.0, 1.0).toDouble();
+}
+
 /// Folded, the strip is a small tab; a red mark with the count when something is off, so a fold never hides a block.
 String permissionsFoldedTooltip(Map<String, bool> p) {
   final off = permissionStates(p).where((s) => !s.$2).map((s) => s.$1).toList();
@@ -40,8 +49,9 @@ String permissionsFoldedTooltip(Map<String, bool> p) {
 }
 
 /// A small strip at the bottom of the technician's remote window (UX-13), so "copy does not work" is not guesswork on
-/// the phone, and the pause card over the picture (DD-46). Only its fold button takes input: the ▾ folds it into a
-/// small tab at the bottom edge (like the top toolbar's), the tab's ▴ opens it again.
+/// the phone, and the pause card over the picture (DD-46). The ▾ folds it into a small tab at the bottom edge (like the
+/// top toolbar's), the tab's ▴ opens it again; open or folded it is dragged left or right along the edge (owner
+/// 2026-11-16). Only the strip itself takes input; the picture around it still does.
 class DolphinPermissionStrip extends StatefulWidget {
   final Map<String, bool> permissions;
   /// False until the peer info is set: an unknown permission counts as allowed, which would show a false all-green.
@@ -55,13 +65,21 @@ class DolphinPermissionStrip extends StatefulWidget {
 
   /// The technician folded or opened it (the remote page saves it).
   final ValueChanged<bool>? onFoldedChanged;
+
+  /// Where it starts along the bottom edge (-1 left, 0 middle, 1 right; [kDolphinPermStripXOption]).
+  final double initialX;
+
+  /// Dropped somewhere else after a drag (the remote page saves it).
+  final ValueChanged<double>? onMoved;
   const DolphinPermissionStrip(
       {super.key,
       required this.permissions,
       this.ready = true,
       this.paused = false,
       this.initiallyFolded = false,
-      this.onFoldedChanged});
+      this.onFoldedChanged,
+      this.initialX = 0,
+      this.onMoved});
 
   @override
   State<DolphinPermissionStrip> createState() => _DolphinPermissionStripState();
@@ -69,6 +87,16 @@ class DolphinPermissionStrip extends StatefulWidget {
 
 class _DolphinPermissionStripState extends State<DolphinPermissionStrip> {
   late bool _folded = widget.initiallyFolded;
+  late double _x = widget.initialX.clamp(-1.0, 1.0).toDouble();
+  final _childKey = GlobalKey();
+
+  /// A drag of [dx] pixels in a window [width] wide: the strip follows the pointer, never past an edge.
+  void _drag(double dx, double width) {
+    final child = _childKey.currentContext?.size?.width ?? 0;
+    final room = width - child;
+    if (room <= 0) return;
+    setState(() => _x = (_x + dx * 2 / room).clamp(-1.0, 1.0).toDouble());
+  }
 
   void _toggle() {
     setState(() => _folded = !_folded);
@@ -92,12 +120,15 @@ class _DolphinPermissionStripState extends State<DolphinPermissionStrip> {
   Widget _open(List<(String, bool)> states) => Container(
         key: const ValueKey('perm-strip'),
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsetsDirectional.only(start: 12, end: 6, top: 3, bottom: 3),
+        padding: const EdgeInsetsDirectional.only(start: 6, end: 6, top: 3, bottom: 3),
         decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.92),
             borderRadius: BorderRadius.circular(99),
             border: Border.all(color: DolphinColors.line)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // The grip says it moves left and right.
+          Icon(Icons.drag_indicator, size: 15, color: DolphinColors.muted),
+          const SizedBox(width: 4),
           IgnorePointer(
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Text('اجازه‌های مشتری:', style: TextStyle(fontSize: 11.5, color: DolphinColors.muted)),
@@ -149,10 +180,21 @@ class _DolphinPermissionStripState extends State<DolphinPermissionStrip> {
   Widget _build(BuildContext context) {
     if (!widget.ready) return const SizedBox.shrink();
     final states = permissionStates(widget.permissions);
-    // Align passes taps outside its child through to the picture; only the fold button and the tab take input.
-    final strip = Align(
-      alignment: Alignment.bottomCenter,
-      child: Directionality(textDirection: TextDirection.rtl, child: _folded ? _tab(states) : _open(states)),
+    // Align passes taps outside its child through to the picture; the strip (or the tab) takes input only on itself.
+    final strip = LayoutBuilder(
+      builder: (context, box) => Align(
+        alignment: Alignment(_x, 1),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.grab,
+          child: GestureDetector(
+            key: _childKey,
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: (d) => _drag(d.delta.dx, box.maxWidth),
+            onHorizontalDragEnd: (_) => widget.onMoved?.call(_x),
+            child: Directionality(textDirection: TextDirection.rtl, child: _folded ? _tab(states) : _open(states)),
+          ),
+        ),
+      ),
     );
     if (!widget.paused) return strip;
     return Stack(children: [

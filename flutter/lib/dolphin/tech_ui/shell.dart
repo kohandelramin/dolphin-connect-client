@@ -309,6 +309,24 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
         onCopyId: () => m.copyId(m.myId),
         onSignOut: m.signOut,
       ),
+      if (m.offerInstall)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: TechPanel(
+            key: const ValueKey('install-offer'),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(children: [
+              Icon(Icons.install_desktop, size: 20, color: t.primary),
+              const SizedBox(width: 8),
+              Expanded(child: Text(kMsgInstallOffer, style: TextStyle(fontSize: 12.5, color: t.text, height: 1.6))),
+              const SizedBox(width: 8),
+              TechButton('بعداً', key: const ValueKey('install-later'), kind: TechButtonKind.quiet, onPressed: m.installLater),
+              const SizedBox(width: 6),
+              TechButton('نصب روی این رایانه',
+                  key: const ValueKey('install-now'), kind: TechButtonKind.primary, onPressed: m.install),
+            ]),
+          ),
+        ),
       if (m.notice != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -444,6 +462,7 @@ class _TechShellState extends State<TechShell> implements TechPrompts {
             portalReachable: !m.offline,
             version: m.platform.version,
             updateButton: widget.updateButton,
+            onInstall: m.platform.canInstall ? m.install : null,
           ),
         );
     }

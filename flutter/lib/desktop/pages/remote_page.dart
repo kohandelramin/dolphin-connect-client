@@ -793,7 +793,10 @@ class _RemotePageState extends State<RemotePage>
                       // Dolphin Connect: folded like the top toolbar, kept between sessions.
                       initiallyFolded: bind.getLocalFlutterOption(k: kDolphinPermStripFoldedOption) == 'Y',
                       onFoldedChanged: (folded) => bind.setLocalFlutterOption(
-                          k: kDolphinPermStripFoldedOption, v: folded ? 'Y' : ''))),
+                          k: kDolphinPermStripFoldedOption, v: folded ? 'Y' : ''),
+                      // Dolphin Connect: dragged left or right along the bottom edge, kept between sessions.
+                      initialX: permStripXFrom(bind.getLocalFlutterOption(k: kDolphinPermStripXOption)),
+                      onMoved: (x) => bind.setLocalFlutterOption(k: kDolphinPermStripXOption, v: x.toStringAsFixed(3)))),
             ],
           ),
         ],

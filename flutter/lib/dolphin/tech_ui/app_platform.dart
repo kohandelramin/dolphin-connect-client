@@ -127,6 +127,22 @@ class AppTechPlatform implements TechPlatform {
   @override
   String get version => DolphinBrand.version;
 
+  @override
+  bool get canInstall {
+    try {
+      return Platform.isWindows && !bind.isDisableInstallation() && !bind.mainIsInstalled();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// As upstream's home-page install card (desktop_home_page.dart): close the session windows, then `--install`.
+  @override
+  Future<void> install() async {
+    await rustDeskWinManager.closeAllSubWindows();
+    bind.mainGotoInstall();
+  }
+
   void dispose() {
     _timer?.cancel();
   }

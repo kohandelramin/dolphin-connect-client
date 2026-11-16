@@ -102,4 +102,12 @@ abstract class TechPlatform {
 
   /// The installed version («نسخه‌ی ۲.۱.۰»).
   String get version;
+
+  /// Windows, installation allowed and no installed copy on this PC: offer «نصب روی این رایانه» (owner 2026-11-16:
+  /// installed, the app is in the Start menu, on the desktop and in Windows search).
+  bool get canInstall;
+
+  /// Opens upstream's installer (`--install`, the one-button DolphinInstallView); this process ends, and the installed
+  /// app opens itself when done. Session windows close first, so the shell asks only with none open.
+  Future<void> install();
 }

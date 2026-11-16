@@ -320,6 +320,37 @@ void main() {
     expect(newOrganizationProblem(NewOrganization(name: 'سازمان', account: NewCustomerAccount(username: 'u.1', password: a))), isNull);
   });
 
+  test('«نصب روی این رایانه»: offered on a portable copy until «بعداً»; never with a session window open', () async {
+    await m.start();
+    expect(m.offerInstall, isFalse); // installed (the fake's default)
+    platform.installable = true;
+    expect(m.offerInstall, isTrue);
+    platform.sessions.update(['194052361'], DateTime.now());
+    await m.install();
+    expect(platform.installs, 0);
+    expect(m.notice, kMsgInstallSessionsOpen);
+    platform.sessions.update([], DateTime.now());
+    await m.install();
+    expect(platform.installs, 1);
+    m.installLater();
+    expect(m.offerInstall, isFalse);
+  });
+
+  test('«اجازه‌ی اتصال رو به پایان است» never reaches the bell or a toast (no time limit while connected)', () async {
+    portal.onSeq('GET /notifications', [
+      (_) => <Object>[],
+      (_) => [
+            {'id': 'auth:a:1', 'kind': 'auth_expiring', 'title': 'اجازه‌ی اتصال رو به پایان است', 'body': 'b', 'deviceId': 'pc-1', 'at': DateTime.now().toUtc().toIso8601String()},
+          ],
+    ]);
+    await m.start();
+    await m.services.poller.poll();
+    await m.services.poller.poll();
+    await drain();
+    expect(m.notifications.items, isEmpty);
+    expect(m.toast, isNull);
+  });
+
   test('settings write upstream\'s own options; «بازنشانی این بخش» puts the defaults back', () async {
     final s = m.settings;
     await s.setViewStyle('adaptive');

@@ -153,6 +153,43 @@ void main() {
     expect(find.text('انتقال فایل'), findsNothing);
   });
 
+  testWidgets('the strip is dragged left or right along the bottom edge, open or folded, and the place is kept',
+      (tester) async {
+    tester.view.physicalSize = const Size(2400, 400); // the test font is wide
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final moved = <double>[];
+    await tester.pumpWidget(_app(DolphinPermissionStrip(permissions: const {}, onMoved: moved.add)));
+    final middle = tester.getCenter(find.byKey(const ValueKey('perm-strip'))).dx;
+    expect(middle, closeTo(1200, 2));
+    await tester.drag(find.text('ماوس و صفحه‌کلید'), const Offset(-150, 0));
+    await tester.pump();
+    expect(tester.getCenter(find.byKey(const ValueKey('perm-strip'))).dx, inInclusiveRange(1040, 1080)); // follows the pointer
+    expect(moved.single, lessThan(0));
+    // Never past the edge.
+    await tester.drag(find.text('ماوس و صفحه‌کلید'), const Offset(-2000, 0));
+    await tester.pump();
+    expect(moved.last, -1);
+    expect(tester.getTopLeft(find.byKey(const ValueKey('perm-strip'))).dx, closeTo(0, 1));
+
+    // The folded tab moves too, and a new window starts where it was left.
+    await tester.pumpWidget(_app(DolphinPermissionStrip(
+        key: const ValueKey('next-window'), permissions: const {}, initiallyFolded: true, initialX: 1, onMoved: moved.add)));
+    expect(tester.getTopRight(find.byKey(const ValueKey('perm-strip-unfold'))).dx, closeTo(2400, 1));
+    await tester.drag(find.byKey(const ValueKey('perm-strip-unfold')), const Offset(-300, 0));
+    await tester.pump();
+    expect(moved.last, lessThan(1));
+    expect(find.byKey(const ValueKey('perm-strip-unfold')), findsOneWidget); // a drag does not unfold it
+  });
+
+  test('the saved place: a number in range, else the middle', () {
+    expect(permStripXFrom('-0.4'), -0.4);
+    expect(permStripXFrom('3'), 1);
+    expect(permStripXFrom(''), 0);
+    expect(permStripXFrom('left'), 0);
+    expect(permStripXFrom('NaN'), 0);
+  });
+
   testWidgets('the technician strip shows nothing until the peer info is set', (tester) async {
     await tester.pumpWidget(_app(const DolphinPermissionStrip(permissions: {}, ready: false)));
     expect(find.byIcon(Icons.check_circle), findsNothing);

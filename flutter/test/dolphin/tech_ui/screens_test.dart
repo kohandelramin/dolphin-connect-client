@@ -547,6 +547,50 @@ void main() {
     await close(tester, m);
   });
 
+  testWidgets('a portable copy offers «نصب روی این رایانه» under the header and in «درباره»', (tester) async {
+    big(tester);
+    final platform = FakePlatform()..installable = true;
+    final m = await model(tester, samplePortal(), platform: platform);
+    await tester.pumpWidget(lightApp(TechShell(model: m)));
+    expect(find.byKey(const ValueKey('install-offer')), findsOneWidget);
+    expectAllTextReadable(tester);
+    await tester.tap(find.byKey(const ValueKey('install-now')));
+    await tester.pump();
+    expect(platform.installs, 1);
+    await tester.tap(find.byKey(const ValueKey('install-later')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('install-offer')), findsNothing);
+    await close(tester, m);
+
+    final installed = await model(tester, samplePortal());
+    await tester.pumpWidget(lightApp(TechShell(model: installed)));
+    expect(find.byKey(const ValueKey('install-offer')), findsNothing);
+    await close(tester, installed);
+  });
+
+  testWidgets('«درباره»: the install button only on a portable copy', (tester) async {
+    big(tester);
+    var installs = 0;
+    Widget about({VoidCallback? onInstall}) => lightApp(TechSettingsView(
+          model: TechSettingsModel(MemorySettingsStore()),
+          themeMode: ThemeMode.light,
+          onThemeMode: (_) {},
+          viewMode: PcViewMode.tiles,
+          onViewMode: (_) {},
+          toasts: true,
+          onToasts: (_) {},
+          initial: TechSettingsSection.about,
+          onInstall: onInstall,
+        ));
+    await tester.pumpWidget(about(onInstall: () => installs++));
+    expect(find.text('نسخه‌ی قابل حمل (نصب نشده)'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-install')));
+    expect(installs, 1);
+    await tester.pumpWidget(about());
+    expect(find.byKey(const ValueKey('settings-install')), findsNothing);
+    expect(find.text('نصب‌شده روی این رایانه'), findsOneWidget);
+  });
+
   group('RO-8 view and the code box', () {
     for (final (name, app) in [('light', lightApp), ('dark', darkApp)]) {
       testWidgets('the end-of-call view ($name) reads at AA and reports the choice', (tester) async {
