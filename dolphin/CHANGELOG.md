@@ -3,7 +3,11 @@
 Versions follow SemVer (`dolphin/version.txt`; owner decision D3). Customer x64, customer x86 and technician x64 are
 released together. Each entry has a short Persian note for customers.
 
-## Unreleased (2.2.1; technician test build only, owner 2026-11-16; no release tag, so the portal and customers stay on 2.2.0)
+## 2.2.1 — ۲۵ آبان ۱۴۰۵ (2026-11-16)
+
+Technician fixes; the owner tried the test build 2.2.1-dev.54 (run 43841617956) on a PC and approved the release. The
+customer apps have no change of their own and move to 2.2.1 with it (a release carries all three, ADR-0017). Goes with
+portal 2.5.1 («سازمان تازه» needs it).
 
 Owner's report on the technician app 2.2.0. Checked here: the Dart analysis, all Flutter tests under `test/dolphin`
 (599), previews 110 and 121–128 looked at. Not built into an exe, not run on a PC.
